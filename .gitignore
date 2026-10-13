@@ -20,6 +20,9 @@ dist/
 .vscode/
 *.swp
 
+# ===== 本地 scratch / 实验 / 备份 =====
+work/
+
 # ===== 操作系统 =====
 .DS_Store
 Thumbs.db
