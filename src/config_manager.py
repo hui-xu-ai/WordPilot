@@ -1,0 +1,111 @@
+# config_manager.py
+import json
+import sys
+from pathlib import Path
+
+from cryptography.fernet import Fernet
+
+# 程序目录下的 config 子文件夹
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys.executable).parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+CONFIG_DIR = BASE_DIR / "config"
+CONFIG_FILE = CONFIG_DIR / "MWindow_config.json"
+KEY_FILE = CONFIG_DIR / ".key"
+DEFAULT_ENDPOINT = "https://api.deepseek.com"
+DEFAULT_MODEL = "deepseek-v4-flash"
+
+DEFAULT_CONFIG = {
+    "api_key": "",
+    "ignore_list": [],
+    "suggestion_bg_color": "#eef3ff",
+    "suggestion_font_color": "#000000",
+    "suggestion_opacity": 0.95,
+    "suggestion_font_size": 12,
+    "show_floating_button": True,
+    "auto_show_suggestion": True,
+    "proof_cache_lookup_count": 50,          # 新增：缓存查询条数  --修改18
+}
+
+class ConfigManager:
+    def __init__(self):
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        if not KEY_FILE.exists():
+            self._key = Fernet.generate_key()
+            KEY_FILE.write_bytes(self._key)
+        else:
+            self._key = KEY_FILE.read_bytes()
+        self._cipher = Fernet(self._key)
+        self.config = self._load_config()
+
+    def _load_config(self):
+        config = {}
+        if CONFIG_FILE.exists():
+            try:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+            except:
+                pass
+        # 合并默认值，保留已有键
+        for key, value in DEFAULT_CONFIG.items():
+            config.setdefault(key, value)
+        # 补全其他必要默认项
+        config.setdefault("api_endpoint", DEFAULT_ENDPOINT)
+        config.setdefault("model", DEFAULT_MODEL)
+
+# --修改16       
+        config.setdefault("temperature", 0.4)
+        config.setdefault("max_tokens", 2000)
+# --修改16   
+        
+        config.setdefault("proof_prompt",
+            "你是中文科技论文校对专家。修正错别字、语病、标点、专业词汇拼写。校对所有单位的空格：数字与℃、%、°之间不加空格（例：2℃、5%、9°）；数字与其他单位（如m）之间加半角空格（例：10 m）。")
+#--修改6
+        config.setdefault("translate_prompt",
+            "将以下文本翻译为{target_lang}，只输出译文：\n{text}")
+        config.setdefault("rewrite_prompt",
+            "按{style}风格改写以下文本，只输出改写后的内容：\n{text}")
+            
+        config.setdefault("debounce_ms", 500)
+        config.setdefault("context_before", 1)
+        config.setdefault("context_after", 1)
+        config.setdefault("hotkeys", {
+            "toggle_monitor": "ctrl+shift+e",
+            "proof_cursor": "ctrl+shift+z",
+            "translate": "ctrl+shift+t",
+            "rewrite": "ctrl+shift+r"
+        })
+        config.setdefault("follow_mouse", True)
+        config.setdefault("theme", "light")
+        config.setdefault("font_family", "Microsoft YaHei")
+        config.setdefault("font_size", 12)
+        config.setdefault("exclude_patterns", ["参考文献", "致谢", "注释"])
+        config.setdefault("max_context_len", 200)
+        config.setdefault("main_on_top", False)         # 置顶
+        config.setdefault("proof_cache_lookup_count", 50)   # 新增 缓存查询条数 --修改18
+        return config
+
+    def get(self, key, default=None):
+        return self.config.get(key, default)
+
+    def set(self, key, value):
+        self.config[key] = value
+        self.save()
+
+    def save(self):
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.config, f, ensure_ascii=False, indent=2)
+
+    def get_api_key(self) -> str:
+        encrypted = self.config.get("api_key", "")
+        if encrypted:
+            try:
+                return self._cipher.decrypt(encrypted.encode()).decode()
+            except:
+                return ""
+        return ""
+
+    def set_api_key(self, plain: str):
+        self.config["api_key"] = self._cipher.encrypt(plain.encode()).decode()
+        self.save()

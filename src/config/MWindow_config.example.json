@@ -1,0 +1,38 @@
+{
+  "api_key": "",
+  "ignore_list": [],
+  "suggestion_bg_color": "#eef3ff",
+  "suggestion_font_color": "#000000",
+  "suggestion_opacity": 0.95,
+  "suggestion_font_size": 12,
+  "show_floating_button": true,
+  "auto_show_suggestion": true,
+  "proof_cache_lookup_count": 50,
+  "api_endpoint": "https://api.deepseek.com",
+  "model": "deepseek-v4-flash",
+  "temperature": 0.4,
+  "max_tokens": 2000,
+  "proof_prompt": "你是中文科技论文校对专家。修正错别字、语病、标点、专业词汇拼写。校对所有单位的空格：数字与℃、%、°之间不加空格（例：2℃、5%、9°）；数字与其他单位（如m）之间加半角空格（例：10 m）。",
+  "translate_prompt": "将以下文本翻译为{target_lang}，只输出译文：\n{text}",
+  "rewrite_prompt": "按{style}风格改写以下文本，只输出改写后的内容：\n{text}",
+  "debounce_ms": 500,
+  "context_before": 0,
+  "context_after": 0,
+  "hotkeys": {
+    "toggle_monitor": "ctrl+shift+e",
+    "proof_cursor": "ctrl+shift+z",
+    "translate": "ctrl+shift+t",
+    "rewrite": "ctrl+shift+r"
+  },
+  "follow_mouse": true,
+  "theme": "light",
+  "font_family": "Microsoft YaHei",
+  "font_size": 12,
+  "exclude_patterns": [
+    "参考文献",
+    "致谢",
+    "注释"
+  ],
+  "max_context_len": 200,
+  "main_on_top": false
+}

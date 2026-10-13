@@ -1,0 +1,65 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# ===== 虚拟环境 =====
+.venv/
+venv/
+build_env/
+env/
+
+# ===== 打包产物 (PyInstaller) =====
+build/
+dist/
+*.manifest
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+
+# =====================================================
+#  用户隐私 / 运行时数据（严禁推送到 GitHub）
+#  这些文件由程序在本机生成，含密钥、用户文稿内容与调用记录
+# =====================================================
+
+# Fernet 加密主密钥（泄露 = API Key 可被解密）
+src/config/.key
+
+# 主配置：含 API Key 与个人偏好。请用 MWindow_config.example.json 作为模板
+src/config/MWindow_config.json
+
+# 导航助手个人偏好
+src/config/navigator_config.json
+
+# API 调用日志：含用户论文文本片段与 token 统计
+src/config/api_calls.log
+
+# 忽略句子库（用户数据哈希）
+src/config/ignore_db.json
+
+# 题注缓存数据库（含用户文档路径/内容）
+src/config/word_caption_cache.db
+src/config/word_caption_cache.db-wal
+src/config/word_caption_cache.db-shm
+*.db
+*.db-wal
+*.db-shm
+
+# 图片无损裁剪工作文档（可能残留用户图片）
+src/config/Image.docx
+
+# 含明文 API Key 的旧构建说明（已由 docs/BUILD.md 取代）
+src/编译指令.txt
+
+# 兜底：任何位置出现的疑似密钥/日志文件
+*.log
+.key
+secrets.*
+.env
