@@ -1,0 +1,51 @@
+# core/sdk/ui.py
+"""UI 贡献点接口。
+
+内核与插件只依赖本模块；真正的 Qt 实现由 app.ui_registry.QtUiRegistry 提供。
+无界面环境（单元测试 / 打包前的冒烟检查）下使用 NullUiRegistry，
+所有 UI 贡献会被静默丢弃，功能逻辑照常运行。
+"""
+from __future__ import annotations
+
+from typing import Any, Callable
+
+
+class UiRegistry:
+    """UI 贡献点收集器接口。"""
+
+    def __init__(self) -> None:
+        self._status_handler: Callable | None = None
+
+    # ---- 状态栏 ----
+    def set_status_handler(self, handler: Callable) -> None:
+        """由外壳注入状态栏写入函数（签名: handler(message, timeout)）。"""
+        self._status_handler = handler
+
+    def status(self, message: str, timeout: int = 3000) -> None:
+        if self._status_handler:
+            self._status_handler(message, timeout)
+
+    # ---- 贡献点（子类实现）----
+    def add_tool(self, label: str, handler: Callable, order: int = 100,
+                 icon: Any = None, plugin_id: str | None = None) -> None:
+        raise NotImplementedError
+
+    def add_tray_action(self, label: str, handler: Callable, order: int = 100,
+                        plugin_id: str | None = None) -> None:
+        raise NotImplementedError
+
+    def remove_plugin(self, plugin_id: str) -> None:
+        raise NotImplementedError
+
+
+class NullUiRegistry(UiRegistry):
+    """无界面环境的空实现。"""
+
+    def add_tool(self, *args, **kwargs) -> None:
+        return None
+
+    def add_tray_action(self, *args, **kwargs) -> None:
+        return None
+
+    def remove_plugin(self, *args, **kwargs) -> None:
+        return None

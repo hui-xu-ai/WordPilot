@@ -1,0 +1,11 @@
+{
+  "id": "reference",
+  "name": "参考文献助手",
+  "version": "0.1.0",
+  "description": "识别 EndNote / Zotero 等文献管理软件插入的域代码，建立参考文献的身份笔记（验证基准：work/EndNote文献论文测试.docx、work/Zotero文献论文测试.docx）",
+  "author": "Xu Hui",
+  "entry": "plugin:ReferencePlugin",
+  "requires": ["config"],
+  "deps": [],
+  "enabled_by_default": false
+}

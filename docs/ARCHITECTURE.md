@@ -6,51 +6,61 @@
 
 程序是一个常驻托盘的 PySide6 桌面应用，通过 **Windows COM（pywin32）** 附着到用户**已打开的** Word 实例（`GetActiveObject("Word.Application")`），不自己新建 Word 进程。
 
+架构采用 **逻辑分层 + 微内核 + 插件化**（非进程级分离——跨进程封装 COM 对桌面工具收益极低，却会大幅增加复杂度）：
+
 ```
-                ┌──────────────────────────────────────────┐
-   main.py ───▶ │ MainWindow (main_window.py)               │
-                │  · 装配 UI / 菜单 / 托盘                    │
-                │  · 持有 config / api / ignore_mgr          │
-                │  · 启动 WordMonitor 线程                    │
-                │  · 打开各工具对话框                          │
-                └───────┬───────────┬───────────┬────────────┘
-                        │           │           │
-          ┌─────────────▼──┐  ┌─────▼──────┐  ┌─▼──────────────────┐
-          │ WordMonitor     │  │ 工具对话框  │  │ FloatingButton     │
-          │ (QThread)       │  │ Navigator  │  │ (建议卡片/悬浮按钮) │
-          │ 轮询 Selection  │  │ ImageTool  │  └────────────────────┘
-          └───────┬─────────┘  └─────┬──────┘
-                  │                  │
-        ┌─────────▼──────────┐  ┌────▼─────────┐
-        │ DeepSeekClient     │  │ CaptionCache │
-        │ (api_client.py)    │  │ (SQLite)     │
-        └─────────┬──────────┘  └──────────────┘
-                  │
-        ┌─────────▼──────────┐
-        │ api_logger.py      │  日志即缓存：proof 结果写入 api_calls.log
-        └────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 前端 app/          只有 PySide6，不碰 COM / API / 缓存      │
+│   main_window     外壳：窗口 / 托盘 / 菜单 / 剪贴板工具      │
+│   ui_registry     UI 贡献点的 Qt 实现（add_tool / add_tray） │
+│   settings_dialog / monitor_window                        │
+├───────────────────────────────────────────────────────────┤
+│ 微内核 core/                 事件总线 ─── 前后端解耦        │
+│   kernel         生命周期：boot → attach_ui → plugins      │
+│   plugin_manager 清单发现 / 依赖拓扑 / 加载 / 卸载          │
+│   event_bus      纯 Python 发布订阅                        │
+│   sdk/           PluginBase / PluginContext / UiRegistry   │
+│   services/      config(Fernet) / ai_client / word_bridge │
+│                  / ignore / caption_cache / hotkeys       │
+├───────────────────────────────────────────────────────────┤
+│ 插件 plugins/      每个功能一个自包含包（可含自己的 UI）    │
+│   proofread / navigator / image_toolbox / reference(预留) │
+├───────────────────────────────────────────────────────────┤
+│ infra/            hotkey 服务 / 内存回收 / 资源路径        │
+└───────────────────────────────────────────────────────────┘
 ```
+
+后端（core + plugins 的纯逻辑部分）不依赖 PySide6，可脱离界面单独测试；
+插件只拿到 `ctx` 一个对象，内核演进不会波及插件代码。
+**新增功能 = 在 `plugins/` 下新增一个包，内核与外壳零改动**（见 `docs/PLUGIN_GUIDE.md`）。
 
 ## 2. 模块职责
 
 | 模块 | 职责 | 关键点 |
 | --- | --- | --- |
-| `main.py` | 入口，创建 QApplication、Config、API、MainWindow，启动内存定时清理 | `memory_trimmer` 周期回收内存 |
-| `main_window.py` | 主窗口、菜单、托盘、剪贴板处理、装配所有子功能 | 关闭窗口默认最小化到托盘，线程继续跑 |
-| `word_monitor.py` | **核心**：后台线程轮询光标句、分词(`TokenizedSentence`)、句子完成判定、调用校对、把差异标红 | 见 §4 数据流 |
-| `api_client.py` | 封装 DeepSeek `chat/completions`，提供 `proof_text/translate/rewrite` | 直接读 `config["api_key"]` 明文；强制 `thinking:disabled` |
-| `api_logger.py` | 调用日志写入 + **以日志文件充当校对缓存** | `get_cached_suggestion` 扫描最近 N 条日志匹配 |
-| `word_navigator_dialog.py` | 题录导航：扫描 SEQ 域→列表→跳转/返回；保存后自动刷新页码 | 见 §5 性能问题 |
-| `caption_cache.py` | 题注 SQLite 缓存，指纹 = (路径, 大小, mtime) | WAL 模式 |
-| `word_image_processor*.py` | 图片无损裁剪：借隐藏 Word 工作文档 `Image.docx` 处理 | 存在 `_1` 与 `_备份` 冗余副本 |
-| `image_reshaper_widget.py` | 图片工具箱 UI | |
-| `suggestion_window.py` | 悬浮按钮 + 建议卡片（接受/忽略/翻译等） | |
-| `settings_dialog.py` | 设置对话框（API Key、提示词、外观、热键等） | |
-| `config_manager.py` | 配置读写，内置 Fernet 加解密 API Key | **加解密路径未被实际调用**，见 §6 |
-| `hotkey_manager.py` | `keyboard` 库全局热键 | 依赖管理员权限时行为需注意 |
-| `ignore_cache.py` | 忽略句子库（存 sha256 哈希） | |
-| `word_constants.py` | Word COM 常量字典 | |
-| `utils.py` | `resource_path` 兼容开发/打包资源路径 | |
+| `main.py` | 入口：建内核 → 注册服务 → 建外壳 → 挂 UI → 加载插件 | 不含任何具体功能装配代码 |
+| `core/kernel.py` | 内核生命周期：boot / attach_ui / reload_ai_client / shutdown | 无业务逻辑、无 Qt 依赖 |
+| `core/plugin_manager.py` | 扫描 `plugin.json`、按 `deps` 拓扑排序、加载/卸载 | 单插件激活失败不影响其余 |
+| `core/event_bus.py` | 纯 Python 发布订阅 | 处理器抛异常被隔离 |
+| `core/sdk/` | `PluginBase` / `PluginContext` / `UiRegistry` 协议 | 插件唯一需要 import 的层 |
+| `core/services/config_manager.py` | 配置读写 + **Fernet 加密 API Key** | 历史明文读取时自动迁移 |
+| `core/services/ai_client.py` | DeepSeek `chat/completions`，提供 `proof_text/translate/rewrite` | 强制 `thinking:disabled` |
+| `core/services/word_bridge.py` | **Word COM 唯一入口**：`get_word_app` / `com_initialized` / `screen_updating_off` | 见 §3 |
+| `core/services/api_logger.py` | 调用日志写入 + **以日志文件充当校对缓存** | 待独立成 SQLite，见 §6 |
+| `core/services/caption_cache.py` | 题注 SQLite 缓存，指纹 = (路径, 大小, mtime) | WAL 模式 |
+| `core/services/ignore_cache.py` | 忽略句子库（存 sha256 哈希） | 已修悬空调用 |
+| `core/services/hotkey_service.py` | `keyboard` 库全局热键，插件按需注册 | 依赖管理员权限时行为需注意 |
+| `core/services/word_constants.py` | Word COM 常量字典 | |
+| `app/main_window.py` | 外壳：窗口 / 菜单 / 托盘 / 剪贴板工具 | 关闭窗口默认最小化到托盘 |
+| `app/ui_registry.py` | 收集插件的界面入口并供外壳渲染 | |
+| `app/settings_dialog.py` | 设置对话框（API Key、提示词、外观、热键等） | |
+| `app/monitor_window.py` | API 调用监控窗口 | |
+| `plugins/proofread/` | 实时校对：监控线程 + 悬浮卡片 + 替换逻辑 + 热键 | 见 §4 |
+| `plugins/navigator/` | 题录导航：扫描 SEQ 域→列表→跳转/返回 | 见 §5 性能问题 |
+| `plugins/image_toolbox/` | 图片工具箱：借隐藏文档 `Image.docx` 批量裁剪居中 | |
+| `plugins/reference/` | 参考文献助手（开发中，默认不启用） | 对应 `work/` 下两个测试文档 |
+| `infra/utils.py` | `resource_path` 兼容开发/打包资源路径 | |
+| `infra/memory_trimmer.py` | 定时回收内存 | |
 
 ## 3. 线程与 COM 模型
 
@@ -90,11 +100,19 @@
 
 ## 6. 已知正确性 / 一致性问题
 
-1. **API Key 加密形同虚设**：`config_manager` 提供 `get_api_key/set_api_key`（Fernet），但 `api_client.py` 直接 `config.get("api_key")` 取**明文**；实际磁盘上的 `MWindow_config.json` 里 Key 也是明文。加密路径没接上 → 要么统一走 `get_api_key()`，要么明确放弃加密。
-2. **缓存即日志**：`api_calls.log` 同时承担「日志」和「校对缓存」两职，清空日志＝清缓存；`get_cached_suggestion` 每次线性扫描文件尾部，量大时变慢。建议独立缓存表（SQLite，已有 `caption_cache` 可参照）。
-3. **冗余/脏文件**：`word_image_processor_1.py`、`word_image_processor_备份.py`、`src/test.py` 属开发遗留，推送前应确认哪个是正式实现并清理。
-4. **`ignore_cache.py` 结构损坏风险**：文件中 `_save_json` 定义了两次、`self._save_cache()` 在无对应方法时被调用（第 72 行，位于类体缩进中），需核对是否运行期报错。
-5. **裸 `except:`** 广泛存在，会吞掉 COM 真实错误，排障困难。
+### 已解决（P2 / P3）
+1. ~~**API Key 加密形同虚设**~~ → 已统一走 `get_api_key()/set_api_key()`（Fernet），历史明文读取时自动加密回写。
+2. ~~**冗余/脏文件**~~ → `word_image_processor_1.py`、`word_image_processor_备份.py`、`src/test.py` 已删除（git 历史可找回）。
+3. ~~**`ignore_cache.py` 悬空调用**~~ → 文件重写，删除重复 `_save_json` 与被注释代码包裹的 `self._save_cache()`。
+4. ~~**改 Key 需重启**~~ → `open_settings` 重建客户端后由内核广播 `ai.client_changed`，各插件自动刷新引用。
+5. ~~**`Ctrl+Shift+Z` 光标校对热键失效**~~ → 原 `handle_suggestion(cur, corrected)` 少传两个参数必然 TypeError，被裸 except 吞掉；重构后插件内部直连，已修复。
+
+### 仍待处理
+1. **缓存即日志**：`api_calls.log` 同时承担「日志」和「校对缓存」两职，清空日志＝清缓存；`get_cached_suggestion` 每次线性扫描文件尾部，量大时变慢。
+   建议独立缓存表（SQLite，已有 `caption_cache` 可参照）。
+   注意：`proof_sentence`（键为 `body_text`）与 `proof_text`（键为带前缀的 `api_prompt`）缓存键不一致，存在重复查缓存。
+2. **裸 `except:`** 仍有残留（主要在 navigator 等未触及的模块），会吞掉 COM 真实错误，排障困难。
+3. **版本号三处漂移**：`main.py` / 主窗口标题 / 导航「关于」各写一份，待统一到 `src/__version__.py`。
 
 ## 7. 配置与数据落盘位置
 

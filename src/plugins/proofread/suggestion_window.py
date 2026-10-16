@@ -306,12 +306,17 @@ class SuggestionCard(QWidget):
 
 class FloatingButton(QToolButton):
     suggestion_accepted = Signal(str, int, int)   # 原有信号    --修改18
-    def __init__(self, config, api=None, parent=None, ignore_mgr=None, main_window=None):        # 新增 ignore_mgr     api=None, --修改17  main_window=None --修改18
+    def __init__(self, config, api=None, parent=None, ignore_mgr=None, correction_handler=None):
+        """悬浮按钮 + 建议卡片（属 proofread 插件，随插件启停）。
+
+        correction_handler(corrected_text, start, end) 由插件注入，
+        避免 UI 反向依赖主窗口。
+        """
         super().__init__(parent)
         self.config = config
         self.api = api                    # 新增
         self.ignore_mgr = ignore_mgr          # 存储      --修改17
-        self.main_window = main_window          # 新增这一行     --修改18         
+        self._correction_handler = correction_handler
         self._shift_held = False   # 记录鼠标按下时 Shift 是否被按住       --修改19
         self.current_sentence_range = None
         self.current_start = -1
@@ -326,7 +331,6 @@ class FloatingButton(QToolButton):
         self.current_original = ""
         self.current_corrected = ""
         self.dragPos = None
-        self.main_window = main_window   # 保存引用     --修改18
 
         # 创建建议卡片（唯一实例）
         self.suggestion_card = SuggestionCard()
@@ -461,15 +465,15 @@ class FloatingButton(QToolButton):
         """用户点击‘替换’按钮"""
         if not self.current_corrected or self.current_start is None:
             return
-        # 直接调用主窗口的替换方法
-        if self.main_window:
-            self.main_window.apply_correction(self.current_corrected,
-                                              start=self.current_start,
-                                              end=self.current_end)
+        # 调用插件注入的替换实现
+        if self._correction_handler:
+            self._correction_handler(self.current_corrected,
+                                     start=self.current_start,
+                                     end=self.current_end)
         # self._clear_state()             #    清空内容
         self.suggestion_card.hide()     #    先隐藏，再显示，避免受到之前建议窗口的位置影响
         self.show_card()
-                
+
 # 执行替换操作（回调由外部设置）       --修改18
         # if hasattr(self, '_accepted_callback') and self._accepted_callback:
             # self._accepted_callback(text, start=start, end=end, original_text=original)

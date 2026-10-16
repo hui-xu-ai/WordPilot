@@ -1,76 +1,102 @@
 # main_window.py
-import win32com.client as win32
+"""应用外壳（前端）。
+
+职责边界：
+- 只负责窗口、托盘、菜单栏、设置、剪贴板工具等「与具体功能无关」的骨架；
+- 不再 import 任何插件内部模块，具体功能由 plugins/ 下的插件
+  通过 ctx.ui 贡献点（工具菜单项 / 托盘菜单项）挂载进来；
+- 需要调用插件能力时，一律通过 kernel.capabilities 取，
+  插件未加载时外壳仍然可用（按钮自动降级为只改自己的状态）。
+
+新增一个功能时，本文件应当零改动。
+"""
 import win32con
 import win32gui
-from PySide6.QtCore import Qt, Signal, Slot, QTimer, QPoint  # --修改15  置顶  新增QTimer
+from PySide6.QtCore import Qt, QTimer, QPoint  # --修改15  置顶  新增QTimer
 from PySide6.QtGui import QFont, QIcon, QPixmap, QPainter, QColor
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                                QGroupBox, QPushButton, QTextEdit, QSlider, QSpinBox,
                                QSystemTrayIcon, QMenu, QMessageBox, QCheckBox, QApplication,
-                               QLabel, QDialog, QMenuBar)  # 新增QDialog  QMenuBar 图片裁剪居中工具
+                               QLabel)
 
-from core.services.api_client import DeepSeekClient
+from core.kernel import Kernel
 from core.services.api_logger import clear_api_log
-from core.services.config_manager import CONFIG_DIR
 from core.services.config_manager import ConfigManager
-from infra.hotkey_manager import HotkeyManager
-from core.services.ignore_cache import IgnoreCacheManager
-from app.widgets.image_reshaper_widget import ImageReshaperWidget  # 图片裁剪居中工具
+from core.services.word_bridge import get_word_app, WordNotRunningError
 from app.monitor_window import MonitorWindow
 from app.settings_dialog import SettingsDialog
-from app.suggestion_window import FloatingButton
-from infra.utils import resource_path  # 或直接定义在文件内   #  -修改22
-from plugins.proofread.word_monitor import WordMonitor, clear_error_marks, TokenizedSentence, split_trailing_chars, proof_sentence
-from plugins.proofread.word_monitor import get_sentence_range
-from plugins.navigator.word_navigator_dialog import WordNavigatorDialog
-
-CONFIG_FILE = CONFIG_DIR / "Image.docx"
+from app.ui_registry import QtUiRegistry
+from infra.utils import resource_path
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, config: ConfigManager, api: DeepSeekClient, ignore_mgr: IgnoreCacheManager):
+    def __init__(self, kernel: Kernel):
         super().__init__()
-        self.config = config
-        self.api = DeepSeekClient(self.config)
-        self.ignore_mgr = ignore_mgr
+        self.kernel = kernel
+        self.config: ConfigManager = kernel.config
+        self.api = kernel.services.get("ai_client")
+        self.ignore_mgr = kernel.services.get("ignore")
         self.setWindowTitle("Word智能伴侣 v3.0 - Xu Hui")
         self.setMinimumSize(600, 400)
 
-        self.proof_enabled = True
+        # UI 贡献点收集器：插件加载后由 build_extension_menus 统一渲染
+        self.ui = QtUiRegistry(self)
+        # 插件能力（插件加载后由 bind_plugins 绑定）
+        self._proofread = None
+
         self.init_ui()
         self.setup_tray()
         self.apply_style()
 
-        # 监控线程
-        # self.monitor = WordMonitor(config, api)           --修改17  
-        self.monitor = WordMonitor(config, api, ignore_mgr)   # 原来没传 ignore_mgr     --修改17    
-        self.monitor.debug_signal.connect(self.show_debug)
-        self.monitor.suggestion_ready.connect(self.handle_suggestion)
-        self.monitor.status_update.connect(lambda s: self.statusbar.showMessage(s, 3000))            
-        self.monitor.start()
+        # 把状态栏输出能力提供给插件（插件通过 ctx.ui.status 调用）
+        self.ui.set_status_handler(self.statusbar.showMessage)
 
-        # 悬浮按钮
-        self.floating_btn = FloatingButton(self.config, api=self.api, ignore_mgr=self.ignore_mgr, main_window=self)     #--修改17   --修改18 添加 main_window=self
-        self.floating_btn.main_window = self   # 关键绑定       #--修改18
-        if not self.config.get("show_floating_button", True):
-            self.floating_btn.hide()
-
-        # 热键
-        self.hotkey_manager = HotkeyManager(config, self)
+        # 外壳自带的全局热键（功能类热键由各自插件注册）
+        self.hotkeys = kernel.services.get("hotkeys")
+        if self.hotkeys is not None:
+            self.hotkeys.register("translate", "ctrl+shift+t",
+                                  lambda: self.clipboard_action("translate"))
+            self.hotkeys.register("rewrite", "ctrl+shift+r",
+                                  lambda: self.clipboard_action("rewrite"))
 
         # 初始不置顶      --修改17
-        if self.config.get("main_on_top", False):         #  不置顶--修改17        
+        if self.config.get("main_on_top", False):         #  不置顶--修改17
             self.top_check.blockSignals(True)
             self.top_check.setChecked(True)
             self.top_check.blockSignals(False)
 
-        # 将悬浮按钮初始定位到主窗口正中央     --修改17      
-        def center_floating_btn():
-            if self.floating_btn.isVisible():
-                center = self.geometry().center()          # 主窗口中心点（相对于屏幕）
-                self.floating_btn.move(center.x() - 16, center.y() - 16)   # 按钮尺寸 32x32，偏移一半使其居中
-        QTimer.singleShot(100, center_floating_btn)        # 延迟 100ms 等待主窗口完成布局
+    # ---------------- 插件集成 ----------------
+    def bind_plugins(self):
+        """插件加载完成后调用：绑定能力、渲染贡献点、同步初始状态。"""
+        self._proofread = self.kernel.capabilities.get("proofread")
+        self.kernel.events.subscribe("proofread.toggled", self._on_proof_toggled)
+        self.build_extension_menus()
+        if self._proofread is not None:
+            self._sync_proof_button(self._proofread.is_enabled())
 
+    def build_extension_menus(self):
+        """把插件注册的界面入口渲染成菜单项与托盘项。"""
+        for label, handler, icon in self.ui.tools():
+            action = self.tools_menu.addAction(label, handler)
+            if icon is not None:
+                action.setIcon(icon)
+        for label, handler in self.ui.tray_actions():
+            self.tray_menu.addAction(label, handler)
+        self.tray_menu.addSeparator()
+        self.tray_menu.addAction("显示主窗口", self.show)
+        self.tray_menu.addAction("退出", self.quit_app)
+
+    def _on_proof_toggled(self, _event, enabled):
+        self._sync_proof_button(bool(enabled))
+
+    def _sync_proof_button(self, on: bool):
+        """只更新按钮外观，不回环触发 toggled 信号。"""
+        self.proof_btn.blockSignals(True)
+        self.proof_btn.setChecked(on)
+        self.proof_btn.setText("🔴 监听中" if on else "⚪ 已暂停")
+        self.proof_btn.blockSignals(False)
+
+#  修改3
     def init_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
@@ -85,7 +111,6 @@ class MainWindow(QMainWindow):
         self.proof_btn.toggled.connect(self.toggle_proof)
         proof_layout.addRow("状态：", self.proof_btn)
 
-        
         debounce_layout = QHBoxLayout()
         debounce_slider = QSlider(Qt.Horizontal)
         debounce_slider.setRange(200, 5000)
@@ -98,7 +123,7 @@ class MainWindow(QMainWindow):
         ))
         debounce_layout.addWidget(debounce_slider)
         debounce_layout.addWidget(debounce_label)
-        proof_layout.addRow("句子检测频率：", debounce_layout)        
+        proof_layout.addRow("句子检测频率：", debounce_layout)
 # --修改16 增加提示
 
         ctx_spin = QSpinBox()
@@ -149,20 +174,11 @@ class MainWindow(QMainWindow):
         cb_group.setLayout(cb_layout)
         main_layout.addWidget(cb_group)
 
-# 测试按钮（保留方便测试）
-        # test_btn = QPushButton("🧪 测试浮动窗口")
-        # test_btn.clicked.connect(self.test_float_window)
-        # main_layout.addWidget(test_btn)
-
-        # self.float_status_label = QLabel("浮动窗口：未显示")
-        # self.float_status_label.setStyleSheet("color: gray; font-size: 11px;")
-        # main_layout.addWidget(self.float_status_label)
-
         # 菜单栏
         menu_bar = self.menuBar()
         settings_action = menu_bar.addAction("⚙ 设置")
         settings_action.triggered.connect(self.open_settings)
-        
+
         # 创建清理缓存清理子菜单       #--修改18
         cleanup_menu = QMenu("🧹 清理缓存", self)
         cleanup_menu.addAction("清空所有记录的忽略句子 (ignore_db.json)", self.clear_ignore_only)       #--修改18
@@ -172,37 +188,20 @@ class MainWindow(QMainWindow):
         cleanup_action = menu_bar.addAction("🧹 清理缓存")
         cleanup_action.setMenu(cleanup_menu)
 
-        # 工具菜单
-        tools_menu = None
-        for action in menu_bar.actions():
-            if action.text() == "工具":
-                tools_menu = action.menu()
-                break
-        if tools_menu is None:
-            tools_menu = menu_bar.addMenu("工具")
-        # monitor_action = tools_menu.addAction("📊 API 监控")
-        # monitor_action.triggered.connect(self.show_monitor)
-        tools_menu.addAction("📑 Word导航助手", self.show_word_navigator)    #  Word导航助手
-        tools_menu.addAction("🖼️ 图片工具箱", self.show_image_tool)          # 新增：图片裁剪居中工具   2026.05.18
-        tools_menu.addAction("📊 API 监控", self.show_monitor)    #  Word导航助手      2026.05.14
+        # 工具菜单：外壳先挂自带项，插件贡献项在加载后由 build_extension_menus 追加
+        self.tools_menu = menu_bar.addMenu("工具")
+        self.ui.add_tool("📊 API 监控", self.show_monitor, order=50, plugin_id="app")
 
         # 状态栏
         self.statusbar = self.statusBar()
         self.statusbar.showMessage("就绪 | 作者: Xu Hui")
 
-#  修改3
     def toggle_proof(self, enabled):
-        self.proof_enabled = enabled
-        self.monitor.proof_enabled = enabled if hasattr(self.monitor, 'proof_enabled') else enabled
-        self.proof_btn.setText("🔴 监听中" if enabled else "⚪ 已暂停")
-        if enabled:
-            # self.float_status_label.setText("浮动窗口：未显示")--测试--修改12
-            # 根据配置决定是否显示悬浮按钮
-            if self.config.get("show_floating_button", True):
-                self.floating_btn.show()
+        if self._proofread is not None:
+            self._proofread.set_enabled(enabled)
         else:
-            self.floating_btn.hide()
-            # self.float_status_label.setText("浮动窗口：已关闭")       --测试--修改12
+            # 校对插件未加载时，仅保持按钮自身状态
+            self._sync_proof_button(enabled)
 
     def toggle_main_top(self, state=None):   # 参数保留但不再依赖        --修改15
         on = self.top_check.isChecked()
@@ -217,78 +216,6 @@ class MainWindow(QMainWindow):
         else:
             win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
                                   win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
-
-#  测试按钮（保留方便测试）
-    # def test_float_window(self):
-        # original = "今天天气很好，我们出去完吧。"
-        # corrected = "今天天气很好，我们出去玩吧。"
-        # self.handle_suggestion(original, corrected)
-
-    def handle_suggestion(self, original: str, corrected: str, start: int, end: int):
-        self.floating_btn.set_suggestion(original, corrected, start, end)
-        # self.float_status_label.setText("浮动窗口：显示建议")       --测试--修改12
-
-
-#--修改21
-    def apply_correction(self, corrected_text, start=None, end=None, original_text=None):
-        try:
-            word = win32.GetActiveObject("Word.Application")
-            doc = word.ActiveDocument
-
-            if start is not None and end is not None:
-                sent_range = doc.Range(start, end)
-            else:                
-                sent_range = get_sentence_range(word.Selection)
-
-            if sent_range.Start >= sent_range.End:
-                self.statusbar.showMessage("未找到句子", 3000)
-                return
-
-            tokenized = TokenizedSentence(sent_range)
-            has_object = any(b['type'] == 'object' for b in tokenized.get_blocks())
-            sent_text = sent_range.Text
-
-            # 分离主体和尾部
-            body_text, tail_text = split_trailing_chars(sent_text)
-
-            if has_object:
-                # 有图片/公式：弹窗提示手动修改，仅清除标记
-                clear_error_marks(sent_range.Start, sent_range.End)
-                msg_box = QMessageBox(self)
-                msg_box.setWindowTitle("提示")
-                msg_box.setText("句子中含有图片或公式，请对照建议手动修改。")
-                msg_box.setStandardButtons(QMessageBox.Ok)
-                msg_box.setModal(False)
-                msg_box.show()
-                QTimer.singleShot(2000, msg_box.close)
-                self.statusbar.showMessage("已清除标记，请手动修改", 3000)
-            else:
-                # 纯文本：直接替换主体，保留尾部
-                clear_error_marks(sent_range.Start, sent_range.End)
-
-                # 确定要替换的范围（仅主体部分）
-                if tail_text:
-                    replace_range = doc.Range(sent_range.Start, sent_range.Start + len(body_text))
-                else:
-                    replace_range = sent_range.Duplicate
-
-                # 去掉 corrected_text 中可能包含的尾部字符
-                corrected_body = corrected_text
-                if tail_text and corrected_text.endswith(tail_text):
-                    corrected_body = corrected_text[:-len(tail_text)]
-
-                replace_range.Text = corrected_body
-                self.statusbar.showMessage("修改已应用", 3000)
-
-        except Exception as e:
-            QMessageBox.warning(self, "错误", f"替换失败：{e}")
-
-
-## ---修改18 智能纠错函数
-    def proof_sentence_range(self, sentence_range, original_text=None):
-
-        return proof_sentence(sentence_range, self.api, self.config)
-
 
     def load_clipboard(self):
         text = QApplication.clipboard().text()
@@ -323,12 +250,13 @@ class MainWindow(QMainWindow):
 
     def insert_to_word(self):
         text = self.clip_result.toPlainText()
-        if text:
-            try:
-                word = win32.GetActiveObject("Word.Application")
-                word.Selection.TypeText(text)
-            except:
-                QMessageBox.warning(self, "错误", "Word 未运行或无法访问")
+        if not text:
+            return
+        try:
+            word = get_word_app()
+            word.Selection.TypeText(text)
+        except WordNotRunningError as exc:
+            QMessageBox.warning(self, "错误", str(exc))
 
     def setup_tray(self):
         pixmap = QPixmap(16, 16)
@@ -343,43 +271,30 @@ class MainWindow(QMainWindow):
         self.tray_icon = QSystemTrayIcon(self)      # --修改22
         icon_path = resource_path("assets/tray_icon.png")  # --修改22
         self.tray_icon.setIcon(QIcon(icon_path))    # --修改22
-        
+
         self.tray_icon.setToolTip("Word智能伴侣")
-        menu = QMenu()
-        menu.addAction("Word导航助手", self.show_word_navigator)      #  显示 word 导航助手 2026.05.14
-        menu.addAction("图片工具箱", self.show_image_tool)      #  # 新增：图片裁剪居中工具  2026.05.18
-        menu.addAction("API 监控", self.show_monitor)      #  显示 API 监控 2026.05.14
-        menu.addAction("显示主窗口", self.show)
-        menu.addAction("退出", self.quit_app)
-        self.tray_icon.setContextMenu(menu)
+        # 菜单内容由 build_extension_menus 在插件加载完成后填充
+        self.tray_menu = QMenu()
+        self.tray_icon.setContextMenu(self.tray_menu)
         self.tray_icon.activated.connect(self.on_tray_activated)    # --修改22
         self.tray_icon.show()
 
-    # def closeEvent(self, event):        # --修改18
-        # # 停止监控线程
-        # if hasattr(self, 'monitor') and self.monitor.isRunning():
-            # self.monitor.stop()
-            # self.monitor.wait(2000)      # 等待最多2秒
-        # # 如果有其他线程也需停止
     def closeEvent(self, event):        # --修改22
-        # 如果托盘图标正常且可见，则隐藏窗口（线程继续运行）
+        # 如果托盘图标正常且可见，则隐藏窗口（插件继续在后台运行）
         if hasattr(self, 'tray_icon') and self.tray_icon.isVisible():
             self.hide()
             self.tray_icon.showMessage("程序仍在后台运行", "双击托盘图标可恢复窗口", QSystemTrayIcon.Information, 2000)
             event.ignore()   # 阻止窗口关闭
         else:
-            if hasattr(self, 'monitor') and self.monitor.isRunning():
-                self.monitor.stop()
-                self.monitor.wait(2000)      # 等待最多2秒
-                event.accept()
+            self.kernel.shutdown()
+            event.accept()
+
     def on_tray_activated(self, reason):    # --修改22
         if reason == QSystemTrayIcon.DoubleClick:
-            # 恢复窗口时重新启动监控线程
             self.show()
 
     def quit_app(self):
-        self.monitor.stop()
-        self.floating_btn.close()   # 关闭悬浮窗
+        self.kernel.shutdown()
         self.tray_icon.hide()
         QApplication.quit()
 
@@ -391,24 +306,15 @@ class MainWindow(QMainWindow):
     def open_settings(self):
         dlg = SettingsDialog(self.config, self)
         if dlg.exec():
-            # 重新创建 API 对象使新 Key 生效，并同步到监控线程与悬浮按钮
-            self.api = DeepSeekClient(self.config)
-            if hasattr(self, "monitor") and self.monitor is not None:
-                self.monitor.api = self.api
-            if hasattr(self, "floating_btn") and self.floating_btn is not None:
-                self.floating_btn.api = self.api
-            # 根据设置显示/隐藏悬浮按钮（不重建）
-            self.floating_btn.setVisible(self.config.get("show_floating_button", True))
+            # 重建 API 客户端，内核会广播 ai.client_changed 让各插件刷新引用
+            self.api = self.kernel.reload_ai_client()
+            # 热键组合可能已变更，重新绑定
+            if self.hotkeys is not None:
+                self.hotkeys.apply()
             # 刷新字体
             self.apply_style()
 
-
-    # def cleanup_cache(self):          #--修改18
-        # reply = QMessageBox.question(self, "清理缓存", "将清除所有缓存和忽略列表，确定吗？")
-        # if reply == QMessageBox.Yes:
-            # self.ignore_mgr.clear_all()
-            # QMessageBox.information(self, "完成", "缓存已清理。")
-    def cleanup_cache(self):        #--修改18  整个替换上面那个  
+    def cleanup_cache(self):        #--修改18
         menu = QMenu(self)
         action_ignore = menu.addAction("清空所有记录的忽略句子")
         action_log = menu.addAction("清空 API 调用日志")
@@ -444,65 +350,18 @@ class MainWindow(QMainWindow):
 
 #--修改9  API调用监控 monitor_window.py
     def show_monitor(self):
-        if not hasattr(self, 'monitor_win') or self.monitor_win is None:            
-            self.monitor_win = MonitorWindow()      
+        if not hasattr(self, 'monitor_win') or self.monitor_win is None:
+            self.monitor_win = MonitorWindow()
             # self.monitor_win.setAttribute(Qt.WA_DeleteOnClose)        #  2026.05.14  关闭不销毁
             self.monitor_win.destroyed.connect(
                 lambda: setattr(self, 'monitor_win', None)
             )
-        self.monitor_win.show()           
+        self.monitor_win.show()
         self.monitor_win.raise_()
-        
-#   Word导航助手       
-    def show_word_navigator(self):
-        # 如果对话框还在，直接激活
-        if hasattr(self, 'word_nav_dialog') and self.word_nav_dialog is not None:
-            try:
-                self.word_nav_dialog.raise_()
-                self.word_nav_dialog.activateWindow()
-                return
-            except Exception:
-                self.word_nav_dialog = None   # 异常则丢弃，下次重建
 
-        # 创建非模态对话框
-        try:
-            dialog = WordNavigatorDialog(self)
-            dialog.setAttribute(Qt.WA_DeleteOnClose)
-            dialog.destroyed.connect(lambda: setattr(self, 'word_nav_dialog', None))
-            self.word_nav_dialog = dialog
-            dialog.show()          # 非模态显示
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"无法打开 Word 导航助手：\n{e}")
-            self.word_nav_dialog = None
-
-
-#   Word图片裁剪居中工具箱       2026.05.18
-    def show_image_tool(self):
-        # 检查配置文件是否存在
-        if not CONFIG_FILE.exists():
-            QMessageBox.critical(
-                self, "配置缺失",
-                f"找不到必要文件：{CONFIG_FILE}\n请确保 config 文件夹包含 Image.docx。"
-            )
-            return
-        dialog = QDialog(self)
-        dialog.setWindowTitle("图片工具箱")
-        dialog.setMinimumSize(420, 480)   # 调大最小尺寸
-        dialog.resize(420, 480)           # 初始尺寸
-        layout = QVBoxLayout(dialog)
-        tool = ImageReshaperWidget(config_dir=str(CONFIG_DIR))
-        layout.addWidget(tool)
-        dialog.setLayout(layout)
-        dialog.exec()
-        # 对话框关闭后立即清理，确保文档释放
-        tool.cleanup()
-
-#--修改15  置顶        
+#--修改15  置顶
     def showEvent(self, event):
         super().showEvent(event)
         if self.config.get("main_on_top", False):
             self.set_topmost(True)
             QTimer.singleShot(50, lambda: self.set_topmost(True))
-            
-            
-        

@@ -1,0 +1,11 @@
+{
+  "id": "image_toolbox",
+  "name": "图片工具箱",
+  "version": "1.0.0",
+  "description": "按页面版心批量裁剪并居中 Word 中的图片，支持边距、对齐与 EXIF 处理",
+  "author": "Xu Hui",
+  "entry": "plugin:ImageToolboxPlugin",
+  "requires": ["config", "word_bridge"],
+  "deps": [],
+  "enabled_by_default": true
+}

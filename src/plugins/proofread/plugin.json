@@ -1,0 +1,11 @@
+{
+  "id": "proofread",
+  "name": "实时校对",
+  "version": "1.0.0",
+  "description": "后台监听 Word 光标，自动校对当前句子，并在悬浮卡片中给出可一键应用的修改建议",
+  "author": "Xu Hui",
+  "entry": "plugin:ProofreadPlugin",
+  "requires": ["config", "ai_client", "ignore", "word_bridge", "hotkeys"],
+  "deps": [],
+  "enabled_by_default": true
+}

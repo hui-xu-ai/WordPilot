@@ -12,8 +12,16 @@ a = Analysis(
         # 只打包配置模板；真实配置（含 API Key）由程序首次运行时在 exe 同级 config/ 自动生成
         ('src/config/MWindow_config.example.json', 'config'),
         ('src/config/navigator_config.example.json', 'config'),
+        # 插件清单：插件通过 plugin.json 被动态发现，必须随包分发
+        ('src/plugins/*/plugin.json', 'plugins'),
     ],
-    hiddenimports=[],
+    hiddenimports=[
+        # 插件入口由 plugin.json 动态 import，静态分析扫不到，需显式声明
+        'plugins.proofread.plugin',
+        'plugins.navigator.plugin',
+        'plugins.image_toolbox.plugin',
+        'plugins.reference.plugin',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
