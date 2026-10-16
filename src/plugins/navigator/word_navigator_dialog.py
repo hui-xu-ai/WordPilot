@@ -1,5 +1,6 @@
 # word_navigator_dialog.py
 import json
+from pathlib import Path
 
 import pythoncom
 from PySide6.QtCore import Qt, QTimer
@@ -17,6 +18,15 @@ from core.services.word_constants import wdConst
 
 CONFIG_FILE = CONFIG_DIR / "navigator_config.json"
 wdFieldSequence = wdConst.wdFieldSequence               # Word 序列域类型常量
+
+
+def _plugin_version() -> str:
+    """插件版本以 plugin.json 为唯一来源，避免与界面文案漂移。"""
+    try:
+        manifest = json.loads((Path(__file__).with_name("plugin.json")).read_text(encoding="utf-8"))
+        return manifest.get("version", "0.0.0")
+    except Exception:
+        return "0.0.0"
 
 
 class CaptionItem:
@@ -138,7 +148,7 @@ class WordNavigatorDialog(QDialog):
 
         self.btn_about = QPushButton("ℹ️ 关于")
         self.btn_about.clicked.connect(lambda: QMessageBox.information(self, "关于",
-            "Word导航助手 v5.0\n手动刷新仅更新文本，保存后自动更新页码"))
+            f"Word导航助手 v{_plugin_version()}\n手动刷新仅更新文本，保存后自动更新页码"))
         toolbar.addWidget(self.btn_about)
 
         self.chk_topmost = QCheckBox("📌 置顶")

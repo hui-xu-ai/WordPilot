@@ -56,7 +56,7 @@ type 取值：`feat / fix / refactor / perf / docs / test / chore`。subject 用
 
 - 版本号 `MAJOR.MINOR.PATCH`（语义化）：
   - MAJOR：不兼容的重大改动；MINOR：新增功能且向后兼容；PATCH：修复。
-- 单一版本源：`main.py` 的 `VERSION` 与主窗口标题、导航「关于」当前各写一份，**易漂移**。建议统一到一处（如 `src/__version__.py` 或 `pyproject.toml`）后各处引用。
+- 单一版本源（已落地）：应用版本统一在 `src/__version__.py`（`__version__` / `APP_NAME` / `AUTHOR` / `APP_TITLE`），`main.py` 与主窗口标题均从此导入；插件版本以各自 `plugin.json` 为准，界面「关于」从清单动态读取，禁止在代码里硬编码版本号。
 - 每次发布在 `CHANGELOG.md` 追加条目（Added / Changed / Fixed / Removed）。
 - 打 Git tag：`git tag -a v3.1.0 -m "..."` 并推送；GitHub Release 附打包好的 exe（放 Release 资产，**不进仓库**）。
 

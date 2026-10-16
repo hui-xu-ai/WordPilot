@@ -47,33 +47,39 @@ python src\main.py
 
 仓库中只提供 `*.example.json` 模板。**请勿把真实配置提交到 Git，也请勿把 API Key 硬编码进源码。**
 
-## 项目结构
+## 项目结构（分层 + 微内核 + 插件化）
 
 ```
 SmartProof/
-├── src/                     # 全部源码
-│   ├── main.py              # 程序入口
-│   ├── main_window.py       # 主窗口 / 菜单 / 托盘 / 各工具装配
-│   ├── word_monitor.py      # 后台监控线程 + 分词 + 差异标记（核心）
-│   ├── api_client.py        # DeepSeek Chat Completions 封装
-│   ├── api_logger.py        # 调用日志 + 基于日志的校对缓存
-│   ├── word_navigator_dialog.py  # 题录导航（域扫描 + 缓存）
-│   ├── caption_cache.py     # 题注 SQLite 缓存（指纹=路径+大小+mtime）
-│   ├── word_image_processor*.py  # 图片无损裁剪
-│   ├── image_reshaper_widget.py  # 图片工具箱 UI
-│   ├── suggestion_window.py # 悬浮按钮 / 建议卡片
-│   ├── settings_dialog.py   # 设置对话框
-│   ├── config_manager.py    # 配置读写 + Fernet 加密
-│   ├── hotkey_manager.py    # 全局热键
-│   ├── ignore_cache.py      # 忽略句子库
+├── src/                     # 全部源码（以 src/ 为 import 根）
+│   ├── __version__.py       # 应用名/版本号/作者的唯一来源
+│   ├── main.py              # 入口：建内核→建外壳→挂 UI→加载插件（无业务装配）
+│   ├── app/                 # 前端表现层（PySide6，不碰 COM / API / 缓存）
+│   │   ├── main_window.py   # 外壳：窗口/托盘/菜单骨架，消费插件贡献点
+│   │   ├── ui_registry.py   # UI 贡献点（工具菜单/托盘项/状态栏）的 Qt 实现
+│   │   ├── settings_dialog.py / monitor_window.py
+│   ├── core/                # 微内核
+│   │   ├── kernel.py        # 生命周期：boot → attach_ui → plugins → shutdown
+│   │   ├── plugin_manager.py# 插件清单发现 / 依赖拓扑排序 / 加载 / 故障隔离
+│   │   ├── event_bus.py     # 事件总线（前后端解耦，零 Qt 依赖）
+│   │   ├── sdk/             # 插件协议：PluginBase / PluginManifest / PluginContext
+│   │   └── services/        # 内核服务：config / ai_client / word_bridge(COM 唯一入口)
+│   │                        #            / caption_cache / ignore / hotkeys / api_logger
+│   ├── plugins/             # 每个功能一个插件包（plugin.json + plugin.py）
+│   │   ├── proofread/       # 实时校对（监控线程 + 悬浮卡片 + 替换逻辑）
+│   │   ├── navigator/       # 题录导航
+│   │   ├── image_toolbox/   # 图片无损裁剪
+│   │   └── reference/       # 参考文献助手（占位，默认不加载）
+│   ├── infra/               # memory_trimmer / utils（资源路径）
+│   ├── assets/              # 图标等资源
 │   └── config/              # 运行时数据目录（隐私文件已 gitignore）
-├── docs/                    # 架构 / 开发规范 / 打包文档
+├── docs/                    # ARCHITECTURE / PLUGIN_GUIDE / DEVELOPMENT / BUILD
 ├── requirements.txt
-├── SmartProof.spec          # PyInstaller 打包配置
+├── SmartProof.spec          # PyInstaller 打包配置（显式收集各插件包）
 └── .gitignore
 ```
 
-更详细的模块职责与数据流见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)；开发、提交与发布规范见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)。
+新增功能 = 在 `plugins/` 下新建一个插件包，**不改外壳与内核**。插件开发指引见 [`docs/PLUGIN_GUIDE.md`](docs/PLUGIN_GUIDE.md)；架构与数据流见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)；开发、提交与发布规范见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)。
 
 ## 许可
 

@@ -7,18 +7,16 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
+from __version__ import APP_NAME, __version__, AUTHOR  # noqa: F401  全局元信息唯一来源
 from core.kernel import Kernel
 from app.main_window import MainWindow
 from infra.memory_trimmer import start_periodic_trim, delayed_trim  #   定时清理内存占用
-
-APP_NAME = "Word智能伴侣"
-VERSION = "3.0"
-AUTHOR = "Xu Hui"
 
 
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+    app.setApplicationVersion(__version__)
 
     # 1) 启动内核：注册 config / ai_client / ignore / caption_cache / word_bridge / hotkeys
     kernel = Kernel().boot()

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
                                QSystemTrayIcon, QMenu, QMessageBox, QCheckBox, QApplication,
                                QLabel)
 
+from __version__ import APP_TITLE
 from core.kernel import Kernel
 from core.services.api_logger import clear_api_log
 from core.services.config_manager import ConfigManager
@@ -36,7 +37,7 @@ class MainWindow(QMainWindow):
         self.config: ConfigManager = kernel.config
         self.api = kernel.services.get("ai_client")
         self.ignore_mgr = kernel.services.get("ignore")
-        self.setWindowTitle("Word智能伴侣 v3.0 - Xu Hui")
+        self.setWindowTitle(APP_TITLE)
         self.setMinimumSize(600, 400)
 
         # UI 贡献点收集器：插件加载后由 build_extension_menus 统一渲染

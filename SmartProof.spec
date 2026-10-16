@@ -1,6 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
+import glob
+import os
 
 block_cipher = None
+
+# 插件清单：glob 展开成逐文件条目，目标目录保留插件子目录结构
+# （直接写 ('src/plugins/*/plugin.json', 'plugins') 会把所有清单拍平到同一目录互相覆盖）
+plugin_datas = [
+    (path, os.path.join('plugins', os.path.basename(os.path.dirname(path))))
+    for path in glob.glob('src/plugins/*/plugin.json')
+]
 
 a = Analysis(
     ['src/main.py'],
@@ -13,8 +22,7 @@ a = Analysis(
         ('src/config/MWindow_config.example.json', 'config'),
         ('src/config/navigator_config.example.json', 'config'),
         # 插件清单：插件通过 plugin.json 被动态发现，必须随包分发
-        ('src/plugins/*/plugin.json', 'plugins'),
-    ],
+    ] + plugin_datas,
     hiddenimports=[
         # 插件入口由 plugin.json 动态 import，静态分析扫不到，需显式声明
         'plugins.proofread.plugin',
