@@ -391,8 +391,12 @@ class MainWindow(QMainWindow):
     def open_settings(self):
         dlg = SettingsDialog(self.config, self)
         if dlg.exec():
-            # 重新创建 API 对象使新 Key 生效
+            # 重新创建 API 对象使新 Key 生效，并同步到监控线程与悬浮按钮
             self.api = DeepSeekClient(self.config)
+            if hasattr(self, "monitor") and self.monitor is not None:
+                self.monitor.api = self.api
+            if hasattr(self, "floating_btn") and self.floating_btn is not None:
+                self.floating_btn.api = self.api
             # 根据设置显示/隐藏悬浮按钮（不重建）
             self.floating_btn.setVisible(self.config.get("show_floating_button", True))
             # 刷新字体

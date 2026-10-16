@@ -99,14 +99,29 @@ class ConfigManager:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
 
     def get_api_key(self) -> str:
-        encrypted = self.config.get("api_key", "")
-        if encrypted:
+        """读取 API Key（密文自动解密）。
+
+        兼容历史明文配置：解密失败时按明文处理，并立即加密回写，
+        完成一次性的明文 → 密文迁移。
+        """
+        value = self.config.get("api_key", "")
+        if not value:
+            return ""
+        try:
+            return self._cipher.decrypt(value.encode()).decode()
+        except Exception:
+            # 历史遗留的明文 Key：原样返回，并加密回写磁盘
+            plain = value
             try:
-                return self._cipher.decrypt(encrypted.encode()).decode()
-            except:
-                return ""
-        return ""
+                self.set_api_key(plain)
+            except Exception:
+                pass  # 回写失败不影响本次使用
+            return plain
 
     def set_api_key(self, plain: str):
-        self.config["api_key"] = self._cipher.encrypt(plain.encode()).decode()
+        """加密存储 API Key；传入空串则清空。"""
+        if not plain:
+            self.config["api_key"] = ""
+        else:
+            self.config["api_key"] = self._cipher.encrypt(plain.encode()).decode()
         self.save()

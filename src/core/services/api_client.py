@@ -11,7 +11,11 @@ LOG_FILE = Path(__file__).parent / "api_calls.log"
 class DeepSeekClient:
     def __init__(self, config):
         self.config = config
-        self.api_key = config.get("api_key", "")
+        # ConfigManager 走加密通道；测试场景传入普通 dict 时退回明文读取
+        if hasattr(config, "get_api_key"):
+            self.api_key = config.get_api_key()
+        else:
+            self.api_key = config.get("api_key", "")
         self.model = config.get("model", "deepseek-v4-flash")
         self.base_url = "https://api.deepseek.com/v1/chat/completions"
         self.last_messages = None

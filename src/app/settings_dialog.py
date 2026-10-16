@@ -171,7 +171,7 @@ class SettingsDialog(QDialog):
             self.font_color_btn.setStyleSheet(f"background-color: {self.current_font_color}")
 
     def load_settings(self):
-        self.api_key_edit.setText(self.config.get("api_key", ""))
+        self.api_key_edit.setText(self.config.get_api_key())
         self.model_edit.setText(self.config.get("model", "deepseek-v4-flash"))
 #--修改16        
         self.temp_edit.setValue(self.config.get("temperature", 0.4))
@@ -196,7 +196,7 @@ class SettingsDialog(QDialog):
         self.cache_lookup_spin.setValue(self.config.get("proof_cache_lookup_count", 50))        #  --修改19
 
     def save_settings(self):
-        self.config.set("api_key", self.api_key_edit.text())
+        self.config.set_api_key(self.api_key_edit.text().strip())
         self.config.set("model", self.model_edit.text())
 #--修改16           
         self.config.set("temperature", self.temp_edit.value())

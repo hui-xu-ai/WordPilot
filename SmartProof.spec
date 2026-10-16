@@ -9,8 +9,9 @@ a = Analysis(
     datas=[
         ('src/assets/icon_float.png', 'assets'),
         ('src/assets/tray_icon.png', 'assets'),
-        ('src/config/MWindow_config.json', 'config'),
-        ('src/config/navigator_config.json', 'config'),
+        # 只打包配置模板；真实配置（含 API Key）由程序首次运行时在 exe 同级 config/ 自动生成
+        ('src/config/MWindow_config.example.json', 'config'),
+        ('src/config/navigator_config.example.json', 'config'),
     ],
     hiddenimports=[],
     hookspath=[],
