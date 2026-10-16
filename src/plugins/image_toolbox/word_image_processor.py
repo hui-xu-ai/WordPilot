@@ -8,9 +8,9 @@ import zipfile
 import numpy as np
 import piexif
 import win32clipboard
-import win32com.client
 from PIL import Image
 
+from core.services.word_bridge import attach_word_app, WordNotRunningError
 from core.services.word_constants import wdConst  # Word 常量字典
 
 import ctypes
@@ -40,8 +40,8 @@ class WordImageProcessor:
 
     def _open_word_app(self):
         try:
-            self.word_app = win32com.client.GetObject(Class="Word.Application")
-        except Exception:
+            self.word_app = attach_word_app()
+        except WordNotRunningError:
             raise RuntimeError("未检测到 Word 应用程序，请先打开 Word")
 
     def _open_workspace(self):

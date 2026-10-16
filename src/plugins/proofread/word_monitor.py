@@ -4,12 +4,11 @@ import difflib
 import re
 import time
 
-import pythoncom
-import win32com.client
 import win32con  # ← 新增这一行  修改19
 from PySide6.QtCore import QThread, Signal
 
 from core.services.api_logger import get_cached_suggestion  # 确保已在顶部导入
+from core.services.word_bridge import get_word_app, com_initialized
 from core.services.word_constants import wdConst as constants  # word常量修改  2026.05.19
 
 wdUnderlineWavy = constants.wdUnderlineWavy
@@ -139,10 +138,10 @@ def mark_text_differences(original, corrected, start, end):
     如果句子包含对象，则使用 token_based_mark_differences。
     """
     try:
-        word = win32com.client.GetActiveObject("Word.Application")
+        word = get_word_app()
         doc = word.ActiveDocument
         sentence_range = doc.Range(start, end)
-    except:
+    except Exception:
         return
 
     # 尝试 tokenize
@@ -270,14 +269,14 @@ def mark_text_differences(original, corrected, start, end):
 
 def clear_error_marks(start, end):
     try:
-        word = win32com.client.GetActiveObject("Word.Application")
+        word = get_word_app()
         doc = word.ActiveDocument
         sentence_range = doc.Range(start, end)
         for i in range(len(sentence_range.Characters)):
             char = sentence_range.Characters(i + 1)
             if char.Font.Underline == wdUnderlineWavy and char.Font.UnderlineColor == wdColorRed:
                 char.Font.Underline = 0
-    except:
+    except Exception:
         pass
 
 
@@ -285,7 +284,7 @@ def get_sentence_range(selection):
     try:
         sentence = selection.Sentences(1)
         return sentence
-    except:
+    except Exception:
         range_copy = selection.Range.Duplicate
         range_copy.Expand(constants.wdSentence)
         return range_copy
@@ -293,17 +292,17 @@ def get_sentence_range(selection):
 
 def extract_current_sentence():
     try:
-        word = win32com.client.GetActiveObject("Word.Application")
+        word = get_word_app()
         sel = word.Selection
         sent_range = get_sentence_range(sel)
         return sent_range.Text.strip()
-    except:
+    except Exception:
         return ""
 
 
 def get_context_sentences():
     try:
-        word = win32com.client.GetActiveObject("Word.Application")
+        word = get_word_app()
         sel = word.Selection
         current_range = get_sentence_range(sel)
         current_text = current_range.Text.strip()
@@ -314,7 +313,7 @@ def get_context_sentences():
         next_range.MoveEnd(constants.wdSentence, 1)
         next_text = next_range.Text.strip() if next_range.End > current_range.End else ""
         return [prev_text, current_text, next_text]
-    except:
+    except Exception:
         return ["", "", ""]
 
 
@@ -340,14 +339,17 @@ class WordMonitor(QThread):
         
 
     # word_monitor.py - class WordMonitor       --修改18 重写校对逻辑
-    def run(self):     
-        pythoncom.CoInitialize()
+    def run(self):
+        with com_initialized():
+            self._run_loop()
+
+    def _run_loop(self):
         self.debug_signal.emit("监控线程已启动")
         try:
             while self.running:
                 try:
                     if self.proof_enabled:  # ← 新增判断  --修改22
-                        word = win32com.client.GetActiveObject("Word.Application")
+                        word = get_word_app()
                         selection = word.Selection
                         sentence_range = get_sentence_range(selection)
                         current_text = sentence_range.Text.strip()
@@ -459,7 +461,6 @@ class WordMonitor(QThread):
                     self.status_update.emit("请打开word文档")
                     time.sleep(1)
         finally:
-            pythoncom.CoUninitialize()
             self.debug_signal.emit("监控线程已停止")
 
 
@@ -518,7 +519,7 @@ def clear_marks_on_objects_and_ending(sentence_range, body_len=None):
     body_len: 主体文本长度，如果提供则直接计算尾部范围，否则动态计算。
     """
     try:
-        word = win32com.client.GetActiveObject("Word.Application")
+        word = get_word_app()
         doc = word.ActiveDocument
         tokenized = TokenizedSentence(sentence_range)
         blocks = tokenized.get_blocks()

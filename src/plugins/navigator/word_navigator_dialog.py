@@ -2,7 +2,6 @@
 import json
 
 import pythoncom
-import win32com.client
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
@@ -13,6 +12,7 @@ from PySide6.QtWidgets import (
 
 from core.services.caption_cache import CaptionCache
 from core.services.config_manager import CONFIG_DIR
+from core.services.word_bridge import get_word_app
 from core.services.word_constants import wdConst
 
 CONFIG_FILE = CONFIG_DIR / "navigator_config.json"
@@ -217,7 +217,7 @@ class WordNavigatorDialog(QDialog):
             self.status_label.setText("COM 初始化失败，无法连接 Word")
             return None, None, ""
         try:
-            self.word = win32com.client.GetActiveObject("Word.Application")
+            self.word = get_word_app()
             self.word.ScreenUpdating = False
             self.doc = self.word.ActiveDocument
             if self.doc is None:
@@ -225,7 +225,7 @@ class WordNavigatorDialog(QDialog):
                 return None, None, ""
             self._start_save_monitor()
             return self.word, self.doc, self.doc.FullName
-        except:
+        except Exception:
             self.word = None
             self.doc = None
             self._stop_save_monitor()
