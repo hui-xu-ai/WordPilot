@@ -7,8 +7,8 @@ a = Analysis(
     pathex=['src'],
     binaries=[],
     datas=[
-        ('src/icon_float.png', '.'),
-        ('src/tray_icon.png', '.'),
+        ('src/assets/icon_float.png', 'assets'),
+        ('src/assets/tray_icon.png', 'assets'),
         ('src/config/MWindow_config.json', 'config'),
         ('src/config/navigator_config.json', 'config'),
     ],
@@ -57,7 +57,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='src/icon.ico',      # 如果 icon.ico 在根目录，如果也在 src 内则改为 'src/icon.ico'
+    icon='src/assets/icon.ico',      # 如果 icon.ico 在根目录，如果也在 src 内则改为 'src/icon.ico'
 )
 coll = COLLECT(
     exe,

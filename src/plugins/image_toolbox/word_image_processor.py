@@ -11,7 +11,7 @@ import win32clipboard
 import win32com.client
 from PIL import Image
 
-from word_constants import wdConst  # Word 常量字典
+from core.services.word_constants import wdConst  # Word 常量字典
 
 import ctypes
 
@@ -27,9 +27,15 @@ class WordImageProcessor:
         self.word_app = None
         self.work_doc = None
         self._open_word_app()
+
+        # ★ 保存用户当前的活动文档（用于稍后激活遮挡）
+        try:
+            self.user_active_doc = self.word_app.ActiveDocument
+        except Exception:
+            self.user_active_doc = None  # 如果用户没打开文档，可能为 None
+
         self._open_workspace()
 
-        self._hide_work_doc_window()
 
 
     def _open_word_app(self):
@@ -39,37 +45,45 @@ class WordImageProcessor:
             raise RuntimeError("未检测到 Word 应用程序，请先打开 Word")
 
     def _open_workspace(self):
-        """用锁桌面 + 移出屏幕 + 强制隐藏的方式打开工作文档，杜绝任何闪现"""
+        user32 = self.user32  # 在 __init__ 中定义的 ctypes.windll.user32
         try:
-            # ① 暂停 Word 自身刷新
+            # 1. 停止 Word 自身重绘
             self.word_app.ScreenUpdating = False
+            # 2. 锁定整个桌面，冻结所有窗口绘制
+            user32.LockWindowUpdate(user32.GetDesktopWindow())
 
-            # ② 锁定整个桌面，在此期间任何窗口都不会被绘制
-            self.user32.LockWindowUpdate(self.user32.GetDesktopWindow())
-
-            # ③ 打开文档（不指定 Visible=False，因为会被锁定无视）
+            # 3. 打开工作文档（此时因为桌面锁定，任何绘制都不会显示）
             self.work_doc = self.word_app.Documents.Open(
-                FileName=self.temp_docx_path
+                FileName=self.temp_docx_path, Visible=False
             )
 
-            # ④ 把文档窗口瞬间移出屏幕并隐藏
+            # 4. 立即将窗口移出可视区域并缩至 1×1 像素
             if self.work_doc.Windows.Count > 0:
                 win = self.work_doc.Windows(1)
                 hwnd = win.Hwnd
-                # 移至屏幕外
-                self.user32.SetWindowPos(hwnd, 0, -20000, -20000, 0, 0, 0x0001 | 0x0010)  # SWP_NOSIZE | SWP_NOACTIVATE
-                # 系统级隐藏
-                self.user32.ShowWindow(hwnd, 0)  # SW_HIDE
-                # Word 模型级隐藏
+                # 参数说明：句柄、Z序位置、x=-20000、y=-20000、宽度=1、高度=1、标志
+                user32.SetWindowPos(
+                    hwnd, 0, -20000, -20000, 1, 1,
+                    0x0004 | 0x0010  # SWP_NOZORDER | SWP_NOACTIVATE
+                )
+                # 5. 系统级隐藏（任务栏也不会显示）
+                user32.ShowWindow(hwnd, 0)  # SW_HIDE
+                # 6. Word 模型级隐藏
                 win.Visible = False
+
+            # 7. 【可选】如果用户原本有打开的文档，立即激活它来覆盖（进一步加强）
+            if self.user_active_doc is not None:
+                try:
+                    self.user_active_doc.Activate()
+                except Exception:
+                    pass
 
         except Exception as e:
             raise RuntimeError(f"无法打开工作文档: {e}")
         finally:
-            # ⑤ 不管成功与否，解锁桌面并恢复 Word 刷新
-            self.user32.LockWindowUpdate(0)
+            # 8. 解锁桌面 + 恢复 Word 刷新
+            user32.LockWindowUpdate(0)
             self.word_app.ScreenUpdating = True
-
 
     def _hide_work_doc_window(self):
         """当工作文档被意外显示时，强制再次隐藏并移出屏幕"""
@@ -418,7 +432,7 @@ class WordImageProcessor:
 
             # t3 = time.time()        #  计时
 
-            # print(f"提取图片耗时：{(t1-t0)*1000:.2f} 毫秒\n")  #  计时 
+            # print(f"提取图片耗时：{(t1-t0)*1000:.2f} 毫秒\n")  #  计时
             # print(f"识别边缘耗时：{(t2-t1)*1000:.2f} 毫秒\n")  #  计时
             # print(f"替换图片耗时：{(t3-t2)*1000:.2f} 毫秒\n")  #  计时
             # print(f"上面总共耗时：{(t3-t0)*1000:.2f} 毫秒\n")  #  计时

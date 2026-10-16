@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QColorDialog, QSlider, QGroupBox, QCheckBox, QDoubleSpinBox
 )
 
-from api_client import DeepSeekClient
+from core.services.api_client import DeepSeekClient
 
 
 class SettingsDialog(QDialog):

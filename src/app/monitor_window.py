@@ -3,7 +3,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTextEdit,
                                QPushButton, QHBoxLayout, QLabel)
 
-from api_logger import get_last_log, get_all_logs
+from core.services.api_logger import get_last_log, get_all_logs
 
 
 class MonitorWindow(QWidget):           #--修改16

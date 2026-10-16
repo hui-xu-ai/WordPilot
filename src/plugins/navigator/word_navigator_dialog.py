@@ -11,9 +11,9 @@ from PySide6.QtWidgets import (
     QMessageBox, QFontDialog
 )
 
-from caption_cache import CaptionCache
-from config_manager import CONFIG_DIR
-from word_constants import wdConst
+from core.services.caption_cache import CaptionCache
+from core.services.config_manager import CONFIG_DIR
+from core.services.word_constants import wdConst
 
 CONFIG_FILE = CONFIG_DIR / "navigator_config.json"
 wdFieldSequence = wdConst.wdFieldSequence               # Word 序列域类型常量

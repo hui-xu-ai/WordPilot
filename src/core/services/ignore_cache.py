@@ -3,7 +3,7 @@ import hashlib
 import json
 
 # from collections import OrderedDict       #   --修改18
-from config_manager import CONFIG_DIR  # 配置文件路径
+from core.services.config_manager import CONFIG_DIR  # 配置文件路径
 
 IGNORE_DB = CONFIG_DIR / "ignore_db.json"
 # CACHE_DB = CONFIG_DIR / "cache_db.json"         #       功能冗余   被查找 api_calls.log 替代   --修改18

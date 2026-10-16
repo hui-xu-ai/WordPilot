@@ -3,11 +3,11 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from api_client import DeepSeekClient
-from config_manager import ConfigManager
-from ignore_cache import IgnoreCacheManager
-from main_window import MainWindow
-from memory_trimmer import start_periodic_trim, delayed_trim #   定时清理内存占用
+from core.services.api_client import DeepSeekClient
+from core.services.config_manager import ConfigManager
+from core.services.ignore_cache import IgnoreCacheManager
+from app.main_window import MainWindow
+from infra.memory_trimmer import start_periodic_trim, delayed_trim #   定时清理内存占用
 
 APP_NAME = "Word智能伴侣"
 VERSION = "3.0"

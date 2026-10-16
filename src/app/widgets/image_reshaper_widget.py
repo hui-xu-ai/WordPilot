@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QComboBox,
                                QVBoxLayout, QColorDialog, QFrame,
                                QMessageBox)
 
-from word_image_processor import WordImageProcessor
+from plugins.image_toolbox.word_image_processor import WordImageProcessor
 
 
 def _format_bytes(size):

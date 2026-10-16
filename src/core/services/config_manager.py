@@ -9,7 +9,8 @@ from cryptography.fernet import Fernet
 if getattr(sys, 'frozen', False):
     BASE_DIR = Path(sys.executable).parent
 else:
-    BASE_DIR = Path(__file__).resolve().parent
+    # core/services/config_manager.py -> 上溯两级为 src/ 根目录
+    BASE_DIR = Path(__file__).resolve().parents[2]
 CONFIG_DIR = BASE_DIR / "config"
 CONFIG_FILE = CONFIG_DIR / "MWindow_config.json"
 KEY_FILE = CONFIG_DIR / ".key"

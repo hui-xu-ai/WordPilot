@@ -2,7 +2,7 @@
 import keyboard as kb
 import win32com.client as win32
 
-from word_monitor import extract_current_sentence, get_context_sentences
+from plugins.proofread.word_monitor import extract_current_sentence, get_context_sentences
 
 
 class HotkeyManager:

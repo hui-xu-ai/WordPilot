@@ -6,8 +6,8 @@ from PySide6.QtGui import QColor, QPalette, QIcon, QCursor, QPixmap, QFont  # �
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QApplication, QToolButton, \
     QGridLayout, QSizePolicy, QFrame, QGraphicsDropShadowEffect
 
-from utils import resource_path  # 或直接定义在文件内   #  -修改21
-from word_monitor import clear_error_marks  # --修改17  --修改19 proof_sentence
+from infra.utils import resource_path  # 或直接定义在文件内   #  -修改21
+from plugins.proofread.word_monitor import clear_error_marks  # --修改17  --修改19 proof_sentence
 
 
 # def diff_fragments(original: str, corrected: str) -> list:
@@ -343,7 +343,7 @@ class FloatingButton(QToolButton):
         button_size = QSize(32, 32)     #   --修改22  按钮显示大小，可按需调整
         self.btn.setFixedSize(button_size)                   # 按钮尺寸，建议与图标大小一致
         self.btn.setIconSize(icon_size)            #   --修改22
-        icon_pixmap = QPixmap(resource_path("icon_float.png"))          #   --修改21
+        icon_pixmap = QPixmap(resource_path("assets/icon_float.png"))          #   --修改21
         icon_pixmap = icon_pixmap.scaled(icon_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)       #   --修改22
         self.btn.setIcon(QIcon(icon_pixmap))        #   --修改21
 

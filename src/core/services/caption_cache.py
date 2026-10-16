@@ -3,7 +3,7 @@ import os
 import sqlite3
 import time
 
-from config_manager import CONFIG_DIR
+from core.services.config_manager import CONFIG_DIR
 
 DB_PATH = CONFIG_DIR / "word_caption_cache.db"
 

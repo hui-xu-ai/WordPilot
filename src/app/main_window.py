@@ -9,20 +9,20 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
                                QSystemTrayIcon, QMenu, QMessageBox, QCheckBox, QApplication,
                                QLabel, QDialog, QMenuBar)  # 新增QDialog  QMenuBar 图片裁剪居中工具
 
-from api_client import DeepSeekClient
-from api_logger import clear_api_log
-from config_manager import CONFIG_DIR
-from config_manager import ConfigManager
-from hotkey_manager import HotkeyManager
-from ignore_cache import IgnoreCacheManager
-from image_reshaper_widget import ImageReshaperWidget  # 图片裁剪居中工具
-from monitor_window import MonitorWindow
-from settings_dialog import SettingsDialog
-from suggestion_window import FloatingButton
-from utils import resource_path  # 或直接定义在文件内   #  -修改22
-from word_monitor import WordMonitor, clear_error_marks, TokenizedSentence, split_trailing_chars, proof_sentence
-from word_monitor import get_sentence_range
-from word_navigator_dialog import WordNavigatorDialog
+from core.services.api_client import DeepSeekClient
+from core.services.api_logger import clear_api_log
+from core.services.config_manager import CONFIG_DIR
+from core.services.config_manager import ConfigManager
+from infra.hotkey_manager import HotkeyManager
+from core.services.ignore_cache import IgnoreCacheManager
+from app.widgets.image_reshaper_widget import ImageReshaperWidget  # 图片裁剪居中工具
+from app.monitor_window import MonitorWindow
+from app.settings_dialog import SettingsDialog
+from app.suggestion_window import FloatingButton
+from infra.utils import resource_path  # 或直接定义在文件内   #  -修改22
+from plugins.proofread.word_monitor import WordMonitor, clear_error_marks, TokenizedSentence, split_trailing_chars, proof_sentence
+from plugins.proofread.word_monitor import get_sentence_range
+from plugins.navigator.word_navigator_dialog import WordNavigatorDialog
 
 CONFIG_FILE = CONFIG_DIR / "Image.docx"
 
@@ -341,7 +341,7 @@ class MainWindow(QMainWindow):
 
         # self.tray_icon = QSystemTrayIcon(icon, self)
         self.tray_icon = QSystemTrayIcon(self)      # --修改22
-        icon_path = resource_path("tray_icon.png")  # --修改22
+        icon_path = resource_path("assets/tray_icon.png")  # --修改22
         self.tray_icon.setIcon(QIcon(icon_path))    # --修改22
         
         self.tray_icon.setToolTip("Word智能伴侣")

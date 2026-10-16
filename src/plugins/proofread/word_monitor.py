@@ -9,8 +9,8 @@ import win32com.client
 import win32con  # ← 新增这一行  修改19
 from PySide6.QtCore import QThread, Signal
 
-from api_logger import get_cached_suggestion  # 确保已在顶部导入
-from word_constants import wdConst as constants  # word常量修改  2026.05.19
+from core.services.api_logger import get_cached_suggestion  # 确保已在顶部导入
+from core.services.word_constants import wdConst as constants  # word常量修改  2026.05.19
 
 wdUnderlineWavy = constants.wdUnderlineWavy
 wdColorRed = constants.wdColorRed

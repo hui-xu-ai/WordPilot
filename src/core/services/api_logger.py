@@ -4,7 +4,7 @@ import os
 import threading  # 新增 --修改16
 from datetime import datetime
 
-from config_manager import CONFIG_DIR  # 配置文件路径
+from core.services.config_manager import CONFIG_DIR  # 配置文件路径
 
 LOG_FILE = CONFIG_DIR / "api_calls.log"     #  配置文件路径
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)   #  确认 CONFIG_DIR 是否存在，没有新建

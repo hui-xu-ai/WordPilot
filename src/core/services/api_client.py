@@ -4,7 +4,7 @@ from pathlib import Path
 
 import requests
 
-from api_logger import log_api_call, get_cached_suggestion
+from core.services.api_logger import log_api_call, get_cached_suggestion
 
 LOG_FILE = Path(__file__).parent / "api_calls.log"
 
