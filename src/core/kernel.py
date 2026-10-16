@@ -17,6 +17,7 @@ from core.services.caption_cache import CaptionCache
 from core.services.config_manager import CONFIG_DIR, ConfigManager
 from core.services.hotkey_service import HotkeyService
 from core.services.ignore_cache import IgnoreCacheManager
+from core.services.proof_cache import get_default_cache
 from core.services.service_registry import ServiceRegistry
 from core.sdk.ui import NullUiRegistry
 
@@ -59,6 +60,7 @@ class Kernel:
         self.services.register("ai_client", DeepSeekClient(config))
         self.services.register("ignore", IgnoreCacheManager())
         self.services.register("caption_cache", CaptionCache())
+        self.services.register("proof_cache", get_default_cache())
         self.services.register("word_bridge", word_bridge)
         self.services.register("hotkeys", HotkeyService(config))
         self._booted = True

@@ -50,12 +50,8 @@ class SettingsDialog(QDialog):
         api_layout.addRow("最大Token:", self.max_tokens_edit)        
 # --修改16 增加模型温度和token限制  
 
-# --修改19 增加缓存句子查询的数量  可自定义设置
-        self.cache_lookup_spin = QSpinBox()
-        self.cache_lookup_spin.setRange(10, 500)
-        self.cache_lookup_spin.setValue(self.config.get("proof_cache_lookup_count", 50))
-        api_layout.addRow("缓存查询条数:", self.cache_lookup_spin)     # ← 修改为 api_layout
-# --修改19 增加缓存句子查询的数量
+        # 注：校对缓存已改为 SQLite 主键查询（core/services/proof_cache.py），
+        # 原「缓存查询条数」设置（线性扫日志末尾 N 行）随之废弃。
 
         self.test_btn = QPushButton("🔗 测试连接")
         self.test_btn.clicked.connect(self.test_connection)
@@ -193,7 +189,6 @@ class SettingsDialog(QDialog):
         self.auto_show_check.setChecked(self.config.get("auto_show_suggestion", True))
         self.opacity_slider.setValue(int(self.config.get("suggestion_opacity", 0.95) * 100))
         self.font_size_spin.setValue(self.config.get("suggestion_font_size", 12))
-        self.cache_lookup_spin.setValue(self.config.get("proof_cache_lookup_count", 50))        #  --修改19
 
     def save_settings(self):
         self.config.set_api_key(self.api_key_edit.text().strip())

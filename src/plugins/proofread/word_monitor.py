@@ -7,7 +7,7 @@ import time
 import win32con  # ← 新增这一行  修改19
 from PySide6.QtCore import QThread, Signal
 
-from core.services.api_logger import get_cached_suggestion  # 确保已在顶部导入
+from core.services.proof_cache import get_default_cache
 from core.services.word_bridge import get_word_app, com_initialized
 from core.services.word_constants import wdConst as constants  # word常量修改  2026.05.19
 
@@ -487,11 +487,10 @@ def proof_sentence(sentence_range, api, config):
             "请保持这些标签完全不变，只修正文字错误：\n" + raw_text
         )
 
-    # 3. 缓存查询（仍然以 body_text 为键，提高命中率）
-    num = config.get("proof_cache_lookup_count", 50)
-    corrected_full = get_cached_suggestion(body_text, num)
+    # 3. 缓存查询（SQLite，键统一为 body_text；proof_text 内部用同一键读写）
+    corrected_full = get_default_cache().get(body_text)
     if not corrected_full:
-        corrected_full = api.proof_text(api_prompt) if api else raw_text
+        corrected_full = api.proof_text(api_prompt, cache_key=body_text) if api else raw_text
     if not corrected_full:
         corrected_full = raw_text
 

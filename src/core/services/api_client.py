@@ -4,7 +4,8 @@ from pathlib import Path
 
 import requests
 
-from core.services.api_logger import log_api_call, get_cached_suggestion
+from core.services.api_logger import log_api_call
+from core.services.proof_cache import get_default_cache
 
 LOG_FILE = Path(__file__).parent / "api_calls.log"
 
@@ -26,10 +27,16 @@ class DeepSeekClient:
     def _has_placeholders(self, text: str) -> bool:
         return bool(re.search(r'\[(IMG|EQ)\d+\]', text))
 
-    def proof_text(self, text: str) -> str:
-        # 查询缓存
-        num = self.config.get("proof_cache_lookup_count", 50)
-        cached = get_cached_suggestion(text, num)
+    def proof_text(self, text: str, cache_key: str | None = None) -> str:
+        """校对文本。
+
+        cache_key：缓存键。proof_sentence 以 body_text（去尾部的正文）为键调用，
+        与直接以原文为键的剪贴板校对共用同一份 SQLite 缓存；
+        不传时默认以 text 本身为键。
+        """
+        key = cache_key if cache_key is not None else text
+        cache = get_default_cache()
+        cached = cache.get(key)
         if cached is not None:
             return cached.strip()
 
@@ -67,7 +74,9 @@ class DeepSeekClient:
         log_api_call("proof", text, result, tokens, bool(result))
         if not result:
             return ero_mes
-        return result.strip()
+        result = result.strip()
+        cache.put(key, result, model=self.model)   # 成功结果写缓存（与查询同键）
+        return result
 
     def translate(self, text: str, target_lang: str = "英文") -> str:
         template = self.config.get("translate_prompt",

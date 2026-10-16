@@ -228,7 +228,8 @@ class WordNavigatorDialog(QDialog):
             return None, None, ""
         try:
             self.word = get_word_app()
-            self.word.ScreenUpdating = False
+            # 不在此处关闭 ScreenUpdating：连接动作不应改变渲染状态，
+            # 各操作（扫描/跳转/返回/缓存页码更新）自行配对开关
             self.doc = self.word.ActiveDocument
             if self.doc is None:
                 self._stop_save_monitor()
@@ -240,6 +241,16 @@ class WordNavigatorDialog(QDialog):
             self.doc = None
             self._stop_save_monitor()
             return None, None, ""
+
+    def _restore_screen_updating(self, word=None):
+        """恢复 Word 屏幕刷新；COM 已断开时静默忽略。"""
+        target = word or getattr(self, "_scan_word", None) or self.word
+        if target is None:
+            return
+        try:
+            target.ScreenUpdating = True
+        except Exception:
+            pass
 
 
     def _start_save_monitor(self):
@@ -342,6 +353,7 @@ class WordNavigatorDialog(QDialog):
             self.status_label.setText(f"初始化出错: {e}")
             self.progress_bar.setVisible(False)
             self._scanning = False
+            self._restore_screen_updating(word)   # 异常路径也要恢复 Word 屏幕刷新
 
     # ---------- 高速域扫描（利用域类型筛选）----------
     def _scan_fields_batch(self):
@@ -369,6 +381,7 @@ class WordNavigatorDialog(QDialog):
             self.status_label.setText(f"扫描中断: {e}")
             self._scanning = False
             self.progress_bar.setVisible(False)
+            self._restore_screen_updating()   # 扫描中断时恢复 Word 屏幕刷新
 
     # ---------- 处理题注 ----------
     def _process_seq_info(self):
@@ -388,60 +401,68 @@ class WordNavigatorDialog(QDialog):
         QTimer.singleShot(1, self._process_seq_batch)
 
     def _process_seq_batch(self):
-        batch_size = 5
-        total = len(self._scan_seq_info)
-        end_index = min(self._seq_index + batch_size, total)
-        for idx in range(self._seq_index, end_index):
-            _, field = self._scan_seq_info[idx]
-            try:
-                code = field.Code.Text.lower()
-                seq_type = "表" if "seq 表" in code else "图"
-                para = field.Result.Paragraphs(1)
-                para_range = para.Range
-                start_pos = para_range.Start
-                if start_pos in self._added_starts:
-                    continue
-                self._added_starts.add(start_pos)
-                text = para_range.Text.strip().rstrip('\r\n')
-                if text:
-                    page_num = "?"
-                    if self._scan_update_pages:
-                        try:
-                            page_num = str(para_range.Information(3))
-                        except:
-                            pass
-                    else:
-                        if start_pos in self._scan_page_map:
-                            page_num = self._scan_page_map[start_pos]
-                        else:
+        try:
+            batch_size = 5
+            total = len(self._scan_seq_info)
+            end_index = min(self._seq_index + batch_size, total)
+            for idx in range(self._seq_index, end_index):
+                _, field = self._scan_seq_info[idx]
+                try:
+                    code = field.Code.Text.lower()
+                    seq_type = "表" if "seq 表" in code else "图"
+                    para = field.Result.Paragraphs(1)
+                    para_range = para.Range
+                    start_pos = para_range.Start
+                    if start_pos in self._added_starts:
+                        continue
+                    self._added_starts.add(start_pos)
+                    text = para_range.Text.strip().rstrip('\r\n')
+                    if text:
+                        page_num = "?"
+                        if self._scan_update_pages:
                             try:
                                 page_num = str(para_range.Information(3))
                             except:
                                 pass
-                    display = f"{text}  [第{page_num}页]"
-                    item = CaptionItem(display, field=field, start=start_pos,
-                                      end=para_range.End, page=page_num)
-                    if seq_type == "表":
-                        self._new_table.append(item)
-                    else:
-                        self._new_figure.append(item)
-                    self._captions_cache_data.append({
-                        'type': 'table' if seq_type == '表' else 'figure',
-                        'text': text,
-                        'page': page_num,
-                        'start': start_pos,
-                        'end': para_range.End
-                    })
-            except:
-                continue
-        self._seq_index = end_index
-        if not self._scan_silent:
-            self.progress_bar.setValue(end_index)
-            self.status_label.setText(f"处理题注 {end_index}/{total}...")
-        if self._seq_index < total:
-            QTimer.singleShot(1, self._process_seq_batch)
-        else:
-            self._finish_scan(len(self._new_table), len(self._new_figure))
+                        else:
+                            if start_pos in self._scan_page_map:
+                                page_num = self._scan_page_map[start_pos]
+                            else:
+                                try:
+                                    page_num = str(para_range.Information(3))
+                                except:
+                                    pass
+                        display = f"{text}  [第{page_num}页]"
+                        item = CaptionItem(display, field=field, start=start_pos,
+                                          end=para_range.End, page=page_num)
+                        if seq_type == "表":
+                            self._new_table.append(item)
+                        else:
+                            self._new_figure.append(item)
+                        self._captions_cache_data.append({
+                            'type': 'table' if seq_type == '表' else 'figure',
+                            'text': text,
+                            'page': page_num,
+                            'start': start_pos,
+                            'end': para_range.End
+                        })
+                except:
+                    continue
+            self._seq_index = end_index
+            if not self._scan_silent:
+                self.progress_bar.setValue(end_index)
+                self.status_label.setText(f"处理题注 {end_index}/{total}...")
+            if self._seq_index < total:
+                QTimer.singleShot(1, self._process_seq_batch)
+            else:
+                self._finish_scan(len(self._new_table), len(self._new_figure))
+        except Exception as e:
+            # 外层兜底：QTimer 回调里未捕获的异常会吞掉且不再调度，
+            # 必须在此恢复屏幕刷新与扫描状态
+            self.status_label.setText(f"题注处理中断: {e}")
+            self._scanning = False
+            self.progress_bar.setVisible(False)
+            self._restore_screen_updating()
 
 
     def _load_from_cache(self, word, doc, fingerprint, cached_data, update_pages, silent):      #  2026.05.18
@@ -548,10 +569,7 @@ class WordNavigatorDialog(QDialog):
 
 
     def _finish_scan(self, num_table, num_figure):
-        try:
-            self._scan_word.ScreenUpdating = True
-        except:
-            pass
+        self._restore_screen_updating()
         if self._scan_fingerprint:              #  2026.05.18
             data = getattr(self, '_captions_cache_data', [])
             self.cache.save_document_cache(self._scan_fingerprint, data)

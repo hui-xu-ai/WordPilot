@@ -26,7 +26,7 @@ DEFAULT_CONFIG = {
     "suggestion_font_size": 12,
     "show_floating_button": True,
     "auto_show_suggestion": True,
-    "proof_cache_lookup_count": 50,          # 新增：缓存查询条数  --修改18
+    # 校对缓存为 SQLite 主键查询，不再需要「查询条数」配置
 }
 
 class ConfigManager:
@@ -84,7 +84,7 @@ class ConfigManager:
         config.setdefault("exclude_patterns", ["参考文献", "致谢", "注释"])
         config.setdefault("max_context_len", 200)
         config.setdefault("main_on_top", False)         # 置顶
-        config.setdefault("proof_cache_lookup_count", 50)   # 新增 缓存查询条数 --修改18
+        config.pop("proof_cache_lookup_count", None)    # 已废弃：SQLite 缓存无需查询条数
         return config
 
     def get(self, key, default=None):

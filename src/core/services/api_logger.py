@@ -66,31 +66,10 @@ def get_all_logs():
     return logs
 
 
-#  --修改16      历史建议查询     优先最新 50 条记录
-def get_cached_suggestion(text: str, num: int = 50) -> str | None:
-    """从最近 num 条日志中查找该文本的 proof 成功记录，返回输出；未找到则返回 None"""
-    if not LOG_FILE.exists():
-        return None
-    try:
-        with open(LOG_FILE, "r", encoding="utf-8") as f:
-            lines = f.readlines()[-num:]
-        for line in reversed(lines):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-                if (entry.get("action") == "proof" and
-                    entry.get("input") == text and
-                    entry.get("success")):
-                    return entry.get("output")
-            except:
-                continue
-    except:
-        pass
-    return None   
-    
-def clear_api_log():                #   --修改18  
+# 校对缓存已迁移至 core/services/proof_cache.py（SQLite），
+# 本模块只保留「日志」单一职责；清空日志不再影响缓存命中。
+
+def clear_api_log():                #   --修改18
     """清空 API 调用日志文件"""
     if LOG_FILE.exists():
         LOG_FILE.unlink()    
