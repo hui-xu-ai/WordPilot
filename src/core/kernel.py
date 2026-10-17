@@ -20,6 +20,7 @@ from core.services.ignore_cache import IgnoreCacheManager
 from core.services.i18n import I18nService
 from core.services.proof_cache import get_default_cache
 from core.services.service_registry import ServiceRegistry
+from core.services.skin_service import SkinService
 from core.services.theme_service import ThemeService
 from core.sdk.ui import NullUiRegistry
 
@@ -61,6 +62,7 @@ class Kernel:
         self.services.register("config", config)
         self.services.register("i18n", I18nService(config))
         self.services.register("theme", ThemeService(config))
+        self.services.register("skins", SkinService(config))
         self.services.register("ai_client", DeepSeekClient(config, i18n=self.services.get("i18n")))
         self.services.register("ignore", IgnoreCacheManager())
         self.services.register("caption_cache", CaptionCache())
@@ -102,6 +104,15 @@ class Kernel:
         theme.set_theme(name)
         self.events.emit("theme.changed", theme.current)
         return theme
+
+    def set_skin(self, skin_id: str):
+        """切换桌宠皮肤并广播，桌宠窗口订阅 skin.changed 后重绘。"""
+        skins = self.services.get("skins")
+        if skins is None:
+            return None
+        current = skins.set_skin(skin_id)
+        self.events.emit("skin.changed", current)
+        return skins
 
     def reload_ai_client(self):
         """API Key 变更后重建客户端，并广播给所有插件刷新引用。"""

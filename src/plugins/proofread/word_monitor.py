@@ -322,6 +322,8 @@ class WordMonitor(QThread):
     debug_signal = Signal(str)
     suggestion_ready = Signal(str, str, int, int)
     status_update = Signal(str)
+    #: 即将发起一次校对（供桌宠切到 busy 状态）
+    proofing_started = Signal()
 
     def __init__(self, config, api, ignore_mgr=None, i18n=None):
         super().__init__()
@@ -401,6 +403,7 @@ class WordMonitor(QThread):
                             current_text and len(current_text) >= 8):
                             
                             self.status_update.emit(self.tr("monitor.proofing_selection"))
+                            self.proofing_started.emit()
                             try:
                                 clear_error_marks(sentence_range.Start, sentence_range.End)
                                 pure, corrected, s_start, s_end = proof_sentence(
@@ -438,6 +441,7 @@ class WordMonitor(QThread):
                                     if not prev_complete and is_complete:
                                         # 句子刚完成，触发校对
                                         self.status_update.emit(self.tr("monitor.sentence_detected"))
+                                        self.proofing_started.emit()
 
                                         # 检查忽略列表
                                         if self.ignore_mgr and self.ignore_mgr.is_ignored(current_text):

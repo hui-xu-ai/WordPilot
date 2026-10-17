@@ -59,6 +59,11 @@ class PluginContext:
         return self.kernel.services.get("theme")
 
     @property
+    def skins(self):
+        """桌宠皮肤服务（P4 起可用）；未注册时返回 None。"""
+        return self.kernel.services.get("skins")
+
+    @property
     def tr(self):
         """插件文案翻译：key 自动带 <plugin_id>. 命名空间。
 

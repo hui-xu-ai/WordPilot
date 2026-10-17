@@ -265,6 +265,14 @@ class MainWindow(QMainWindow):
             self._sync_proof_button(self.proof_btn.isChecked())
         self.build_extension_menus()   # 插件入口同样需要重翻译
 
+        # 已打开的常驻窗口同样要重翻译（设置页是模态的，通常不会同时存在）
+        wm = self.kernel.services.get("window_manager")
+        if wm is not None:
+            for wid in ("app.settings", "app.monitor"):
+                window = wm.get(wid)
+                if window is not None and hasattr(window, "retranslateUi"):
+                    window.retranslateUi()
+
     def toggle_proof(self, enabled):
         if self._proofread is not None:
             self._proofread.set_enabled(enabled)
@@ -383,7 +391,8 @@ class MainWindow(QMainWindow):
         def _factory():
             dlg = SettingsDialog(self.config, self,
                                  theme=self.kernel.services.get("theme"),
-                                 i18n=self.i18n)
+                                 i18n=self.i18n,
+                                 skins=self.kernel.services.get("skins"))
             # 模态窗口关闭后会被窗口服务销毁，结果必须在销毁前记录
             dlg.finished.connect(lambda result: holder.__setitem__("result", result))
             return dlg
@@ -406,6 +415,8 @@ class MainWindow(QMainWindow):
             # 界面语言：内核广播 i18n.language_changed，各常驻界面自行重翻译
             if self.i18n is not None:
                 self.kernel.set_language(self.config.get("ui_language", "zh_CN"))
+            # 桌宠皮肤：内核广播 skin.changed，桌宠窗口收到后重绘
+            self.kernel.set_skin(self.config.get("skin", "default"))
             # 主题可能已变更（设置页内部已应用），这里同步外壳
             self.apply_style()
             self.retranslateUi()

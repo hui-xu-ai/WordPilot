@@ -56,13 +56,16 @@ class SuggestionCard(QWidget):
     accepted = Signal(str, int, int, str)
     ignored = Signal(str, int, int, str)
 
-    def __init__(self, parent=None, theme=None, i18n=None):
+    def __init__(self, parent=None, theme=None, i18n=None, embedded=False):
+        """embedded=True 时作为桌宠窗口内的子部件，不再自建顶层窗口。"""
         super().__init__(parent)
         self._theme = theme
         self._i18n = i18n
-        # 无边框 + 置顶 + 工具窗口
-        self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)   # 背景透明
+        self._embedded = embedded
+        if not embedded:
+            # 无边框 + 置顶 + 工具窗口
+            self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+            self.setAttribute(Qt.WA_TranslucentBackground, True)   # 背景透明
 
         self.original_text = ""
         self.corrected_text = ""
@@ -254,6 +257,11 @@ class SuggestionCard(QWidget):
 
         # 重新确定大小
         self.adjustSize()
+
+        # 嵌入桌宠窗口时由父窗口负责定位与显隐
+        if self._embedded:
+            self.setVisible(True)
+            return
 
         # 定位：底部中心点固定在锚点上方 8px 处（窗口向上生长）
         if anchor_point:

@@ -6,11 +6,16 @@
 
 已注册的内核服务：
     config          ConfigManager        配置（含 Fernet 加密的 API Key）
+    i18n            I18nService          多语言（界面语言 / 提示词语言分离）
+    theme           ThemeService         设计令牌 + QSS 主题
+    skins           SkinService          桌宠皮肤包（纯数据，渲染在界面层）
     ai_client       DeepSeekClient       DeepSeek / OpenAI 兼容客户端
     ignore          IgnoreCacheManager   忽略句缓存
     caption_cache   CaptionCache         题注/标题缓存
+    proof_cache     ProofCache           SQLite 校对结果缓存
     word_bridge     module               Word COM 统一入口
     hotkeys         HotkeyService        全局热键
+    window_manager  WindowManager        窗口治理（attach_ui 后可用）
     ui              UiRegistry 实现      UI 贡献点（由 app 层挂载）
 """
 import logging

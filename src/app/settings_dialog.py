@@ -27,11 +27,12 @@ PROMPT_LANGUAGE_NAMES = {
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, config, parent=None, theme=None, i18n=None):
+    def __init__(self, config, parent=None, theme=None, i18n=None, skins=None):
         super().__init__(parent)
         self.config = config
         self.theme = theme
         self.i18n = i18n
+        self.skins = skins
         self.setWindowTitle(self.tr("settings.title"))
         self.resize(560, 540)
 
@@ -43,6 +44,12 @@ class SettingsDialog(QDialog):
         if self.i18n is None:
             return key
         return self.i18n.tr(key, **params)
+
+    def prompt_tr(self, key: str) -> str:
+        """默认提示词按提示词语言取，与界面语言解耦。"""
+        if self.i18n is None:
+            return key
+        return self.i18n.prompt_tr(key)
 
     def init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -181,6 +188,19 @@ class SettingsDialog(QDialog):
         self.label_ui_language = QLabel(self.tr("settings.appearance.language"))
         appearance_form.addRow(self.label_ui_language, self.ui_language_combo)
 
+        # 桌宠皮肤：皮肤包目录即选项，新增皮肤无需改代码
+        self.skin_combo = QComboBox()
+        if self.skins is not None:
+            for item in self.skins.available():
+                self.skin_combo.addItem(item["name"], item["id"])
+        self.label_skin = QLabel(self.tr("settings.appearance.skin"))
+        appearance_form.addRow(self.label_skin, self.skin_combo)
+
+        self.skin_hint = QLabel(self.tr("settings.appearance.skin_hint"))
+        self.skin_hint.setWordWrap(True)
+        self.skin_hint.setObjectName("hintLabel")
+        appearance_form.addRow("", self.skin_hint)
+
         self.theme_group.setLayout(appearance_form)
         appearance_layout.addWidget(self.theme_group)
 
@@ -214,6 +234,51 @@ class SettingsDialog(QDialog):
         btn_layout.addWidget(self.cancel_btn)
         main_layout.addLayout(btn_layout)
 
+    # ---------------- 多语言（热切换） ----------------
+    def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        """语言切换后刷新本对话框的全部可见文案。"""
+        self.setWindowTitle(self.tr("settings.title"))
+        for index, key in enumerate(("settings.tab.api", "settings.tab.prompt",
+                                     "settings.tab.ui", "settings.tab.appearance")):
+            if index < self.tabs.count():
+                self.tabs.setTabText(index, self.tr(key))
+
+        self.label_api_key.setText(self.tr("settings.api.key"))
+        self.label_model.setText(self.tr("settings.api.model"))
+        self.label_temperature.setText(self.tr("settings.api.temperature"))
+        self.label_max_tokens.setText(self.tr("settings.api.max_tokens"))
+        self.api_key_edit.setPlaceholderText(self.tr("settings.api.key_placeholder"))
+        self.model_edit.setPlaceholderText(self.tr("settings.api.model_placeholder"))
+        self.test_btn.setText(self.tr("settings.api.test"))
+
+        self.warning_label.setText(self.tr("settings.prompt.warning"))
+        self.label_prompt_language.setText(self.tr("settings.prompt.language"))
+        self.label_proof_prompt.setText(self.tr("settings.prompt.proof"))
+        self.label_translate_prompt.setText(self.tr("settings.prompt.translate"))
+        self.label_rewrite_prompt.setText(self.tr("settings.prompt.rewrite"))
+        self.proof_prompt_edit.setPlaceholderText(
+            self.tr("settings.prompt.proof_placeholder"))
+
+        self.dynamic_group.setTitle(self.tr("settings.ui.floating_group"))
+        self.show_floating_btn.setText(self.tr("settings.ui.enable_floating"))
+        self.auto_show_check.setText(self.tr("settings.ui.auto_show"))
+        self.label_opacity.setText(self.tr("settings.ui.opacity"))
+        self.label_font_size.setText(self.tr("settings.ui.font_size"))
+
+        self.theme_group.setTitle(self.tr("settings.appearance.theme_group"))
+        self.label_theme.setText(self.tr("settings.appearance.theme"))
+        self.label_ui_language.setText(self.tr("settings.appearance.language"))
+        self.label_skin.setText(self.tr("settings.appearance.skin"))
+        self.skin_hint.setText(self.tr("settings.appearance.skin_hint"))
+        for index in range(self.theme_combo.count()):
+            self.theme_combo.setItemText(index, self.tr(f"theme.{self.theme_combo.itemData(index)}"))
+        self.custom_group.setTitle(self.tr("settings.appearance.custom_group"))
+        self.qss_hint.setText(self.tr("settings.appearance.custom_hint", path=USER_QSS))
+        self.open_qss_btn.setText(self.tr("settings.appearance.open_qss"))
+
+        self.save_btn.setText(self.tr("settings.btn.save"))
+        self.cancel_btn.setText(self.tr("settings.btn.cancel"))
+
     # ---------------- 数据 ----------------
     def open_user_qss(self):
         """用系统默认程序打开用户自定义样式文件。"""
@@ -238,13 +303,14 @@ class SettingsDialog(QDialog):
             self.config.get("proof_prompt",
                             self.tr("settings.prompt.proof_placeholder"))
         )
+        # 默认提示词按「提示词语言」取，与界面语言无关
         self.translate_prompt_edit.setPlainText(
             self.config.get("translate_prompt",
-                            "将以下文本翻译为{target_lang}，只输出译文：\n{text}")
+                            self.prompt_tr("prompt.translate.default"))
         )
         self.rewrite_prompt_edit.setPlainText(
             self.config.get("rewrite_prompt",
-                            "按{style}风格改写以下文本，只输出改写后的内容：\n{text}")
+                            self.prompt_tr("prompt.rewrite.default"))
         )
         self.show_floating_btn.setChecked(self.config.get("show_floating_button", True))
         self.auto_show_check.setChecked(self.config.get("auto_show_suggestion", True))
@@ -257,6 +323,8 @@ class SettingsDialog(QDialog):
         self._select_data(self.ui_language_combo,
                           self.i18n.current if self.i18n is not None else "zh_CN")
         self._select_data(self.prompt_language_combo, self.config.get("prompt_language", "zh_CN"))
+        self._select_data(self.skin_combo,
+                          self.skins.current_id if self.skins is not None else "default")
 
     @staticmethod
     def _select_data(combo: QComboBox, value):
@@ -285,6 +353,10 @@ class SettingsDialog(QDialog):
 
         # 界面语言：保存后会由主窗口拉起全局重翻译
         self.config.set("ui_language", self.ui_language_combo.currentData())
+
+        # 桌宠皮肤：写入配置，由主窗口调用 kernel.set_skin 广播 skin.changed
+        if self.skins is not None and self.skin_combo.currentData():
+            self.config.set("skin", self.skin_combo.currentData())
 
         # 主题：保存到配置并立即应用（服务会广播 theme.changed）
         if self.theme is not None:

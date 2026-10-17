@@ -18,8 +18,11 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from core.sdk.plugin_base import PluginBase
+from core.services.skin_service import STATE_TOKENS
+from core.services.window_manager import CloseBehavior, Layer, Mode
 from core.services.word_bridge import get_word_app
-from plugins.proofread.suggestion_window import FloatingButton
+from plugins.proofread.pet_window import WINDOW_ID as PET_WINDOW_ID
+from plugins.proofread.pet_window import PetWindow
 from plugins.proofread.word_monitor import (
     TokenizedSentence,
     WordMonitor,
@@ -39,8 +42,9 @@ class ProofreadPlugin(PluginBase):
     def __init__(self) -> None:
         super().__init__()
         self.monitor: WordMonitor | None = None
-        self.floating_btn: FloatingButton | None = None
+        self.floating_btn: PetWindow | None = None     # 字段名保留，外壳与其它插件按它取用
         self._enabled = True
+        self._state = "idle"
 
     # ---------------- 生命周期 ----------------
     def activate(self, ctx: "PluginContext") -> None:
@@ -55,18 +59,12 @@ class ProofreadPlugin(PluginBase):
         self.monitor.debug_signal.connect(
             lambda msg: ctx.ui.status(self.tr("status.debug", msg=msg), 2000))
         self.monitor.suggestion_ready.connect(self._on_suggestion)
+        self.monitor.proofing_started.connect(self._on_proofing_started)
         self.monitor.status_update.connect(lambda msg: ctx.ui.status(msg, 3000))
         self.monitor.start()
 
-        # 悬浮按钮 + 建议卡片（主题服务用于 diff 配色与样式片段渲染）
-        self.floating_btn = FloatingButton(
-            config,
-            api=api,
-            ignore_mgr=ignore_mgr,
-            correction_handler=self.apply_correction,
-            theme=ctx.get_service("theme"),
-            i18n=i18n,
-        )
+        # 桌宠窗口（桌宠本体 + 建议气泡合并在一个受管窗口里）
+        self.floating_btn = self._open_pet(config, api, ignore_mgr, i18n)
 
         self._enabled = True
         self.monitor.proof_enabled = True
@@ -78,11 +76,56 @@ class ProofreadPlugin(PluginBase):
             hotkeys.register("toggle_monitor", "ctrl+shift+e", self.toggle, owner="proofread")
             hotkeys.register("proof_cursor", "ctrl+shift+z", self.proof_cursor, owner="proofread")
 
-        # API Key 变更后刷新内部引用；语言切换后刷新界面文案
+        # API Key 变更后刷新内部引用；语言/主题切换后刷新界面
         self.subscribe("ai.client_changed", self._on_api_changed)
         self.subscribe("i18n.language_changed", self._on_language_changed)
+        self.subscribe("theme.changed", self._on_theme_changed)
+        self.subscribe("skin.changed", self._on_skin_changed)
         ctx.register_capability("proofread", self)
         ctx.logger.info(self.tr("log.activated"))
+
+    def _open_pet(self, config, api, ignore_mgr, i18n) -> PetWindow | None:
+        """通过 WindowManager 打开桌宠，保证它是受管窗口而非野窗口。"""
+        windows = self.ctx.windows
+        theme = self.ctx.get_service("theme")
+        skins = self.ctx.get_service("skins")
+
+        def _factory() -> PetWindow:
+            pet = PetWindow(
+                config, api=api, ignore_mgr=ignore_mgr,
+                correction_handler=self.apply_correction,
+                theme=theme, skins=skins, i18n=i18n, tr=self.tr,
+            )
+            pet.proofreadToggleRequested.connect(self.toggle)
+            pet.settingsRequested.connect(self._open_settings)
+            return pet
+
+        if windows is None:
+            # 无窗口服务（离屏/测试环境）：仍构造出一个实例，只是不受管
+            return _factory()
+
+        try:
+            windows.open(
+                PET_WINDOW_ID, _factory, owner="proofread",
+                mode=Mode.SINGLETON,
+                layer=Layer.OVERLAY,
+                # 隐藏而非销毁：桌宠要常驻桌面，关闭主窗口时也不该被抹掉位置
+                behavior=CloseBehavior.HIDE,
+                remember_geometry=False,
+            )
+        except Exception:
+            self._log_exception(self.tr("error.open_pet"))
+            return None
+        pet = windows.get(PET_WINDOW_ID)
+        if pet is not None:
+            pet.show()
+        return pet
+
+    def _open_settings(self) -> None:
+        """桌宠右键菜单 -> 设置：走外壳已注册的设置入口。"""
+        main_window = self.ctx.ui.main_window() if self.ctx is not None else None
+        if main_window is not None and hasattr(main_window, "open_settings"):
+            main_window.open_settings()
 
     def deactivate(self) -> None:
         if self.monitor is not None:
@@ -109,6 +152,34 @@ class ProofreadPlugin(PluginBase):
         if self.floating_btn is not None:
             self.floating_btn.retranslateUi()
 
+    # ---------------- 桌宠状态机 ----------------
+    def set_state(self, state: str) -> None:
+        """切换桌宠状态：idle(无错) / error(有错) / busy(校对中) / disabled(未启用)。"""
+        state = state if state in STATE_TOKENS else "idle"
+        if state == self._state:
+            return
+        self._state = state
+        if self.floating_btn is not None:
+            self.floating_btn.set_state(state)
+        if self.ctx is not None:
+            # 广播出去，将来外壳的状态栏/托盘也能跟着变
+            self.ctx.events.emit("proofread.state_changed", state)
+
+    def state(self) -> str:
+        return self._state
+
+    def _sync_state(self) -> None:
+        """按当前开关与气泡内容推导应显示的状态。"""
+        if self.ctx is None:
+            return
+        if not self._enabled or not bool(self.ctx.config.get("show_floating_button", True)):
+            self.set_state("disabled")
+            return
+        if self.floating_btn is not None and self.floating_btn.bubble.isVisible():
+            self.set_state("error")
+        else:
+            self.set_state("idle")
+
     # ---------------- 能力 ----------------
     def is_enabled(self) -> bool:
         return self._enabled
@@ -130,6 +201,7 @@ class ProofreadPlugin(PluginBase):
         config = self.ctx.config
         visible = self._enabled and bool(config.get("show_floating_button", True))
         self.floating_btn.setVisible(visible)
+        self.set_state("idle" if visible else "disabled")
 
     def refresh_visibility(self) -> None:
         """设置项中「显示悬浮按钮」变化后由外壳或设置对话框调用。"""
@@ -137,8 +209,12 @@ class ProofreadPlugin(PluginBase):
 
     # ---------------- 校对与替换 ----------------
     def _on_suggestion(self, original: str, corrected: str, start: int, end: int) -> None:
-        if self.floating_btn is not None:
-            self.floating_btn.set_suggestion(original, corrected, start, end)
+        """收到校对结果：有差异 -> error，无差异 -> idle。"""
+        if self.floating_btn is None:
+            return
+        has_diff = bool(original and corrected and original.strip() != corrected.strip())
+        self.floating_btn.set_suggestion(original, corrected, start, end)
+        self.set_state("error" if has_diff else "idle")
 
     def proof_cursor(self) -> None:
         """对光标所在句立即做一次校对（热键 ctrl+shift+z）。"""
@@ -146,12 +222,17 @@ class ProofreadPlugin(PluginBase):
             current = extract_current_sentence()
             if not current or len(current) < 4:
                 return
+            self.set_state("busy")
             api = self.ctx.get_service("ai_client")
             corrected = api.proof_text(current)
-            if corrected and corrected.strip() != current.strip():
+            has_diff = corrected and corrected.strip() != current.strip()
+            if has_diff:
                 self._on_suggestion(current, corrected, -1, -1)
+            else:
+                self.set_state("idle")
         except Exception:
             self._log_exception(self.tr("log.proof_cursor_failed"))
+            self.set_state("idle")
 
     def apply_correction(self, corrected_text: str, start: int | None = None,
                          end: int | None = None, original_text: str | None = None) -> None:
@@ -226,6 +307,22 @@ class ProofreadPlugin(PluginBase):
 
     def _on_language_changed(self, _event, _lang=None) -> None:
         self.retranslateUi()
+
+    def _on_theme_changed(self, _event, _theme=None) -> None:
+        """主题换了：状态色随令牌变，桌宠与气泡都要重绘。"""
+        if self.floating_btn is None or self.ctx is None:
+            return
+        self.floating_btn.set_services(theme=self.ctx.get_service("theme"),
+                                       skins=self.ctx.get_service("skins"))
+
+    def _on_skin_changed(self, _event, _skin=None) -> None:
+        """换了皮肤包：桌宠按新分部件重绘。"""
+        if self.floating_btn is None or self.ctx is None:
+            return
+        self.floating_btn.set_services(skins=self.ctx.get_service("skins"))
+
+    def _on_proofing_started(self) -> None:
+        self.set_state("busy")
 
     def _status(self, message: str, timeout: int = 3000) -> None:
         if self.ctx is not None:
