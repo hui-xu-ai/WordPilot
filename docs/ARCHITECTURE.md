@@ -21,11 +21,15 @@
 │   event_bus      纯 Python 发布订阅                        │
 │   sdk/           PluginBase / PluginContext / UiRegistry   │
 │   services/      config(Fernet) / ai_client / word_bridge │
-│                  / ignore / caption_cache / hotkeys       │
+│                  / i18n / theme / skins / window_manager  │
+│                  / ignore / caption_cache / proof_cache   │
+│                  / hotkeys                                │
 ├───────────────────────────────────────────────────────────┤
 │ 插件 plugins/      每个功能一个自包含包（可含自己的 UI）    │
-│   proofread / navigator / image_toolbox / reference(预留) │
+│   proofread(含桌宠) / navigator / image_toolbox /        │
+│   reference(预留)                                         │
 ├───────────────────────────────────────────────────────────┤
+│ assets/           themes/ + i18n/ + skins/（皮肤包）       │
 │ infra/            hotkey 服务 / 内存回收 / 资源路径        │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -46,16 +50,21 @@
 | `core/services/config_manager.py` | 配置读写 + **Fernet 加密 API Key** | 历史明文读取时自动迁移 |
 | `core/services/ai_client.py` | DeepSeek `chat/completions`，提供 `proof_text/translate/rewrite` | 强制 `thinking:disabled` |
 | `core/services/word_bridge.py` | **Word COM 唯一入口**：`get_word_app` / `com_initialized` / `screen_updating_off` | 见 §3 |
-| `core/services/api_logger.py` | 调用日志写入 + **以日志文件充当校对缓存** | 待独立成 SQLite，见 §6 |
+| `core/services/api_logger.py` | 调用日志写入 | 纯日志，缓存已迁出 |
+| `core/services/proof_cache.py` | 校对结果 SQLite 缓存（WAL，线程安全） | 键统一为正文 body_text |
+| `core/services/i18n.py` | 多语言：JSON 语言包 + 热切换 | 界面语言与提示词语言解耦 |
+| `core/services/theme_service.py` | 设计令牌 + QSS 渲染 + user.qss 热重载 | 令牌 JSON + 模板 |
+| `core/services/skin_service.py` | 桌宠皮肤包：skin.json 布局解析 + SVG 占位符渲染素材 | 纯 Python，零 Qt |
+| `core/services/window_manager.py` | 窗口治理：层级仲裁 / 单例 / 几何记忆 / 关闭语义 | win32 置顶唯一出口 |
 | `core/services/caption_cache.py` | 题注 SQLite 缓存，指纹 = (路径, 大小, mtime) | WAL 模式 |
 | `core/services/ignore_cache.py` | 忽略句子库（存 sha256 哈希） | 已修悬空调用 |
 | `core/services/hotkey_service.py` | `keyboard` 库全局热键，插件按需注册 | 依赖管理员权限时行为需注意 |
 | `core/services/word_constants.py` | Word COM 常量字典 | |
-| `app/main_window.py` | 外壳：窗口 / 菜单 / 托盘 / 剪贴板工具 | 关闭窗口默认最小化到托盘 |
-| `app/ui_registry.py` | 收集插件的界面入口并供外壳渲染 | |
-| `app/settings_dialog.py` | 设置对话框（API Key、提示词、外观、热键等） | |
-| `app/monitor_window.py` | API 调用监控窗口 | |
-| `plugins/proofread/` | 实时校对：监控线程 + 悬浮卡片 + 替换逻辑 + 热键 | 见 §4 |
+| `app/main_window.py` | 外壳：顶部工具栏 + 左侧导航 + QStackedWidget 内容区 + 状态栏 | 关闭窗口默认最小化到托盘 |
+| `app/ui_registry.py` | 收集插件的界面入口（工具 / 托盘 / 页面）并供外壳渲染 | label 存 i18n key |
+| `app/settings_dialog.py` | 设置对话框（API、提示词、界面、外观） | 界面语言与提示词语言分离 |
+| `app/monitor_window.py` | API 调用监控（内嵌为主界面内容页） | |
+| `plugins/proofread/` | 实时校对：监控线程 + 桌宠窗口 + 替换逻辑 + 热键 | 桌宠见 §8，校对见 §4 |
 | `plugins/navigator/` | 题录导航：扫描 SEQ 域→列表→跳转/返回 | 见 §5 性能问题 |
 | `plugins/image_toolbox/` | 图片工具箱：借隐藏文档 `Image.docx` 批量裁剪居中 | |
 | `plugins/reference/` | 参考文献助手（开发中，默认不启用） | 对应 `work/` 下两个测试文档 |
@@ -108,11 +117,12 @@
 5. ~~**`Ctrl+Shift+Z` 光标校对热键失效**~~ → 原 `handle_suggestion(cur, corrected)` 少传两个参数必然 TypeError，被裸 except 吞掉；重构后插件内部直连，已修复。
 
 ### 仍待处理
-1. **缓存即日志**：`api_calls.log` 同时承担「日志」和「校对缓存」两职，清空日志＝清缓存；`get_cached_suggestion` 每次线性扫描文件尾部，量大时变慢。
-   建议独立缓存表（SQLite，已有 `caption_cache` 可参照）。
-   注意：`proof_sentence`（键为 `body_text`）与 `proof_text`（键为带前缀的 `api_prompt`）缓存键不一致，存在重复查缓存。
-2. **裸 `except:`** 仍有残留（主要在 navigator 等未触及的模块），会吞掉 COM 真实错误，排障困难。
-3. **版本号三处漂移**：`main.py` / 主窗口标题 / 导航「关于」各写一份，待统一到 `src/__version__.py`。
+1. **裸 `except:`** 仍有残留（主要在 navigator 等未触及的模块），会吞掉 COM 真实错误，排障困难。
+
+### 已在重构批中解决（追加）
+6. ~~**缓存即日志 / 缓存键不一致**~~ → 独立 `proof_cache.py`（SQLite WAL），
+   `proof_sentence` 与 `proof_text` 统一以 body_text 为键。
+7. ~~**版本号三处漂移**~~ → 统一到 `src/__version__.py`，插件读自身 plugin.json。
 
 ## 7. 配置与数据落盘位置
 
@@ -120,3 +130,19 @@
 - 源码运行：`config/` 位于 `src/config/`（`__file__` 同级）。
 
 因此源码开发时的隐私数据都落在 `src/config/`，已被 `.gitignore` 覆盖。
+
+## 8. GUI 重设计要点（P1~P5 已落地）
+
+- **窗口治理**：所有窗口（含插件窗口）经 `WindowManager` 打开，
+  统一父子关系、置顶层级（NORMAL/TOPMOST/PALETTE/OVERLAY）、单例与关闭语义；
+  win32 `SetWindowPos(SWP_NOACTIVATE)` 是唯一置顶出口。
+- **主题**：`assets/themes/tokens.<name>.json`（设计令牌）+ `base.qss`（@token 模板）
+  + `config/user.qss`（用户覆盖，热重载）；界面代码禁止再写内联 setStyleSheet。
+- **多语言**：JSON 语言包 + 内核 `i18n` 服务，界面语言与提示词语言独立，
+  热切换走 `i18n.language_changed` 事件 + `retranslateUi()`。
+- **桌宠**：`assets/skins/<id>/` 皮肤包（skin.json + SVG 分部件）；
+  桌宠本体 + 建议气泡合并为单个受管窗口 `proofread.pet`，
+  主体颜色即状态色（绿/红/黄/灰），带眨眼与呼吸动画。
+- **主界面信息架构**：顶部工具栏（校对开关/置顶钉/清理/设置）+
+  左侧导航（仪表盘/剪贴板工具/插件/API 监控）+ QStackedWidget 内容区 + 状态栏；
+  插件可通过 `ctx.ui.add_page()` 贡献独占导航页。

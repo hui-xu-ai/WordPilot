@@ -24,6 +24,18 @@
   "app.cleanup.status_all": "All caches cleared",
   "app.cleanup.title_done": "Done",
 
+  "app.nav.dashboard": "Dashboard",
+  "app.nav.clipboard": "Clipboard",
+  "app.nav.plugins": "Plugins",
+  "app.nav.monitor": "API Monitor",
+  "app.toolbar.title": "Main toolbar",
+  "app.toolbar.topmost": "📌 Pin on top",
+  "app.dashboard.hint": "Switch pages from the left navigation. The pet's color reflects the proofreading state (green = clean, red = issues, yellow = working, gray = off).",
+  "app.dashboard.params": "Proofreading parameters",
+  "app.plugins.group": "Loaded plugins",
+  "app.plugins.empty": "No plugins loaded yet",
+  "app.plugins.open": "Open",
+
   "app.proof.group": "Live Proofreading",
   "app.proof.status_label": "Status:",
   "app.proof.on": "🔴 Listening",

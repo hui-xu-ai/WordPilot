@@ -1,22 +1,36 @@
 # main_window.py
 """应用外壳（前端）。
 
+信息架构（现代桌面软件常见布局）：
+    ┌─────────────────────────────────────────────┐
+    │ 顶部工具栏：校对开关 / 置顶钉 | 清理 / 设置   │
+    ├──────────┬──────────────────────────────────┤
+    │ 左侧导航 │ 内容区（QStackedWidget）          │
+    │ 仪表盘   │  仪表盘 / 剪贴板工具 / 插件 /     │
+    │ 剪贴板   │  API 监控 / …插件贡献页           │
+    │ 插件     │                                  │
+    │ API 监控 │                                  │
+    ├──────────┴──────────────────────────────────┤
+    │ 状态栏                                      │
+    └─────────────────────────────────────────────┘
+
 职责边界：
-- 只负责窗口、托盘、菜单栏、设置、剪贴板工具等「与具体功能无关」的骨架；
+- 只负责窗口、托盘、工具栏、导航、设置、剪贴板工具等「与具体功能无关」的骨架；
 - 不再 import 任何插件内部模块，具体功能由 plugins/ 下的插件
-  通过 ctx.ui 贡献点（工具菜单项 / 托盘菜单项）挂载进来；
+  通过 ctx.ui 贡献点（工具菜单项 / 托盘菜单项 / 页面）挂载进来；
 - 需要调用插件能力时，一律通过 kernel.capabilities 取，
   插件未加载时外壳仍然可用（按钮自动降级为只改自己的状态）；
 - 所有可见文案走 i18n（self.tr），切换语言时由 retranslateUi() 统一刷新。
 
 新增一个功能时，本文件应当零改动。
 """
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                                QGroupBox, QPushButton, QTextEdit, QSlider, QSpinBox,
-                               QSystemTrayIcon, QMenu, QMessageBox, QCheckBox, QApplication,
-                               QLabel)
+                               QSystemTrayIcon, QMenu, QMessageBox, QApplication,
+                               QLabel, QListWidget, QListWidgetItem, QStackedWidget,
+                               QToolBar, QToolButton, QFrame, QSizePolicy)
 
 from __version__ import __version__
 from core.kernel import Kernel
@@ -32,6 +46,14 @@ from infra.utils import resource_path
 class MainWindow(QMainWindow):
     WINDOW_ID = "app.main"
 
+    #: 左侧导航内置页（id, i18n key）；内容页在 _build_pages 中按同顺序构造
+    BUILTIN_PAGES = (
+        ("dashboard", "app.nav.dashboard", "⌂"),
+        ("clipboard", "app.nav.clipboard", "📋"),
+        ("plugins", "app.nav.plugins", "🧩"),
+        ("monitor", "app.nav.monitor", "📊"),
+    )
+
     def __init__(self, kernel: Kernel):
         super().__init__()
         self.kernel = kernel
@@ -41,7 +63,7 @@ class MainWindow(QMainWindow):
         self.i18n = kernel.services.get("i18n")
         self._window_id = self.WINDOW_ID
         self.setWindowTitle(self._window_title())
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(680, 480)
 
         # UI 贡献点收集器：插件加载后由 build_extension_menus 统一渲染
         self.ui = QtUiRegistry(self)
@@ -49,6 +71,10 @@ class MainWindow(QMainWindow):
         # 插件能力（插件加载后由 bind_plugins 绑定）
         self._proofread = None
         self._unsubscribes: list = []
+        # 页面注册表：nav id -> 内容 QWidget（内置页 + 插件页共用 QStackedWidget）
+        self._page_index: dict[str, int] = {}
+        # 插件贡献页：(nav item, stack widget)，重建时先整体移除再追加
+        self._plugin_page_widgets: list[tuple] = []
 
         self.init_ui()
         self.setup_tray()
@@ -67,9 +93,9 @@ class MainWindow(QMainWindow):
 
         # 初始置顶状态
         if self.config.get("main_on_top", False):
-            self.top_check.blockSignals(True)
-            self.top_check.setChecked(True)
-            self.top_check.blockSignals(False)
+            self.top_action.blockSignals(True)
+            self.top_action.setChecked(True)
+            self.top_action.blockSignals(False)
 
         self._subscribe_events()
 
@@ -106,17 +132,11 @@ class MainWindow(QMainWindow):
             self._sync_proof_button(self._proofread.is_enabled())
 
     def build_extension_menus(self):
-        """把插件注册的界面入口渲染成菜单项与托盘项。
+        """把插件注册的界面入口渲染成托盘项与插件页列表。
 
         可重复调用：每次先 clear 再重建（切换语言、插件增减都会触发），
         否则菜单项会重复追加。
         """
-        self.tools_menu.clear()
-        for label, handler, icon in self.ui.tools():
-            action = self.tools_menu.addAction(label, handler)
-            if icon is not None:
-                action.setIcon(icon)
-
         self.tray_menu.clear()
         for label, handler in self.ui.tray_actions():
             self.tray_menu.addAction(label, handler)
@@ -124,30 +144,160 @@ class MainWindow(QMainWindow):
         self.tray_menu.addAction(self.tr("app.tray.show_main"), self.show)
         self.tray_menu.addAction(self.tr("app.tray.quit"), self.quit_app)
 
+        self._rebuild_plugins_page()
+        self._rebuild_plugin_pages()
+
     def _on_proof_toggled(self, _event, enabled):
         self._sync_proof_button(bool(enabled))
 
     def _sync_proof_button(self, on: bool):
-        """只更新按钮外观，不回环触发 toggled 信号。"""
-        self.proof_btn.blockSignals(True)
-        self.proof_btn.setChecked(on)
-        self.proof_btn.setText(self.tr("app.proof.on") if on else self.tr("app.proof.off"))
-        self.proof_btn.blockSignals(False)
+        """只更新开关外观，不回环触发 toggled 信号。"""
+        self.proof_action.blockSignals(True)
+        self.proof_action.setChecked(on)
+        self.proof_action.setText(self.tr("app.proof.on") if on else self.tr("app.proof.off"))
+        self.proof_action.blockSignals(False)
+        self.dashboard_status.setText(
+            self.tr("app.proof.on") if on else self.tr("app.proof.off"))
+        self.dashboard_status.setProperty("state", "ok" if on else "off")
+        self.dashboard_status.style().unpolish(self.dashboard_status)
+        self.dashboard_status.style().polish(self.dashboard_status)
 
-    # ---------------- 界面 ----------------
+    # ---------------- 界面：骨架 ----------------
     def init_ui(self):
+        self._build_toolbar()
+
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
+        body = QHBoxLayout(central)
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
 
-        # 实时校对控制组
-        self.proof_group = QGroupBox(self.tr("app.proof.group"))
-        proof_layout = QFormLayout()
-        self.proof_btn = QPushButton(self.tr("app.proof.on"))
-        self.proof_btn.setCheckable(True)
-        self.proof_btn.setChecked(True)
-        self.proof_btn.toggled.connect(self.toggle_proof)
-        proof_layout.addRow(self.tr("app.proof.status_label"), self.proof_btn)
+        # 左侧导航
+        self.nav_list = QListWidget()
+        self.nav_list.setObjectName("navList")
+        self.nav_list.setFixedWidth(132)
+        self.nav_list.setIconSize(QSize(22, 22))
+        self.nav_list.setFrameShape(QFrame.NoFrame)
+        body.addWidget(self.nav_list)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.VLine)
+        divider.setObjectName("navDivider")
+        body.addWidget(divider)
+
+        # 内容区
+        self.stack = QStackedWidget()
+        body.addWidget(self.stack, 1)
+        self._build_pages()
+
+        self.nav_list.currentRowChanged.connect(self.stack.setCurrentIndex)
+        if self.nav_list.count():
+            self.nav_list.setCurrentRow(0)
+
+        # API 监控现在是一个内容页，托盘里仍保留一个快捷入口
+        self.ui.add_tray_action("menu.monitor", self.show_monitor, order=50, plugin_id="app")
+
+        # 状态栏
+        self.statusbar = self.statusBar()
+        self.statusbar.showMessage(self._ready_message())
+
+    def _build_toolbar(self):
+        self.toolbar = QToolBar(self.tr("app.toolbar.title"))
+        self.toolbar.setObjectName("mainToolBar")
+        self.toolbar.setMovable(False)
+        self.toolbar.setFloatable(False)
+        self.toolbar.setIconSize(QSize(18, 18))
+        self.addToolBar(Qt.TopToolBarArea, self.toolbar)
+
+        # 校对开关
+        self.proof_action = QAction(self.tr("app.proof.on"), self)
+        self.proof_action.setCheckable(True)
+        self.proof_action.setChecked(True)
+        self.proof_action.toggled.connect(self.toggle_proof)
+        self.toolbar.addAction(self.proof_action)
+
+        # 置顶钉
+        self.top_action = QAction(self.tr("app.toolbar.topmost"), self)
+        self.top_action.setCheckable(True)
+        self.top_action.toggled.connect(self.toggle_main_top)
+        self.toolbar.addAction(self.top_action)
+
+        self.toolbar.addSeparator()
+
+        # 右侧：清理 + 设置
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        spacer.setObjectName("toolbarSpacer")
+        self.toolbar.addWidget(spacer)
+
+        self.cleanup_button = QToolButton()
+        self.cleanup_button.setObjectName("toolbarCleanup")
+        self.cleanup_button.setText(self.tr("app.menu.cleanup"))
+        self.cleanup_button.setPopupMode(QToolButton.InstantPopup)
+        self.cleanup_menu = QMenu(self.cleanup_button)
+        self.cleanup_menu.addAction(self.tr("app.cleanup.ignore"), self.clear_ignore_only)
+        self.cleanup_menu.addAction(self.tr("app.cleanup.log"), self.clear_api_log_only)
+        self.cleanup_menu.addAction(self.tr("app.cleanup.all"), self.clear_all_cache)
+        self.cleanup_button.setMenu(self.cleanup_menu)
+        self.toolbar.addWidget(self.cleanup_button)
+
+        self.settings_action = QAction(self.tr("app.menu.settings"), self)
+        self.settings_action.triggered.connect(self.open_settings)
+        self.toolbar.addAction(self.settings_action)
+
+    # ---------------- 界面：页面 ----------------
+    def _build_pages(self):
+        """按 BUILTIN_PAGES 顺序构建内置页，再追加插件贡献页。"""
+        builders = {
+            "dashboard": self._build_dashboard_page,
+            "clipboard": self._build_clipboard_page,
+            "plugins": self._build_plugins_page,
+            "monitor": self._build_monitor_page,
+        }
+        for page_id, key, icon in self.BUILTIN_PAGES:
+            self._add_page(page_id, key, icon, builders[page_id]())
+
+    def _add_page(self, page_id: str, title_key: str, icon: str, widget: QWidget) -> None:
+        index = self.stack.addWidget(widget)
+        self._page_index[page_id] = index
+        item = QListWidgetItem(f"{icon}  {self.tr(title_key)}")
+        item.setTextAlignment(Qt.AlignHCenter)
+        item.setData(Qt.UserRole, page_id)
+        self.nav_list.addItem(item)
+
+    def show_page(self, page_id: str) -> None:
+        """切到指定页（id 或序号）。"""
+        row = self._page_index.get(page_id)
+        if row is not None:
+            self.nav_list.setCurrentRow(row)
+            self.show()
+            self.raise_()
+
+    def _build_dashboard_page(self) -> QWidget:
+        page = QWidget()
+        page.setObjectName("pageDashboard")
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # 校对状态卡片
+        status_group = QGroupBox(self.tr("app.proof.group"))
+        self.proof_group = status_group
+        status_layout = QVBoxLayout(status_group)
+        self.dashboard_status = QLabel(self.tr("app.proof.on"))
+        self.dashboard_status.setObjectName("dashboardStatus")
+        self.dashboard_status.setProperty("state", "ok")
+        status_layout.addWidget(self.dashboard_status, 0, Qt.AlignLeft)
+        self.dashboard_hint = QLabel(self.tr("app.dashboard.hint"))
+        self.dashboard_hint.setObjectName("hintLabel")
+        self.dashboard_hint.setWordWrap(True)
+        status_layout.addWidget(self.dashboard_hint)
+        layout.addWidget(status_group)
+
+        # 校对参数
+        params_group = QGroupBox(self.tr("app.dashboard.params"))
+        self.params_group = params_group
+        params_layout = QFormLayout(params_group)
 
         debounce_layout = QHBoxLayout()
         debounce_slider = QSlider(Qt.Horizontal)
@@ -161,31 +311,36 @@ class MainWindow(QMainWindow):
         ))
         debounce_layout.addWidget(debounce_slider)
         debounce_layout.addWidget(debounce_label)
-        proof_layout.addRow(self.tr("app.proof.debounce_label"), debounce_layout)
+        self.debounce_label = QLabel(self.tr("app.proof.debounce_label"))
+        params_layout.addRow(self.debounce_label, debounce_layout)
 
         ctx_spin = QSpinBox()
         ctx_spin.setRange(0, 5)
         ctx_spin.setValue(self.config.get("context_before", 0))
         ctx_spin.valueChanged.connect(lambda v: (self.config.set("context_before", v),
                                                  self.config.set("context_after", v)))
-        proof_layout.addRow(self.tr("app.proof.context_label"), ctx_spin)
+        self.context_label = QLabel(self.tr("app.proof.context_label"))
+        params_layout.addRow(self.context_label, ctx_spin)
 
-        self.top_check = QCheckBox(self.tr("app.proof.topmost"))
-        self.top_check.setChecked(self.config.get("main_on_top", False))
-        self.top_check.stateChanged.connect(self.toggle_main_top)
-        proof_layout.addRow(self.top_check)
-        self.proof_group.setLayout(proof_layout)
-        main_layout.addWidget(self.proof_group)
+        layout.addWidget(params_group)
+        layout.addStretch()
+        return page
 
-        # 剪贴板处理组
-        self.clip_group = QGroupBox(self.tr("app.clipboard.group"))
-        cb_layout = QVBoxLayout()
+    def _build_clipboard_page(self) -> QWidget:
+        page = QWidget()
+        page.setObjectName("pageClipboard")
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
         self.btn_load = QPushButton(self.tr("app.clipboard.load"))
         self.btn_load.clicked.connect(self.load_clipboard)
-        cb_layout.addWidget(self.btn_load)
+        layout.addWidget(self.btn_load)
+
         self.clip_preview = QTextEdit()
         self.clip_preview.setPlaceholderText(self.tr("app.clipboard.placeholder"))
-        cb_layout.addWidget(self.clip_preview)
+        layout.addWidget(self.clip_preview)
+
         btn_row = QHBoxLayout()
         self.correct_btn = QPushButton(self.tr("app.clipboard.proof"))
         self.translate_btn = QPushButton(self.tr("app.clipboard.translate"))
@@ -196,10 +351,12 @@ class MainWindow(QMainWindow):
         btn_row.addWidget(self.correct_btn)
         btn_row.addWidget(self.translate_btn)
         btn_row.addWidget(self.rewrite_btn)
-        cb_layout.addLayout(btn_row)
+        layout.addLayout(btn_row)
+
         self.clip_result = QTextEdit()
         self.clip_result.setPlaceholderText(self.tr("app.clipboard.result_placeholder"))
-        cb_layout.addWidget(self.clip_result)
+        layout.addWidget(self.clip_result)
+
         res_btn_row = QHBoxLayout()
         self.btn_insert = QPushButton(self.tr("app.clipboard.insert"))
         self.btn_copy = QPushButton(self.tr("app.clipboard.copy"))
@@ -208,36 +365,121 @@ class MainWindow(QMainWindow):
             lambda: QApplication.clipboard().setText(self.clip_result.toPlainText()))
         res_btn_row.addWidget(self.btn_insert)
         res_btn_row.addWidget(self.btn_copy)
-        cb_layout.addLayout(res_btn_row)
-        self.clip_group.setLayout(cb_layout)
-        main_layout.addWidget(self.clip_group)
+        layout.addLayout(res_btn_row)
+        return page
 
-        # 菜单栏
-        menu_bar = self.menuBar()
-        self.settings_action = menu_bar.addAction(self.tr("app.menu.settings"))
-        self.settings_action.triggered.connect(self.open_settings)
+    def _build_plugins_page(self) -> QWidget:
+        page = QWidget()
+        page.setObjectName("pagePlugins")
+        self.plugins_layout = QVBoxLayout(page)
+        self.plugins_layout.setContentsMargins(16, 16, 16, 16)
+        self.plugins_layout.setSpacing(8)
+        self.plugins_title = QLabel(self.tr("app.plugins.group"))
+        self.plugins_title.setObjectName("sectionTitle")
+        self.plugins_layout.addWidget(self.plugins_title)
+        self.plugins_list = QVBoxLayout()
+        self.plugins_list.setSpacing(6)
+        self.plugins_layout.addLayout(self.plugins_list)
+        self.plugins_layout.addStretch()
+        return page
 
-        self.cleanup_menu = QMenu(self.tr("app.menu.cleanup"), self)
-        self.cleanup_menu.addAction(self.tr("app.cleanup.ignore"), self.clear_ignore_only)
-        self.cleanup_menu.addAction(self.tr("app.cleanup.log"), self.clear_api_log_only)
-        self.cleanup_menu.addAction(self.tr("app.cleanup.all"), self.clear_all_cache)
-        self.cleanup_action = menu_bar.addAction(self.tr("app.menu.cleanup"))
-        self.cleanup_action.setMenu(self.cleanup_menu)
+    def _rebuild_plugins_page(self) -> None:
+        """按 ui.tools() 重建插件页列表（先清空再追加，保证可重复调用）。"""
+        while self.plugins_list.count():
+            item = self.plugins_list.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
 
-        # 工具菜单：外壳先挂自带项，插件贡献项在加载后由 build_extension_menus 追加
-        self.tools_menu = menu_bar.addMenu(self.tr("app.menu.tools"))
-        self.ui.add_tool("menu.monitor", self.show_monitor, order=50, plugin_id="app")
+        tools = self.ui.tools()
+        if not tools:
+            empty = QLabel(self.tr("app.plugins.empty"))
+            empty.setObjectName("hintLabel")
+            self.plugins_list.addWidget(empty)
+            return
+        for label, handler, _icon in tools:
+            row = QWidget()
+            row.setObjectName("pluginRow")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(10, 8, 10, 8)
+            name = QLabel(label)
+            name.setObjectName("pluginName")
+            row_layout.addWidget(name)
+            row_layout.addStretch()
+            open_btn = QPushButton(self.tr("app.plugins.open"))
+            open_btn.setProperty("accent", True)
+            open_btn.clicked.connect(lambda _c=False, h=handler: h())
+            row_layout.addWidget(open_btn)
+            self.plugins_list.addWidget(row)
 
-        # 状态栏
-        self.statusbar = self.statusBar()
-        self.statusbar.showMessage(self._ready_message())
+    def _build_monitor_page(self) -> QWidget:
+        self.monitor_widget = MonitorWindow(i18n=self.i18n)
+        self.monitor_widget.close_btn.setVisible(False)    # 内嵌页不需要关闭按钮
+        self.monitor_widget.setWindowTitle("")             # 窗口标题交给导航
+        return self.monitor_widget
 
+    def _rebuild_plugin_pages(self) -> None:
+        """重建插件贡献的导航页（add_page 贡献点）。
+
+        插件页一律追加在内置页之后，移除时只动尾部，内置页的序号不会被打乱。
+        """
+        for item, widget in self._plugin_page_widgets:
+            row = self.nav_list.row(item)
+            if row >= 0:
+                self.nav_list.takeItem(row)
+            self.stack.removeWidget(widget)
+            widget.deleteLater()
+        self._plugin_page_widgets.clear()
+        self._page_index = {key: value for key, value in self._page_index.items()
+                            if not key.startswith("plugin_page:")}
+        for label, factory, icon in self.ui.pages():
+            try:
+                widget = factory()
+            except Exception:
+                # 单个插件页构造失败不应拖垮整个外壳
+                continue
+            index = self.stack.addWidget(widget)
+            page_id = f"plugin_page:{index}"
+            self._page_index[page_id] = index
+            prefix = icon if isinstance(icon, str) else "▣"
+            item = QListWidgetItem(f"{prefix}  {label}")
+            item.setTextAlignment(Qt.AlignHCenter)
+            item.setData(Qt.UserRole, page_id)
+            self.nav_list.addItem(item)
+            self._plugin_page_widgets.append((item, widget))
+
+    # ---------------- 界面：多语言 ----------------
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
         """切换语言后刷新全部可见文案（菜单重建 + 控件重设文本）。"""
         self.setWindowTitle(self._window_title())
+
+        self.toolbar.setWindowTitle(self.tr("app.toolbar.title"))
+        self.top_action.setText(self.tr("app.toolbar.topmost"))
+        self.cleanup_button.setText(self.tr("app.menu.cleanup"))
+        self.cleanup_menu.setTitle(self.tr("app.menu.cleanup"))
+        for index, key in enumerate(("app.cleanup.ignore", "app.cleanup.log", "app.cleanup.all")):
+            actions = self.cleanup_menu.actions()
+            if index < len(actions):
+                actions[index].setText(self.tr(key))
+        self.settings_action.setText(self.tr("app.menu.settings"))
+
+        # 左侧导航
+        for row in range(self.nav_list.count()):
+            item = self.nav_list.item(row)
+            page_id = item.data(Qt.UserRole)
+            for pid, key, icon in self.BUILTIN_PAGES:
+                if pid == page_id:
+                    item.setText(f"{icon}  {self.tr(key)}")
+                    break
+
+        # 仪表盘
         self.proof_group.setTitle(self.tr("app.proof.group"))
-        self.clip_group.setTitle(self.tr("app.clipboard.group"))
-        self.top_check.setText(self.tr("app.proof.topmost"))
+        self.params_group.setTitle(self.tr("app.dashboard.params"))
+        self.dashboard_hint.setText(self.tr("app.dashboard.hint"))
+        self.debounce_label.setText(self.tr("app.proof.debounce_label"))
+        self.context_label.setText(self.tr("app.proof.context_label"))
+
+        # 剪贴板页
         self.btn_load.setText(self.tr("app.clipboard.load"))
         self.clip_preview.setPlaceholderText(self.tr("app.clipboard.placeholder"))
         self.correct_btn.setText(self.tr("app.clipboard.proof"))
@@ -247,14 +489,11 @@ class MainWindow(QMainWindow):
         self.btn_insert.setText(self.tr("app.clipboard.insert"))
         self.btn_copy.setText(self.tr("app.clipboard.copy"))
 
-        self.settings_action.setText(self.tr("app.menu.settings"))
-        self.cleanup_action.setText(self.tr("app.menu.cleanup"))
-        self.cleanup_menu.setTitle(self.tr("app.menu.cleanup"))
-        for index, key in enumerate(("app.cleanup.ignore", "app.cleanup.log", "app.cleanup.all")):
-            actions = self.cleanup_menu.actions()
-            if index < len(actions):
-                actions[index].setText(self.tr(key))
-        self.tools_menu.setTitle(self.tr("app.menu.tools"))
+        # 插件页
+        self.plugins_title.setText(self.tr("app.plugins.group"))
+
+        # 监控页
+        self.monitor_widget.retranslateUi()
 
         self.tray_icon.setToolTip(self.tr("app.tray.tooltip"))
         self.statusbar.showMessage(self._ready_message())
@@ -262,31 +501,33 @@ class MainWindow(QMainWindow):
         if self._proofread is not None:
             self._sync_proof_button(self._proofread.is_enabled())
         else:
-            self._sync_proof_button(self.proof_btn.isChecked())
+            self._sync_proof_button(self.proof_action.isChecked())
         self.build_extension_menus()   # 插件入口同样需要重翻译
 
         # 已打开的常驻窗口同样要重翻译（设置页是模态的，通常不会同时存在）
         wm = self.kernel.services.get("window_manager")
         if wm is not None:
-            for wid in ("app.settings", "app.monitor"):
+            for wid in ("app.settings",):
                 window = wm.get(wid)
                 if window is not None and hasattr(window, "retranslateUi"):
                     window.retranslateUi()
 
+    # ---------------- 业务：校对开关 ----------------
     def toggle_proof(self, enabled):
         if self._proofread is not None:
             self._proofread.set_enabled(enabled)
         else:
-            # 校对插件未加载时，仅保持按钮自身状态
+            # 校对插件未加载时，仅保持开关自身状态
             self._sync_proof_button(enabled)
 
-    def toggle_main_top(self, state=None):
+    def toggle_main_top(self, checked=False):
         """主窗口置顶：只改配置，实际置顶由 WindowManager 按 Layer 策略施加。"""
-        self.config.set("main_on_top", self.top_check.isChecked())
+        self.config.set("main_on_top", bool(checked))
         wm = self.kernel.services.get("window_manager")
         if wm is not None:
             wm.refresh_topmost(self._window_id)
 
+    # ---------------- 业务：剪贴板 ----------------
     def load_clipboard(self):
         text = QApplication.clipboard().text()
         self.clip_preview.setPlainText(text)
@@ -327,6 +568,7 @@ class MainWindow(QMainWindow):
         except WordNotRunningError as exc:
             QMessageBox.warning(self, self.tr("app.clipboard.error_title"), str(exc))
 
+    # ---------------- 托盘 ----------------
     def setup_tray(self):
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon(resource_path("assets/tray_icon.png")))
@@ -366,6 +608,7 @@ class MainWindow(QMainWindow):
         self.tray_icon.hide()
         QApplication.quit()
 
+    # ---------------- 外观 / 窗口治理 ----------------
     def apply_style(self):
         """全局外观由主题服务统一渲染；这里只处理主题管不到的窗口级项。"""
         theme = self.kernel.services.get("theme")
@@ -421,6 +664,7 @@ class MainWindow(QMainWindow):
             self.apply_style()
             self.retranslateUi()
 
+    # ---------------- 清理缓存 ----------------
     def clear_ignore_only(self):
         self.ignore_mgr.clear_ignore()
         QMessageBox.information(self, self.tr("app.cleanup.title_done"),
@@ -441,15 +685,8 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage(self.tr("app.cleanup.status_all"), 3000)
 
     def show_monitor(self):
-        """API 调用监控：单例窗口，关闭转隐藏（由 WindowManager 治理）。"""
-        wm = self.kernel.services.get("window_manager")
-        if wm is None:
-            return
-        from core.services.window_manager import CloseBehavior, Mode
-
-        wm.open("app.monitor", lambda: MonitorWindow(i18n=self.i18n), owner="app",
-                mode=Mode.SINGLETON, behavior=CloseBehavior.HIDE,
-                remember_geometry=True)
+        """API 监控已并入主界面内容页，这里切过去即可（保留入口供托盘调用）。"""
+        self.show_page("monitor")
 
     def showEvent(self, event):
         super().showEvent(event)

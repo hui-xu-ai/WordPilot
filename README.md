@@ -9,11 +9,14 @@
 | 功能 | 说明 | 入口 |
 | --- | --- | --- |
 | 实时 AI 纠错 | 监控光标所在句子，句末完成后自动送 AI 校对，红色波浪线标出差异 | 后台监控线程 / `Ctrl+Shift+Z` |
+| 校对桌宠 | 桌宠颜色实时指示校对状态（绿=无错 / 红=有错 / 黄=校对中 / 灰=未启用），支持换肤 | 桌面桌宠 / 右键菜单 |
 | 翻译 | 选中文本或剪贴板内容翻译 | `Ctrl+Shift+T` |
 | 改写 | 按风格改写文本 | `Ctrl+Shift+R` |
-| 题录导航 | 扫描 Word 域(SEQ)，生成图/表题注列表，双击跳转、支持返回上一位置 | 工具菜单 / 托盘 |
-| 图片无损裁剪 | 借助隐藏 Word 工作文档对图片裁剪居中，保留原始像素 | 工具菜单「图片工具箱」 |
-| 校对开关 | `Ctrl+Shift+E` 启停实时监控 | 热键 / 主界面 |
+| 题录导航 | 扫描 Word 域(SEQ)，生成图/表题注列表，双击跳转、支持返回上一位置 | 插件页 / 托盘 |
+| 图片无损裁剪 | 借助隐藏 Word 工作文档对图片裁剪居中，保留原始像素 | 插件页「图片工具箱」 |
+| 校对开关 | `Ctrl+Shift+E` 启停实时监控 | 热键 / 顶部工具栏 |
+| 多语言 | 简体中文 / English，界面语言与提示词语言可独立切换 | 设置 → 外观 |
+| 主题 | 浅色 / 深色 Fluent 风 + 用户自定义 `config/user.qss` | 设置 → 外观 |
 
 ## 快速开始
 
@@ -55,8 +58,8 @@ SmartProof/
 │   ├── __version__.py       # 应用名/版本号/作者的唯一来源
 │   ├── main.py              # 入口：建内核→建外壳→挂 UI→加载插件（无业务装配）
 │   ├── app/                 # 前端表现层（PySide6，不碰 COM / API / 缓存）
-│   │   ├── main_window.py   # 外壳：窗口/托盘/菜单骨架，消费插件贡献点
-│   │   ├── ui_registry.py   # UI 贡献点（工具菜单/托盘项/状态栏）的 Qt 实现
+│   │   ├── main_window.py   # 外壳：顶部工具栏 + 左侧导航 + 内容区 + 状态栏
+│   │   ├── ui_registry.py   # UI 贡献点（工具菜单/托盘项/页面/状态栏）的 Qt 实现
 │   │   ├── settings_dialog.py / monitor_window.py
 │   ├── core/                # 微内核
 │   │   ├── kernel.py        # 生命周期：boot → attach_ui → plugins → shutdown
@@ -64,14 +67,15 @@ SmartProof/
 │   │   ├── event_bus.py     # 事件总线（前后端解耦，零 Qt 依赖）
 │   │   ├── sdk/             # 插件协议：PluginBase / PluginManifest / PluginContext
 │   │   └── services/        # 内核服务：config / ai_client / word_bridge(COM 唯一入口)
-│   │                        #            / caption_cache / ignore / hotkeys / api_logger
-│   ├── plugins/             # 每个功能一个插件包（plugin.json + plugin.py）
-│   │   ├── proofread/       # 实时校对（监控线程 + 悬浮卡片 + 替换逻辑）
+│   │                        #            / i18n / theme / skins / window_manager
+│   │                        #            / proof_cache / caption_cache / ignore / hotkeys
+│   ├── plugins/             # 每个功能一个插件包（plugin.json + plugin.py + i18n/）
+│   │   ├── proofread/       # 实时校对（监控线程 + 桌宠窗口 + 替换逻辑）
 │   │   ├── navigator/       # 题录导航
 │   │   ├── image_toolbox/   # 图片无损裁剪
 │   │   └── reference/       # 参考文献助手（占位，默认不加载）
 │   ├── infra/               # memory_trimmer / utils（资源路径）
-│   ├── assets/              # 图标等资源
+│   ├── assets/              # icons / themes(令牌+QSS) / i18n(语言包) / skins(桌宠皮肤)
 │   └── config/              # 运行时数据目录（隐私文件已 gitignore）
 ├── docs/                    # ARCHITECTURE / PLUGIN_GUIDE / DEVELOPMENT / BUILD
 ├── requirements.txt

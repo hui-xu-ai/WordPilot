@@ -312,6 +312,75 @@ QLabel {
     background-color: transparent;
 }
 
+/* ---------- 主界面骨架：顶部工具栏 + 左侧导航 ---------- */
+QToolBar#mainToolBar {
+    background-color: @color.bg.card;
+    border: none;
+    border-bottom: 1px solid @color.border;
+    spacing: @spacing.sm px;
+    padding: @spacing.xs px @spacing.md px;
+}
+QToolButton#toolbarCleanup {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: @radius.sm px;
+    padding: @spacing.sm px @spacing.md px;
+    color: @color.text.primary;
+}
+QToolButton#toolbarCleanup:hover {
+    background-color: @color.bg.hover;
+    border-color: @color.border;
+}
+QWidget#toolbarSpacer {
+    background: transparent;
+}
+QListWidget#navList {
+    background-color: @color.bg.window;
+    border: none;
+    outline: none;
+    padding: @spacing.sm px @spacing.xs px;
+}
+QListWidget#navList::item {
+    padding: @spacing.sm px @spacing.md px;
+    border-radius: @radius.sm px;
+    color: @color.text.secondary;
+}
+QListWidget#navList::item:hover {
+    background-color: @color.bg.hover;
+}
+QListWidget#navList::item:selected {
+    background-color: @color.bg.hover;
+    color: @color.accent;
+    font-weight: bold;
+}
+QFrame#navDivider {
+    background-color: @color.border;
+    max-width: 1px;
+    border: none;
+}
+QLabel#dashboardStatus {
+    font-size: 22px;
+    font-weight: bold;
+}
+QLabel#dashboardStatus[state="ok"] { color: @color.state.ok; }
+QLabel#dashboardStatus[state="off"] { color: @color.state.off; }
+QLabel#sectionTitle {
+    color: @color.text.secondary;
+    font-weight: bold;
+    padding-bottom: @spacing.xs px;
+}
+QWidget#pluginRow {
+    background-color: @color.bg.card;
+    border: 1px solid @color.border;
+    border-radius: @radius.md px;
+}
+QWidget#pluginRow:hover {
+    background-color: @color.bg.hover;
+}
+QLabel#pluginName {
+    color: @color.text.primary;
+}
+
 /* ---------- 校对建议卡片（proofread 插件） ---------- */
 QWidget#suggestion_container {
     background: transparent;

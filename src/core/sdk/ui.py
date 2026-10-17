@@ -34,6 +34,15 @@ class UiRegistry:
                         plugin_id: str | None = None) -> None:
         raise NotImplementedError
 
+    def add_page(self, label: str, factory: Callable, order: int = 100,
+                 icon: Any = None, plugin_id: str | None = None) -> None:
+        """注册一个主界面「左侧导航 + 内容页」贡献点。
+
+        factory() -> QWidget，由外壳在首次切到该页时惰性创建，
+        label 传 i18n key（渲染时现场查词）。
+        """
+        raise NotImplementedError
+
     def remove_plugin(self, plugin_id: str) -> None:
         raise NotImplementedError
 
@@ -45,6 +54,9 @@ class NullUiRegistry(UiRegistry):
         return None
 
     def add_tray_action(self, *args, **kwargs) -> None:
+        return None
+
+    def add_page(self, *args, **kwargs) -> None:
         return None
 
     def remove_plugin(self, *args, **kwargs) -> None:

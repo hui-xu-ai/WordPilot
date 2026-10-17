@@ -25,6 +25,8 @@ class QtUiRegistry(UiRegistry):
         self._tools: list[tuple[int, str, Callable, Any, str | None]] = []
         # (order, label_key, handler, plugin_id)
         self._tray: list[tuple[int, str, Callable, str | None]] = []
+        # (order, label_key, factory, icon, plugin_id) —— 主界面「导航+内容页」贡献点
+        self._pages: list[tuple[int, str, Callable, Any, str | None]] = []
 
     def bind_i18n(self, i18n) -> None:
         """由主窗口注入 i18n 服务，供渲染时现场查词。"""
@@ -56,11 +58,21 @@ class QtUiRegistry(UiRegistry):
         return [(self._text(label, pid), handler, icon)
                 for _o, label, handler, icon, pid in self._tools]
 
+    def add_page(self, label: str, factory: Callable, order: int = 100,
+                 icon: Any = None, plugin_id: str | None = None) -> None:
+        self._pages.append((order, label, factory, icon, plugin_id))
+        self._pages.sort(key=lambda item: item[0])
+
     def tray_actions(self) -> list[tuple[str, Callable]]:
         return [(self._text(label, pid), handler)
                 for _o, label, handler, pid in self._tray]
+
+    def pages(self) -> list[tuple[str, Callable, Any]]:
+        return [(self._text(label, pid), factory, icon)
+                for _o, label, factory, icon, pid in self._pages]
 
     def remove_plugin(self, plugin_id: str) -> None:
         """插件卸载时清理它注册的全部界面入口。"""
         self._tools = [item for item in self._tools if item[4] != plugin_id]
         self._tray = [item for item in self._tray if item[3] != plugin_id]
+        self._pages = [item for item in self._pages if item[4] != plugin_id]
