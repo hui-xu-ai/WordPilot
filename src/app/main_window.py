@@ -11,7 +11,7 @@
 新增一个功能时，本文件应当零改动。
 """
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                                QGroupBox, QPushButton, QTextEdit, QSlider, QSpinBox,
                                QSystemTrayIcon, QMenu, QMessageBox, QCheckBox, QApplication,
@@ -293,8 +293,10 @@ class MainWindow(QMainWindow):
         QApplication.quit()
 
     def apply_style(self):
-        font = QFont(self.config.get("font_family", "Microsoft YaHei"), self.config.get("font_size", 12))
-        self.setFont(font)
+        """全局外观由主题服务统一渲染；这里只处理主题管不到的窗口级项。"""
+        theme = self.kernel.services.get("theme")
+        if theme is not None:
+            theme.reload()
 
     def register_to_window_manager(self):
         """把主窗口纳入窗口治理（在 kernel.attach_ui 之后调用）。"""
@@ -314,7 +316,7 @@ class MainWindow(QMainWindow):
         holder = {}
 
         def _factory():
-            dlg = SettingsDialog(self.config, self)
+            dlg = SettingsDialog(self.config, self, theme=self.kernel.services.get("theme"))
             # 模态窗口关闭后会被窗口服务销毁，结果必须在销毁前记录
             dlg.finished.connect(lambda result: holder.__setitem__("result", result))
             return dlg

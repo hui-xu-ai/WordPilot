@@ -54,8 +54,9 @@ class SuggestionCard(QWidget):
     accepted = Signal(str, int, int, str)
     ignored = Signal(str, int, int, str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, theme=None):
         super().__init__(parent)
+        self._theme = theme
         # 无边框 + 置顶 + 工具窗口
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)   # 背景透明
@@ -73,7 +74,6 @@ class SuggestionCard(QWidget):
         # ---- 内部容器（透明无边框）----
         self.container = QWidget()
         self.container.setObjectName("suggestion_container")
-        self.container.setStyleSheet("background: transparent; border: none;")
         main_layout.addWidget(self.container)
 
         # 容器内部垂直布局
@@ -95,7 +95,7 @@ class SuggestionCard(QWidget):
         btn_layout.setSpacing(8)
         self.accept_btn = QPushButton("✔ 确认")
         self.ignore_btn = QPushButton("✘ 忽略")
-        self.btn_container.setStyleSheet("border: none;")   #  无边框
+        self.accept_btn.setProperty("accent", True)
         btn_layout.addWidget(self.accept_btn)
         btn_layout.addWidget(self.ignore_btn)
         container_layout.addWidget(self.btn_container)
@@ -108,37 +108,8 @@ class SuggestionCard(QWidget):
             lambda: self.ignored.emit(self.original_text, self.start_pos, self.end_pos, self.original_text)
         )
 
-        # 默认样式（可被 config 覆盖）
-        self._apply_default_style()
-
-    def _apply_default_style(self):
-        """设置默认的现代样式（不影响 config 后的自定义）"""
-        self.setStyleSheet("""
-            QLabel {
-                background: transparent;
-                border: none;
-                font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-                font-size: 14px;
-            }
-            #diff_row {
-                background-color: #eef3ff;      /* 建议窗口颜色 */
-                border-radius: 8px;
-                padding: 6px 8px;
-            }
-            #diff_row:hover {
-                background-color: #79FFF2;      /* 建议窗口鼠标悬停时的颜色 */
-            }
-            QPushButton {
-                background-color: #eef3ff;      /* 按钮背景 按钮边框 */
-                border: 1px solid #ffffff;
-                border-radius: 4px;
-                padding: 4px 12px;
-                color: #333;                /* 文字颜色 */
-            }
-            QPushButton:hover {
-                background-color: #79FFF2;  /* 悬停背景 */
-            }
-        """)
+        # 样式统一由主题提供（base.qss 的 #diff_row 等选择器），
+        # 这里不再写内联 setStyleSheet，避免 widget 级样式盖掉应用级主题
 
     def clear_diff(self):
         """清空旧差异条目（不清除按钮容器）"""
@@ -154,6 +125,14 @@ class SuggestionCard(QWidget):
         self.start_pos = start if start is not None else 0
         self.end_pos = end if end is not None else 0
         self.clear_diff()
+
+        # diff 高亮走 HTML 富文本，QSS 管不到，颜色取自主题调色板
+        palette = self._theme.diff_palette() if self._theme is not None else {}
+        del_bg = palette.get("del_bg", "#ffebee")
+        del_text = palette.get("del_text", "#c62828")
+        ins_bg = palette.get("ins_bg", "#e8f5e9")
+        ins_text = palette.get("ins_text", "#2e7d32")
+        muted = self._theme.token("color.text.secondary", "#888888") if self._theme is not None else "#888888"
 
         if not corrected:
             frags = []
@@ -179,33 +158,34 @@ class SuggestionCard(QWidget):
                 post_s = escape_vis(corrected[send:min(send + ctx_post, len(corrected))])
 
                 # ---------- 原文列（左侧） ----------
+                mono = "font-family:Consolas,monospace;"
                 if tag == 'insert':
                     left_display = (
-                        f"<span style='color:#888; font-family:Consolas,monospace;'>{pre_o}</span>"
-                        f"<span style='color:#d32f2f; background:#ffcdd2; font-weight:bold; padding:1px 4px; border-radius:4px;'>　插入　</span>"
-                        f"<span style='color:#888; font-family:Consolas,monospace;'>{post_o}</span>"
+                        f"<span style='color:{muted}; {mono}'>{pre_o}</span>"
+                        f"<span style='color:{del_text}; background:{del_bg}; font-weight:bold; padding:1px 4px; border-radius:4px;'>　插入　</span>"
+                        f"<span style='color:{muted}; {mono}'>{post_o}</span>"
                     )
                 else:
                     org_frag = escape_vis(original[ostart:oend])
                     left_display = (
-                        f"<span style='color:#888; font-family:Consolas,monospace;'>{pre_o}</span>"
-                        f"<span style='color:#c62828; font-weight:bold; text-decoration:line-through; background:#ffebee; padding:0 2px; border-radius:3px; font-family:Consolas,monospace;'>{org_frag}</span>"
-                        f"<span style='color:#888; font-family:Consolas,monospace;'>{post_o}</span>"
+                        f"<span style='color:{muted}; {mono}'>{pre_o}</span>"
+                        f"<span style='color:{del_text}; font-weight:bold; text-decoration:line-through; background:{del_bg}; padding:0 2px; border-radius:3px; {mono}'>{org_frag}</span>"
+                        f"<span style='color:{muted}; {mono}'>{post_o}</span>"
                     )
 
                 # ---------- 建议列（右侧） ----------
                 if tag == 'delete':
                     right_display = (
-                        f"<span style='color:#888; font-family:Consolas,monospace;'>{pre_s}</span>"
-                        f"<span style='color:#2e7d32; background:#c8e6c9; font-weight:bold; padding:1px 4px; border-radius:4px;'>　删除　</span>"
-                        f"<span style='color:#888; font-family:Consolas,monospace;'>{post_s}</span>"
+                        f"<span style='color:{muted}; {mono}'>{pre_s}</span>"
+                        f"<span style='color:{ins_text}; background:{ins_bg}; font-weight:bold; padding:1px 4px; border-radius:4px;'>　删除　</span>"
+                        f"<span style='color:{muted}; {mono}'>{post_s}</span>"
                     )
                 else:
                     sug_frag = escape_vis(corrected[sstart:send])
                     right_display = (
-                        f"<span style='color:#888; font-family:Consolas,monospace;'>{pre_s}</span>"
-                        f"<span style='color:#2e7d32; font-weight:bold; background:#e8f5e9; padding:0 2px; border-radius:3px; font-family:Consolas,monospace;'>{sug_frag}</span>"
-                        f"<span style='color:#888; font-family:Consolas,monospace;'>{post_s}</span>"
+                        f"<span style='color:{muted}; {mono}'>{pre_s}</span>"
+                        f"<span style='color:{ins_text}; font-weight:bold; background:{ins_bg}; padding:0 2px; border-radius:3px; {mono}'>{sug_frag}</span>"
+                        f"<span style='color:{muted}; {mono}'>{post_s}</span>"
                     )
 
                 # ---------- 构建一行（三列网格） ----------
@@ -223,7 +203,7 @@ class SuggestionCard(QWidget):
                 lbl_left.setMinimumWidth(0)               # 宽度完全由内容决定
 
                 arrow = QLabel("→")
-                arrow.setStyleSheet("color: #999; font-weight: bold; font-size: 15px; border: none;")
+                arrow.setObjectName("diffArrow")   # 样式见主题 base.qss
                 arrow.setAlignment(Qt.AlignCenter)
                 arrow.setFixedWidth(24)
 
@@ -242,45 +222,16 @@ class SuggestionCard(QWidget):
             self.btn_container.setVisible(True)
         else:
             no_error = QLabel("✔ 完美，继续加油")
-            no_error.setStyleSheet("color: #2e7d32; font-size: 15px; font-weight: bold; border: none;")
+            no_error.setObjectName("stateOk")     # 绿色由主题令牌提供
             no_error.setAlignment(Qt.AlignCenter)
             no_error.setWordWrap(False)
             self.diff_layout.addWidget(no_error)
             self.btn_container.setVisible(False)
 
-        # ---- 应用 config（完全兼容原有参数） ----
+        # ---- 仅保留与主题无关的动态项：窗口透明度 ----
+        # 颜色一律跟随主题（原 suggestion_bg_color / font_color 已由主题令牌取代）
         if config:
-            bg = config.get("suggestion_bg_color", "#eef3ff")
-            fg = config.get("suggestion_font_color", "#000000")
-            opacity = config.get("suggestion_opacity", 0.9)
-
-            # 仅改变文字颜色和按钮颜色，容器保持透明，行背景用自定义色
-            self.container.setStyleSheet(f"""
-                #suggestion_container {{
-                    background: transparent;
-                    border: none;
-                }}
-                #diff_row {{
-                    background-color: {bg};
-                    border-radius: 8px;
-                    padding: 6px 8px;
-                }}
-                QLabel {{
-                    color: {fg};
-                    background: transparent;
-                    border: none;
-                }}
-                QPushButton {{
-                    background-color: #eef3ff;
-                    border: 1px solid #ccc;
-                    border-radius: 4px;
-                    padding: 4px 12px;
-                    color: #333;
-                }}
-            """)
-            self.setWindowOpacity(opacity)
-        else:
-            self._apply_default_style()   # 恢复默认样式
+            self.setWindowOpacity(config.get("suggestion_opacity", 0.95))
 
         # 重新确定大小
         self.adjustSize()
@@ -306,7 +257,8 @@ class SuggestionCard(QWidget):
 
 class FloatingButton(QToolButton):
     suggestion_accepted = Signal(str, int, int)   # 原有信号    --修改18
-    def __init__(self, config, api=None, parent=None, ignore_mgr=None, correction_handler=None):
+    def __init__(self, config, api=None, parent=None, ignore_mgr=None, correction_handler=None,
+                 theme=None):
         """悬浮按钮 + 建议卡片（属 proofread 插件，随插件启停）。
 
         correction_handler(corrected_text, start, end) 由插件注入，
@@ -314,6 +266,7 @@ class FloatingButton(QToolButton):
         """
         super().__init__(parent)
         self.config = config
+        self._theme = theme
         self.api = api                    # 新增
         self.ignore_mgr = ignore_mgr          # 存储      --修改17
         self._correction_handler = correction_handler
@@ -333,7 +286,7 @@ class FloatingButton(QToolButton):
         self.dragPos = None
 
         # 创建建议卡片（唯一实例）
-        self.suggestion_card = SuggestionCard()
+        self.suggestion_card = SuggestionCard(theme=self._theme)
         self.suggestion_card.accepted.connect(self.on_accepted)
         # self.suggestion_card.rejected.connect(self.on_rejected)       #   --修改17
         self.suggestion_card.ignored.connect(self.on_ignored)
@@ -353,22 +306,10 @@ class FloatingButton(QToolButton):
 
         # ===================================
 
-        self.btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border-radius: 16px;        /* 圆角半径 */
-                border: none;
-                outline: none;               /* 去除焦点虚线框 */
-            }
-            QPushButton:hover {
-                background-color: rgba(76, 175, 80, 0.2);
-                border-radius: 16px;
-            }
-            QPushButton:focus {
-            outline: none;               /* 确保聚焦时也不显示虚线 */
-            }
-        """)
-        self.setStyleSheet("background: transparent;")      #  --修改19 透明图标
+        # 悬浮图标样式交给主题（base.qss 的 #petButton），
+        # 这里只标记身份，避免 widget 级样式覆盖主题
+        self.btn.setObjectName("petButton")
+        self.setObjectName("petWindow")
         self.btn.setToolTip("智能校对, ctrl+点击切换显示/隐藏")           #  悬浮图标的提示语
         layout.addWidget(self.btn)
 

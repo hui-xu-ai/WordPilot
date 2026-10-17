@@ -1,24 +1,26 @@
 # settings_dialog.py
+import os
+import subprocess
+import sys
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit,
     QPushButton, QLabel, QTextEdit, QSpinBox, QTabWidget, QWidget,
-    QMessageBox, QColorDialog, QSlider, QGroupBox, QCheckBox, QDoubleSpinBox
+    QMessageBox, QSlider, QGroupBox, QCheckBox, QComboBox, QDoubleSpinBox
 )
 
 from core.services.api_client import DeepSeekClient
+from core.services.theme_service import USER_QSS
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, config, parent=None):
+    def __init__(self, config, parent=None, theme=None):
         super().__init__(parent)
         self.config = config
+        self.theme = theme
         self.setWindowTitle("设置")
         self.resize(550, 500)
-
-        # 临时变量保存颜色
-        self.current_bg_color = config.get("suggestion_bg_color", "#eef3ff")
-        self.current_font_color = config.get("suggestion_font_color", "#000000")
 
         self.init_ui()
         self.load_settings()
@@ -70,9 +72,7 @@ class SettingsDialog(QDialog):
             "它们在原文中代表公式/图片，校对时会自动保留。"
         )
         warning_label.setWordWrap(True)
-        warning_label.setStyleSheet(
-            "color: #c0392b; font-weight: bold; margin-bottom: 6px;"
-        )
+        warning_label.setObjectName("warningLabel")   # 样式见主题 base.qss
         prompt_layout.addWidget(warning_label)  
  #  --修改18
         
@@ -113,17 +113,7 @@ class SettingsDialog(QDialog):
         self.auto_show_check = QCheckBox("检测到建议自动弹出")
         dynamic_layout.addRow(self.auto_show_check)
 
-        # 背景颜色按钮
-        self.bg_color_btn = QPushButton()
-        self.bg_color_btn.setStyleSheet(f"background-color: {self.current_bg_color}")
-        self.bg_color_btn.clicked.connect(self.select_bg_color)
-        dynamic_layout.addRow("背景颜色:", self.bg_color_btn)
-
-        # 字体颜色按钮
-        self.font_color_btn = QPushButton()
-        self.font_color_btn.setStyleSheet(f"background-color: {self.current_font_color}")
-        self.font_color_btn.clicked.connect(self.select_font_color)
-        dynamic_layout.addRow("字体颜色:", self.font_color_btn)
+        # 配色已统一由主题令牌控制（见「外观」页），此处不再单独调色
 
         # 透明度滑动条
         self.opacity_slider = QSlider(Qt.Horizontal)
@@ -141,6 +131,40 @@ class SettingsDialog(QDialog):
         ui_page.setLayout(ui_layout)
         tabs.addTab(ui_page, "界面")
 
+        # ---------- 外观页（主题 / 自定义 CSS） ----------
+        appearance_page = QWidget()
+        appearance_layout = QVBoxLayout()
+
+        appearance_group = QGroupBox("主题")
+        appearance_form = QFormLayout()
+
+        self.theme_combo = QComboBox()
+        self._theme_names = self.theme.available() if self.theme is not None else ["light"]
+        for name in self._theme_names:
+            self.theme_combo.addItem({"light": "浅色", "dark": "深色"}.get(name, name), name)
+        appearance_form.addRow("配色方案:", self.theme_combo)
+
+        appearance_group.setLayout(appearance_form)
+        appearance_layout.addWidget(appearance_group)
+
+        custom_group = QGroupBox("自定义样式")
+        custom_layout = QVBoxLayout()
+        hint = QLabel(
+            f"编辑 {USER_QSS} 可覆盖内置样式，保存后自动生效（无需重启）。"
+        )
+        hint.setWordWrap(True)
+        hint.setObjectName("hintLabel")
+        custom_layout.addWidget(hint)
+
+        open_qss_btn = QPushButton("打开自定义样式文件")
+        open_qss_btn.clicked.connect(self.open_user_qss)
+        custom_layout.addWidget(open_qss_btn)
+        custom_group.setLayout(custom_layout)
+        appearance_layout.addWidget(custom_group)
+        appearance_layout.addStretch()
+        appearance_page.setLayout(appearance_layout)
+        tabs.addTab(appearance_page, "外观")
+
         main_layout.addWidget(tabs)
 
         # 底部按钮
@@ -154,17 +178,18 @@ class SettingsDialog(QDialog):
         btn_layout.addWidget(cancel_btn)
         main_layout.addLayout(btn_layout)
 
-    def select_bg_color(self):
-        color = QColorDialog.getColor()
-        if color.isValid():
-            self.current_bg_color = color.name()
-            self.bg_color_btn.setStyleSheet(f"background-color: {self.current_bg_color}")
-
-    def select_font_color(self):
-        color = QColorDialog.getColor()
-        if color.isValid():
-            self.current_font_color = color.name()
-            self.font_color_btn.setStyleSheet(f"background-color: {self.current_font_color}")
+    def open_user_qss(self):
+        """用系统默认程序打开用户自定义样式文件。"""
+        if not USER_QSS.exists():
+            QMessageBox.information(self, "提示", f"尚未生成 {USER_QSS}，重启程序后会自动创建。")
+            return
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(str(USER_QSS))          # noqa: S606 - 用户主动打开自己的配置文件
+            else:
+                subprocess.Popen(["xdg-open", str(USER_QSS)])
+        except Exception as exc:
+            QMessageBox.warning(self, "打开失败", str(exc))
 
     def load_settings(self):
         self.api_key_edit.setText(self.config.get_api_key())
@@ -189,6 +214,10 @@ class SettingsDialog(QDialog):
         self.auto_show_check.setChecked(self.config.get("auto_show_suggestion", True))
         self.opacity_slider.setValue(int(self.config.get("suggestion_opacity", 0.95) * 100))
         self.font_size_spin.setValue(self.config.get("suggestion_font_size", 12))
+        if self.theme is not None:
+            index = self.theme_combo.findData(self.theme.current)
+            if index >= 0:
+                self.theme_combo.setCurrentIndex(index)
 
     def save_settings(self):
         self.config.set_api_key(self.api_key_edit.text().strip())
@@ -202,13 +231,18 @@ class SettingsDialog(QDialog):
         self.config.set("translate_prompt", self.translate_prompt_edit.toPlainText())
         self.config.set("rewrite_prompt", self.rewrite_prompt_edit.toPlainText())
 
-        # 动态窗口样式
+        # 动态窗口样式（配色改由主题令牌统一控制）
         self.config.set("show_floating_button", self.show_floating_btn.isChecked())
         self.config.set("auto_show_suggestion", self.auto_show_check.isChecked())
-        self.config.set("suggestion_bg_color", self.current_bg_color)
-        self.config.set("suggestion_font_color", self.current_font_color)
         self.config.set("suggestion_opacity", self.opacity_slider.value() / 100.0)
         self.config.set("suggestion_font_size", self.font_size_spin.value())
+
+        # 主题：保存到配置并立即应用（服务会广播 theme.changed）
+        if self.theme is not None:
+            selected = self.theme_combo.currentData()
+            if selected and selected != self.theme.current:
+                self.theme.set_theme(selected)
+                self.theme_changed = True
 
         self.accept()
 

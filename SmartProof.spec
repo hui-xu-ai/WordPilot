@@ -11,6 +11,9 @@ plugin_datas = [
     for path in glob.glob('src/plugins/*/plugin.json')
 ]
 
+# 内置主题（模板 + 令牌 + 用户覆盖示例）——同样逐文件展开，目标保留 themes 目录
+theme_datas = [(path, 'assets/themes') for path in glob.glob('src/assets/themes/*')]
+
 a = Analysis(
     ['src/main.py'],
     pathex=['src'],
@@ -22,7 +25,7 @@ a = Analysis(
         ('src/config/MWindow_config.example.json', 'config'),
         ('src/config/navigator_config.example.json', 'config'),
         # 插件清单：插件通过 plugin.json 被动态发现，必须随包分发
-    ] + plugin_datas,
+    ] + plugin_datas + theme_datas,
     hiddenimports=[
         # 插件入口由 plugin.json 动态 import，静态分析扫不到，需显式声明
         'plugins.proofread.plugin',

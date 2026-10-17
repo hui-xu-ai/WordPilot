@@ -1,0 +1,22 @@
+/* 用户自定义样式（覆盖层）
+ *
+ * 本文件会在首次运行时被复制到 config/user.qss。
+ * 直接编辑 config/user.qss 并保存，程序会热重载、即时生效。
+ * 这里的规则追加在内置主题之后，因此同优先级下以这里为准。
+ *
+ * 常用做法示例（默认全部注释，按需启用）：
+ */
+
+/*
+ * 1) 改强调色：
+ * QPushButton[accent="true"] { background-color: #7b51ff; }
+ *
+ * 2) 加大界面字号：
+ * QWidget { font-size: 15 px; }
+ *
+ * 3) 让分组卡片更圆润：
+ * QGroupBox { border-radius: 12 px; }
+ *
+ * 4) 只想改某一个控件：给它 setObjectName 后用 ID 选择器：
+ * QPushButton#navReturnBtn { background-color: #0f7b0f; }
+ */

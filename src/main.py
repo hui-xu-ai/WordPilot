@@ -24,6 +24,14 @@ def main():
     # 2) 建外壳（窗口、托盘、菜单栏骨架）
     window = MainWindow(kernel)
 
+    # 2.5) 主题：把「渲染好的 QSS 写到 QApplication」这一动作交给内核服务，
+    #      并监听 config/user.qss 实现保存后热重载
+    theme = kernel.services.get("theme")
+    if theme is not None:
+        theme.set_apply_hook(app.setStyleSheet)
+        theme.reload()
+        theme.watch_user_qss()
+
     # 3) 把 UI 贡献点实现交给内核（同时注册窗口治理服务），然后加载插件
     #    插件在 activate() 中调用 ctx.ui.add_tool(...) 注册自己的界面入口
     kernel.attach_ui(window.ui)

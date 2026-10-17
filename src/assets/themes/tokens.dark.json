@@ -1,0 +1,49 @@
+{
+  "meta": { "name": "深色", "base": "dark" },
+
+  "color.accent": "#4cc2ff",
+  "color.accent.hover": "#6fceff",
+  "color.accent.pressed": "#3aa8e6",
+  "color.on_accent": "#1b1b1b",
+
+  "color.bg.window": "#202020",
+  "color.bg.card": "#2b2b2b",
+  "color.bg.subtle": "#252525",
+  "color.bg.hover": "#333333",
+  "color.bg.disabled": "#2a2a2a",
+
+  "color.border": "#3d3d3d",
+  "color.border.strong": "#555555",
+  "color.border.focus": "#4cc2ff",
+
+  "color.text.primary": "#f5f5f5",
+  "color.text.secondary": "#c8c8c8",
+  "color.text.disabled": "#8a8a8a",
+
+  "color.state.ok": "#6ccb6c",
+  "color.state.error": "#ff6b5b",
+  "color.state.busy": "#ffb066",
+  "color.state.off": "#7a7a7a",
+
+  "color.warning": "#ff8f7a",
+
+  "color.diff.del.bg": "#4a2629",
+  "color.diff.del.text": "#ffb3b3",
+  "color.diff.ins.bg": "#26402a",
+  "color.diff.ins.text": "#a9e5a9",
+
+  "radius.sm": "4",
+  "radius.md": "6",
+  "radius.lg": "8",
+
+  "spacing.xs": "4",
+  "spacing.sm": "6",
+  "spacing.md": "10",
+  "spacing.lg": "16",
+
+  "font.family": "Microsoft YaHei",
+  "font.size": "13",
+  "font.size.small": "11",
+
+  "shadow.card": "0 2px 8px rgba(0,0,0,0.36)"
+}

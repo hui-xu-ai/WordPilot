@@ -169,18 +169,8 @@ class WordNavigatorDialog(QDialog):
         layout.addLayout(toolbar)
 
         self.btn_return = QPushButton("↰  返回上一位置")
-        self.btn_return.setStyleSheet("""
-            QPushButton {
-                background-color: #4a6cd4;
-                color: white;
-                font-weight: bold;
-                padding: 8px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #3a5ab3;
-            }
-        """)
+        # 样式交给主题（base.qss 里的 QPushButton#navReturnBtn）
+        self.btn_return.setObjectName("navReturnBtn")
         self.btn_return.clicked.connect(self.go_back)
         layout.addWidget(self.btn_return)
 
@@ -209,7 +199,7 @@ class WordNavigatorDialog(QDialog):
 
         self.status_label = QLabel("就绪")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("color: gray; font-size: 10px;")
+        self.status_label.setObjectName("hintLabel")   # 样式见 base.qss
         layout.addWidget(self.status_label)
 
     def _on_tab_changed(self, index):

@@ -48,14 +48,17 @@ class ColorButton(QPushButton):
 
 
 class ImageReshaperWidget(QWidget):
-    def __init__(self, parent=None, config_dir=None):
+    def __init__(self, parent=None, config_dir=None, theme=None):
         super().__init__(parent)
+        self._theme = theme
         self.config_dir = config_dir or os.path.join(os.path.dirname(__file__), "config")
         os.makedirs(self.config_dir, exist_ok=True)
         self.processor = None
         self._init_processor()
         self._setup_ui()
-        self._apply_stylesheet()
+        # 样式统一由主题（base.qss）提供；这里只标记主操作按钮
+        self.apply_btn.setObjectName("apply_btn")
+        self.apply_btn.setProperty("accent", True)
 
     def _init_processor(self):
         try:
@@ -229,31 +232,12 @@ class ImageReshaperWidget(QWidget):
         self.height_px_spin.setEnabled(enabled)
         self.height_pct_spin.setEnabled(enabled)
 
-    def _apply_stylesheet(self):
-        self.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold; border: 1px solid #a0a0a0;
-                border-radius: 6px; margin-top: 12px; padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin; left: 12px; padding: 0 6px;
-            }
-            QComboBox, QSpinBox, QDoubleSpinBox { min-height: 24px; }
-            QPushButton#apply_btn {
-                background-color: #0078d4; color: white; border: none;
-                border-radius: 4px; font-weight: bold;
-            }
-            QPushButton#apply_btn:hover { background-color: #106ebe; }
-            QPushButton#apply_btn:pressed { background-color: #005a9e; }
-            QPushButton#apply_btn:disabled {
-                background-color: #c0c0c0; color: #606060;
-            }
-            QTextEdit { border: 1px solid #b0b0b0; border-radius: 4px; }
-        """)
-        self.apply_btn.setObjectName("apply_btn")
-
     def log(self, msg, error=False):
-        color = "red" if error else "#2e7d32"
+        # HTML 富文本不受 QSS 管辖，颜色取自主题令牌（无主题服务时用兜底色）
+        theme = getattr(self, "_theme", None)
+        token = "color.state.error" if error else "color.state.ok"
+        fallback = "#c42b1c" if error else "#107c10"
+        color = theme.token(token, fallback) if theme is not None else fallback
         self.info_text.append(f'<span style="color:{color};">{msg}</span>')
 
     def on_apply(self):

@@ -56,12 +56,13 @@ class ProofreadPlugin(PluginBase):
         self.monitor.status_update.connect(lambda msg: ctx.ui.status(msg, 3000))
         self.monitor.start()
 
-        # 悬浮按钮 + 建议卡片
+        # 悬浮按钮 + 建议卡片（主题服务用于 diff 配色与样式片段渲染）
         self.floating_btn = FloatingButton(
             config,
             api=api,
             ignore_mgr=ignore_mgr,
             correction_handler=self.apply_correction,
+            theme=ctx.get_service("theme"),
         )
 
         self._enabled = True

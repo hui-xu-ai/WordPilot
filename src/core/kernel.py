@@ -19,6 +19,7 @@ from core.services.hotkey_service import HotkeyService
 from core.services.ignore_cache import IgnoreCacheManager
 from core.services.proof_cache import get_default_cache
 from core.services.service_registry import ServiceRegistry
+from core.services.theme_service import ThemeService
 from core.sdk.ui import NullUiRegistry
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ class Kernel:
             return self
         config = ConfigManager()
         self.services.register("config", config)
+        self.services.register("theme", ThemeService(config))
         self.services.register("ai_client", DeepSeekClient(config))
         self.services.register("ignore", IgnoreCacheManager())
         self.services.register("caption_cache", CaptionCache())
@@ -80,6 +82,15 @@ class Kernel:
         self.services.register("window_manager", WindowManager(self.config, self),
                                overwrite=True)
         return self
+
+    def set_theme(self, name: str):
+        """切换主题并广播，常驻界面可订阅 theme.changed 做局部刷新。"""
+        theme = self.services.get("theme")
+        if theme is None:
+            return None
+        theme.set_theme(name)
+        self.events.emit("theme.changed", theme.current)
+        return theme
 
     def reload_ai_client(self):
         """API Key 变更后重建客户端，并广播给所有插件刷新引用。"""

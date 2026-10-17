@@ -55,7 +55,7 @@ class ImageToolboxPlugin(PluginBase):
             dialog.setMinimumSize(420, 480)
             dialog.resize(420, 480)
             layout = QVBoxLayout(dialog)
-            tool = ImageReshaperWidget(config_dir=str(CONFIG_DIR))
+            tool = ImageReshaperWidget(config_dir=str(CONFIG_DIR), theme=self.ctx.theme)
             layout.addWidget(tool)
             dialog.setLayout(layout)
             holder["tool"] = tool
