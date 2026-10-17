@@ -12,8 +12,9 @@
 | 校对桌宠 | 桌宠颜色实时指示校对状态（绿=无错 / 红=有错 / 黄=校对中 / 灰=未启用），支持换肤 | 桌面桌宠 / 右键菜单 |
 | 翻译 | 选中文本或剪贴板内容翻译 | `Ctrl+Shift+T` |
 | 改写 | 按风格改写文本 | `Ctrl+Shift+R` |
-| 题录导航 | 扫描 Word 域(SEQ)，生成图/表题注列表，双击跳转、支持返回上一位置 | 插件页 / 托盘 |
-| 图片无损裁剪 | 借助隐藏 Word 工作文档对图片裁剪居中，保留原始像素 | 插件页「图片工具箱」 |
+| 题录导航 | 扫描 Word 域(SEQ)，生成图/表题注列表，双击跳转、支持返回上一位置 | 左侧图标轨 / 托盘 / 桌宠菜单 |
+| 图片无损裁剪 | 借助隐藏 Word 工作文档对图片裁剪居中，保留原始像素 | 左侧图标轨「图片工具」 |
+| 剪贴板工具 | 剪贴板文本一键纠错 / 翻译 / 改写，结果可复制或插入 Word | 左侧图标轨「剪贴板」 |
 | 校对开关 | `Ctrl+Shift+E` 启停实时监控 | 热键 / 顶部工具栏 |
 | 多语言 | 简体中文 / English，界面语言与提示词语言可独立切换 | 设置 → 外观 |
 | 主题 | 浅色 / 深色 Fluent 风 + 用户自定义 `config/user.qss` | 设置 → 外观 |
@@ -58,8 +59,10 @@ SmartProof/
 │   ├── __version__.py       # 应用名/版本号/作者的唯一来源
 │   ├── main.py              # 入口：建内核→建外壳→挂 UI→加载插件（无业务装配）
 │   ├── app/                 # 前端表现层（PySide6，不碰 COM / API / 缓存）
-│   │   ├── main_window.py   # 外壳：顶部工具栏 + 左侧导航 + 内容区 + 状态栏
-│   │   ├── ui_registry.py   # UI 贡献点（工具菜单/托盘项/页面/状态栏）的 Qt 实现
+│   │   ├── main_window.py   # 外壳：顶部工具栏 + 左侧图标轨 + 内容区 + 状态栏
+│   │   ├── nav_rail.py      # 可折叠图标导航轨（窄态图标 / 展开图标+文字）
+│   │   ├── icon_factory.py  # SVG 图标按主题令牌染色渲染
+│   │   ├── ui_registry.py   # UI 贡献点（导航页/动作/托盘项/状态栏）的 Qt 实现
 │   │   ├── settings_dialog.py / monitor_window.py
 │   ├── core/                # 微内核
 │   │   ├── kernel.py        # 生命周期：boot → attach_ui → plugins → shutdown
@@ -71,11 +74,12 @@ SmartProof/
 │   │                        #            / proof_cache / caption_cache / ignore / hotkeys
 │   ├── plugins/             # 每个功能一个插件包（plugin.json + plugin.py + i18n/）
 │   │   ├── proofread/       # 实时校对（监控线程 + 桌宠窗口 + 替换逻辑）
+│   │   ├── clipboard/       # 剪贴板工具（纠错/翻译/改写）
 │   │   ├── navigator/       # 题录导航
 │   │   ├── image_toolbox/   # 图片无损裁剪
 │   │   └── reference/       # 参考文献助手（占位，默认不加载）
 │   ├── infra/               # memory_trimmer / utils（资源路径）
-│   ├── assets/              # icons / themes(令牌+QSS) / i18n(语言包) / skins(桌宠皮肤)
+│   ├── assets/              # icons(SVG 线条图标) / themes(令牌+QSS) / i18n(语言包) / skins(桌宠皮肤)
 │   └── config/              # 运行时数据目录（隐私文件已 gitignore）
 ├── docs/                    # ARCHITECTURE / PLUGIN_GUIDE / DEVELOPMENT / BUILD
 ├── requirements.txt

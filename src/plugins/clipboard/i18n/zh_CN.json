@@ -1,0 +1,18 @@
+{
+  "plugin.name": "剪贴板工具",
+  "page_label": "剪贴板",
+  "load": "读取剪贴板",
+  "placeholder": "剪贴板内容…",
+  "proof": "纠错",
+  "translate": "翻译",
+  "rewrite": "改写",
+  "result_placeholder": "结果将显示在此…",
+  "insert": "插入 Word",
+  "copy": "复制结果",
+  "empty_tip": "剪贴板为空",
+  "no_change": "未发现错误",
+  "fail_translate": "翻译失败，请检查网络或 API 设置",
+  "fail_rewrite": "改写失败，请检查网络或 API 设置",
+  "error_title": "错误",
+  "hotkey_done": "已处理剪贴板内容，结果已写回剪贴板"
+}

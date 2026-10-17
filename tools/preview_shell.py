@@ -1,4 +1,4 @@
-"""把新主界面各页面渲染成预览图，用于目视检查布局。
+"""把新主界面渲染成预览图，用于目视检查布局。
 
 离屏运行：  .venv\\Scripts\\python.exe tools\\preview_shell.py
 输出：      work/shell_preview_*.png
@@ -35,20 +35,28 @@ app.processEvents()
 out_dir = os.path.join(ROOT, "work")
 os.makedirs(out_dir, exist_ok=True)
 
-for name in ("dashboard", "clipboard", "plugins", "monitor"):
-    mw.show_page(name)
+def snap(name):
     app.processEvents()
     path = os.path.join(out_dir, f"shell_preview_{name}.png")
     mw.grab().save(path)
     print("已输出:", path)
 
+# 窄态：仪表盘 / 剪贴板（插件页）/ 监控
+mw.show_page("dashboard");  snap("rail_dashboard")
+mw.show_page("plugin:0");   snap("rail_clipboard")
+mw.show_page("monitor");    snap("rail_monitor")
+
+# 展开态
+mw.nav.set_collapsed(False)
+mw.show_page("dashboard");  snap("rail_expanded")
+mw.nav.set_collapsed(True)
+
 # 深色主题对照
 k.set_theme("dark")
-app.processEvents()
-mw.show_page("dashboard")
-app.processEvents()
-mw.grab().save(os.path.join(out_dir, "shell_preview_dark.png"))
-print("已输出:", os.path.join(out_dir, "shell_preview_dark.png"))
-
+mw.show_page("dashboard");  snap("rail_dark")
 k.set_theme("light")
+
+# 复位语言与折叠状态，避免污染用户配置
+k.config.set("ui_language", "zh_CN")
+k.config.set("nav.collapsed", True)
 k.shutdown()

@@ -1,13 +1,11 @@
 {
   "plugin.name": "图片工具箱",
   "plugin.description": "按页面版心批量裁剪并居中 Word 中的图片",
-
-  "tool_label": "🖼️ 图片工具箱",
+  "tool_label": "图片工具箱",
   "tray_label": "图片工具箱",
   "window.title": "图片工具箱",
   "error.config_missing_title": "配置缺失",
   "error.config_missing_body": "找不到必要文件：{path}\n请确保 config 文件夹包含 Image.docx。",
-
   "widget.title": "Word 图片裁剪与居中工具",
   "group.width": "宽度方向设置",
   "group.height": "高度方向设置",
@@ -31,5 +29,6 @@
   "status.orig_size": "原始图片大小：{size}",
   "status.new_size": "处理后大小：{size}",
   "status.extracted_size": "提取图片大小：{size}",
-  "error.unexpected": "意外错误: {error}"
+  "error.unexpected": "意外错误: {error}",
+  "page_label": "图片工具"
 }

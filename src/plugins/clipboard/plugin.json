@@ -1,0 +1,11 @@
+{
+  "id": "clipboard",
+  "name": "剪贴板工具",
+  "version": "1.0.0",
+  "description": "读取剪贴板文本，一键纠错 / 翻译 / 改写，结果可复制或插入 Word",
+  "author": "Xu Hui",
+  "entry": "plugin:ClipboardPlugin",
+  "requires": ["config", "ai_client", "word_bridge"],
+  "deps": [],
+  "enabled_by_default": true
+}

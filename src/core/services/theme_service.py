@@ -118,7 +118,10 @@ class ThemeService:
         def _sub(match: re.Match) -> str:
             return self._tokens.get(match.group(1), match.group(0))
 
-        return _PLACEHOLDER.sub(_sub, text)
+        filled = _PLACEHOLDER.sub(_sub, text)
+        # Qt 的 CSS 解析器不接受数字与单位之间的空格（"6 px" 会整条丢弃），
+        # 模板里 "@spacing.sm px" 写法替换后必须把空格压掉
+        return re.sub(r"(\d+(?:\.\d+)?) px", r"\1px", filled)
 
     # ---------------- 用户覆盖层 ----------------
     def user_qss_text(self) -> str:

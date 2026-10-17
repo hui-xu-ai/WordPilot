@@ -1,7 +1,6 @@
 {
   "plugin.name": "实时校对",
   "plugin.description": "监控光标所在句子，句末完成后自动送 AI 校对并标出差异",
-
   "bubble.accept": "✔ 确认",
   "bubble.ignore": "✘ 忽略",
   "bubble.perfect": "✔ 完美，继续加油",
@@ -18,22 +17,18 @@
   "pet.menu.toggle_bubble": "显示建议气泡",
   "pet.menu.settings": "设置…",
   "error.open_pet": "无法打开校对悬浮窗",
-
   "log.activated": "实时校对插件已激活",
   "log.stop_monitor_failed": "停止监控线程失败",
   "log.close_pet_failed": "关闭悬浮按钮失败",
   "log.proof_cursor_failed": "光标校对失败",
-
   "status.debug": "调试: {msg}",
   "status.sentence_not_found": "未找到句子",
   "status.marks_cleared": "已清除标记，请手动修改",
   "status.applied": "修改已应用",
-
   "error.replace_title": "错误",
   "error.replace_failed": "替换失败：{error}",
   "manual.title": "提示",
   "manual.body": "句子中含有图片或公式，请对照建议手动修改。",
-
   "monitor.started": "监控线程已启动",
   "monitor.stopped": "监控线程已停止",
   "monitor.stop_requested": "监控线程停止请求已发送",
@@ -46,6 +41,6 @@
   "monitor.sentence_detected": "检测到刚完成的句子，正在校对…",
   "monitor.ignored": "句子已被忽略，跳过校对",
   "monitor.too_short": "句子太短，跳过",
-
-  "prompt.placeholder_notice": "请校对以下文本。文本中的[IMG0]、[EQ1]等标签代表图片或公式，请保持这些标签完全不变，只修正文字错误：\n"
+  "prompt.placeholder_notice": "请校对以下文本。文本中的[IMG0]、[EQ1]等标签代表图片或公式，请保持这些标签完全不变，只修正文字错误：\n",
+  "pet.menu.plugins": "插件"
 }

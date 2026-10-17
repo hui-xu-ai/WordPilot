@@ -1,7 +1,6 @@
 {
   "plugin.name": "Live Proofreading",
   "plugin.description": "Watch the sentence at the cursor and proofread it automatically when finished",
-
   "bubble.accept": "✔ Accept",
   "bubble.ignore": "✘ Ignore",
   "bubble.perfect": "✔ Perfect, keep going",
@@ -18,22 +17,18 @@
   "pet.menu.toggle_bubble": "Show suggestion bubble",
   "pet.menu.settings": "Settings…",
   "error.open_pet": "Failed to open the proofreading overlay",
-
   "log.activated": "Live proofreading plugin activated",
   "log.stop_monitor_failed": "Failed to stop the monitor thread",
   "log.close_pet_failed": "Failed to close the floating button",
   "log.proof_cursor_failed": "Failed to proofread at cursor",
-
   "status.debug": "Debug: {msg}",
   "status.sentence_not_found": "Sentence not found",
   "status.marks_cleared": "Marks cleared, please edit manually",
   "status.applied": "Change applied",
-
   "error.replace_title": "Error",
   "error.replace_failed": "Failed to apply the change: {error}",
   "manual.title": "Notice",
   "manual.body": "The sentence contains images or formulas. Please apply the suggestion manually.",
-
   "monitor.started": "Monitor thread started",
   "monitor.stopped": "Monitor thread stopped",
   "monitor.stop_requested": "Monitor thread stop requested",
@@ -46,6 +41,6 @@
   "monitor.sentence_detected": "Detected a just-finished sentence, proofreading…",
   "monitor.ignored": "Sentence ignored, skipping",
   "monitor.too_short": "Sentence too short, skipping",
-
-  "prompt.placeholder_notice": "Please proofread the text below. Tags such as [IMG0] and [EQ1] stand for images or formulas; keep them exactly as they are and fix text errors only:\n"
+  "prompt.placeholder_notice": "Please proofread the text below. Tags such as [IMG0] and [EQ1] stand for images or formulas; keep them exactly as they are and fix text errors only:\n",
+  "pet.menu.plugins": "Plugins"
 }

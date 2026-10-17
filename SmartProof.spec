@@ -31,6 +31,9 @@ skin_datas = [
     for path in glob.glob('src/assets/skins/*/*')
 ]
 
+# 界面图标：assets/icons/*.svg（Fluent 线条稿，运行时按主题令牌染色）
+icon_datas = [(path, 'assets/icons') for path in glob.glob('src/assets/icons/*.svg')]
+
 a = Analysis(
     ['src/main.py'],
     pathex=['src'],
@@ -42,12 +45,13 @@ a = Analysis(
         ('src/config/MWindow_config.example.json', 'config'),
         ('src/config/navigator_config.example.json', 'config'),
         # 插件清单：插件通过 plugin.json 被动态发现，必须随包分发
-    ] + plugin_datas + theme_datas + i18n_datas + plugin_i18n_datas + skin_datas,
+    ] + plugin_datas + theme_datas + i18n_datas + plugin_i18n_datas + skin_datas + icon_datas,
     hiddenimports=[
         # 插件入口由 plugin.json 动态 import，静态分析扫不到，需显式声明
         'plugins.proofread.plugin',
         'plugins.navigator.plugin',
         'plugins.image_toolbox.plugin',
+        'plugins.clipboard.plugin',
         'plugins.reference.plugin',
     ],
     hookspath=[],

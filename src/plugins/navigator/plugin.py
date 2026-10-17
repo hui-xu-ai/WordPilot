@@ -20,7 +20,8 @@ class NavigatorPlugin(PluginBase):
 
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
-        ctx.ui.add_tool("tool_label", self.open, order=10, plugin_id="navigator")
+        ctx.ui.add_tool("tool_label", self.open, order=10, icon="compass",
+                        plugin_id="navigator")
         ctx.ui.add_tray_action("tray_label", self.open, order=10, plugin_id="navigator")
         # 语言切换后刷新已打开的导航窗口（窗口未打开时静默跳过）
         self.subscribe("i18n.language_changed", self._on_language_changed)
@@ -36,10 +37,6 @@ class NavigatorPlugin(PluginBase):
         dialog = windows.get(WordNavigatorDialog.WINDOW_ID)
         if dialog is not None and hasattr(dialog, "retranslateUi"):
             dialog.retranslateUi()
-
-    def _log_exception(self, message: str) -> None:
-        if self.ctx is not None:
-            self.ctx.logger.exception(message)
 
     def open(self) -> None:
         """打开或激活导航助手窗口。"""

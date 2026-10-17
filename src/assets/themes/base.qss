@@ -312,7 +312,7 @@ QLabel {
     background-color: transparent;
 }
 
-/* ---------- 主界面骨架：顶部工具栏 + 左侧导航 ---------- */
+/* ---------- 主界面骨架：顶部工具栏 + 左侧图标导航轨 ---------- */
 QToolBar#mainToolBar {
     background-color: @color.bg.card;
     border: none;
@@ -320,46 +320,76 @@ QToolBar#mainToolBar {
     spacing: @spacing.sm px;
     padding: @spacing.xs px @spacing.md px;
 }
-QToolButton#toolbarCleanup {
+/* 校对状态开关：药丸形，颜色即状态 */
+QToolButton#proofToggle {
+    border: 1px solid @color.border;
+    border-radius: 13 px;
+    padding: 4 px 14 px;
+    font-weight: bold;
+    color: @color.text.primary;
+    background-color: @color.bg.subtle;
+}
+QToolButton#proofToggle[state="ok"] {
+    color: @color.state.ok;
+    border-color: @color.state.ok;
+}
+QToolButton#proofToggle[state="off"] {
+    color: @color.state.off;
+    border-color: @color.border.strong;
+}
+/* 工具栏图标按钮（置顶 / 清理） */
+QToolButton#toolbarBtn {
     background-color: transparent;
     border: 1px solid transparent;
     border-radius: @radius.sm px;
-    padding: @spacing.sm px @spacing.md px;
-    color: @color.text.primary;
+    padding: @spacing.sm px;
 }
-QToolButton#toolbarCleanup:hover {
+QToolButton#toolbarBtn:hover {
     background-color: @color.bg.hover;
     border-color: @color.border;
 }
-QWidget#toolbarSpacer {
-    background: transparent;
+QToolButton#toolbarBtn:checked {
+    background-color: @color.bg.hover;
+    border-color: @color.accent;
 }
-QListWidget#navList {
-    background-color: @color.bg.window;
+
+/* 图标导航轨 */
+QWidget#navRail {
+    background-color: @color.bg.card;
     border: none;
-    outline: none;
-    padding: @spacing.sm px @spacing.xs px;
+    border-right: 1px solid @color.border;
 }
-QListWidget#navList::item {
-    padding: @spacing.sm px @spacing.md px;
+QToolButton#navButton,
+QToolButton#navAction {
+    background-color: transparent;
+    border: none;
+    border-left: 3 px solid transparent;
     border-radius: @radius.sm px;
+    padding: 9 px 8 px;
+    margin: 0 px 4 px;
     color: @color.text.secondary;
+    font-size: @font.size px;
+    text-align: left;
 }
-QListWidget#navList::item:hover {
+QToolButton#navButton:hover,
+QToolButton#navAction:hover {
     background-color: @color.bg.hover;
 }
-QListWidget#navList::item:selected {
+QToolButton#navButton:checked {
     background-color: @color.bg.hover;
+    border-left: 3 px solid @color.accent;
     color: @color.accent;
     font-weight: bold;
 }
 QFrame#navDivider {
     background-color: @color.border;
-    max-width: 1px;
+    max-height: 1px;
+    min-height: 1px;
     border: none;
+    margin: 4 px 10 px;
 }
 QLabel#dashboardStatus {
-    font-size: 22px;
+    font-size: 20 px;
     font-weight: bold;
 }
 QLabel#dashboardStatus[state="ok"] { color: @color.state.ok; }
@@ -368,14 +398,6 @@ QLabel#sectionTitle {
     color: @color.text.secondary;
     font-weight: bold;
     padding-bottom: @spacing.xs px;
-}
-QWidget#pluginRow {
-    background-color: @color.bg.card;
-    border: 1px solid @color.border;
-    border-radius: @radius.md px;
-}
-QWidget#pluginRow:hover {
-    background-color: @color.bg.hover;
 }
 QLabel#pluginName {
     color: @color.text.primary;

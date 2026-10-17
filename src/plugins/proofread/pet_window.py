@@ -214,7 +214,8 @@ class PetWindow(QWidget):
 
     def __init__(self, config, api=None, parent=None, ignore_mgr=None,
                  correction_handler=None, theme=None, skins=None, i18n=None,
-                 tr: "Callable[..., str] | None" = None) -> None:
+                 tr: "Callable[..., str] | None" = None,
+                 tools_provider: "Callable[[], list] | None" = None) -> None:
         super().__init__(parent)
         self.config = config
         self.api = api
@@ -224,6 +225,9 @@ class PetWindow(QWidget):
         self._i18n = i18n
         self._tr = tr or (lambda key, **_p: key)
         self._correction_handler = correction_handler
+        # 右键菜单「插件」子菜单的数据来源：返回 [(名称, 回调)]，现场取值
+        # 保证切语言后菜单文案是最新的
+        self._tools_provider = tools_provider
         self._drag_pos: QPoint | None = None
         self._dragged = False
         self._state = "idle"
@@ -381,6 +385,13 @@ class PetWindow(QWidget):
                                           lambda sid=item["id"]: self._switch_skin(sid))
             action.setCheckable(True)
             action.setChecked(item["id"] == current_skin)
+
+        # 插件快捷入口：各插件注册的动作一键直达（导航助手等）
+        tools = self._tools_provider() if self._tools_provider else []
+        if tools:
+            tools_menu = menu.addMenu(self.tr("pet.menu.plugins"))
+            for label, handler in tools:
+                tools_menu.addAction(label, handler)
 
         menu.addSeparator()
         menu.addAction(self.tr("pet.menu.toggle_proofread"),

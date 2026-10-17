@@ -1,13 +1,11 @@
 {
   "plugin.name": "Image Toolbox",
   "plugin.description": "Batch crop and center images in Word according to the page text area",
-
-  "tool_label": "🖼️ Image Toolbox",
+  "tool_label": "Image Toolbox",
   "tray_label": "Image Toolbox",
   "window.title": "Image Toolbox",
   "error.config_missing_title": "Missing configuration",
   "error.config_missing_body": "Required file not found: {path}\nPlease make sure the config folder contains Image.docx.",
-
   "widget.title": "Word Image Crop & Center Tool",
   "group.width": "Width",
   "group.height": "Height",
@@ -31,5 +29,6 @@
   "status.orig_size": "Original image size: {size}",
   "status.new_size": "Resulting size: {size}",
   "status.extracted_size": "Extracted image size: {size}",
-  "error.unexpected": "Unexpected error: {error}"
+  "error.unexpected": "Unexpected error: {error}",
+  "page_label": "Images"
 }

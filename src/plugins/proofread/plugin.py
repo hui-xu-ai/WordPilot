@@ -95,6 +95,7 @@ class ProofreadPlugin(PluginBase):
                 config, api=api, ignore_mgr=ignore_mgr,
                 correction_handler=self.apply_correction,
                 theme=theme, skins=skins, i18n=i18n, tr=self.tr,
+                tools_provider=self._plugin_tools,
             )
             pet.proofreadToggleRequested.connect(self.toggle)
             pet.settingsRequested.connect(self._open_settings)
@@ -126,6 +127,15 @@ class ProofreadPlugin(PluginBase):
         main_window = self.ctx.ui.main_window() if self.ctx is not None else None
         if main_window is not None and hasattr(main_window, "open_settings"):
             main_window.open_settings()
+
+    def _plugin_tools(self) -> list:
+        """桌宠右键菜单「插件」子菜单的数据：[(名称, 回调)]，现场取值。"""
+        if self.ctx is None:
+            return []
+        try:
+            return [(label, handler) for label, handler, _icon in self.ctx.ui.tools()]
+        except Exception:
+            return []
 
     def deactivate(self) -> None:
         if self.monitor is not None:
