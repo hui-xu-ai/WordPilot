@@ -68,9 +68,17 @@ class Kernel:
         return self
 
     def attach_ui(self, ui) -> "Kernel":
-        """挂载 UI 贡献点实现（由 app 层提供 QtUiRegistry）。"""
+        """挂载 UI 贡献点实现（由 app 层提供 QtUiRegistry）。
+
+        窗口治理服务依赖 QApplication，故在此注册而非 boot()，
+        以保持内核本身的零 Qt 依赖。
+        """
         self._ui = ui
         self.services.register("ui", ui, overwrite=True)
+        from core.services.window_manager import WindowManager
+
+        self.services.register("window_manager", WindowManager(self.config, self),
+                               overwrite=True)
         return self
 
     def reload_ai_client(self):

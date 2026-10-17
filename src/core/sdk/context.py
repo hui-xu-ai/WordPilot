@@ -48,6 +48,16 @@ class PluginContext:
     def config(self):
         return self.kernel.services.get("config")
 
+    @property
+    def windows(self):
+        """窗口治理服务：打开子窗口一律走它，不要自己 new Dialog。"""
+        return self.kernel.services.get("window_manager")
+
+    @property
+    def theme(self):
+        """主题服务（P2 起可用）；未注册时返回 None，插件需自行判空。"""
+        return self.kernel.services.get("theme")
+
     def get_service(self, name: str, default: Any = None) -> Any:
         return self.kernel.services.get(name, default)
 

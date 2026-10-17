@@ -10,10 +10,8 @@
 
 新增一个功能时，本文件应当零改动。
 """
-import win32con
-import win32gui
-from PySide6.QtCore import Qt, QTimer, QPoint  # --修改15  置顶  新增QTimer
-from PySide6.QtGui import QFont, QIcon, QPixmap, QPainter, QColor
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                                QGroupBox, QPushButton, QTextEdit, QSlider, QSpinBox,
                                QSystemTrayIcon, QMenu, QMessageBox, QCheckBox, QApplication,
@@ -31,12 +29,15 @@ from infra.utils import resource_path
 
 
 class MainWindow(QMainWindow):
+    WINDOW_ID = "app.main"
+
     def __init__(self, kernel: Kernel):
         super().__init__()
         self.kernel = kernel
         self.config: ConfigManager = kernel.config
         self.api = kernel.services.get("ai_client")
         self.ignore_mgr = kernel.services.get("ignore")
+        self._window_id = self.WINDOW_ID
         self.setWindowTitle(APP_TITLE)
         self.setMinimumSize(600, 400)
 
@@ -76,11 +77,18 @@ class MainWindow(QMainWindow):
             self._sync_proof_button(self._proofread.is_enabled())
 
     def build_extension_menus(self):
-        """把插件注册的界面入口渲染成菜单项与托盘项。"""
+        """把插件注册的界面入口渲染成菜单项与托盘项。
+
+        可重复调用：每次先 clear 再重建（切换语言、插件增减都会触发），
+        否则菜单项会重复追加。
+        """
+        self.tools_menu.clear()
         for label, handler, icon in self.ui.tools():
             action = self.tools_menu.addAction(label, handler)
             if icon is not None:
                 action.setIcon(icon)
+
+        self.tray_menu.clear()
         for label, handler in self.ui.tray_actions():
             self.tray_menu.addAction(label, handler)
         self.tray_menu.addSeparator()
@@ -204,19 +212,12 @@ class MainWindow(QMainWindow):
             # 校对插件未加载时，仅保持按钮自身状态
             self._sync_proof_button(enabled)
 
-    def toggle_main_top(self, state=None):   # 参数保留但不再依赖        --修改15
-        on = self.top_check.isChecked()
-        self.config.set("main_on_top", on)
-        self.set_topmost(on)
-
-    def set_topmost(self, on: bool):        #--修改15  置顶
-        hwnd = int(self.winId())
-        if on:
-            win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
-                                  win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
-        else:
-            win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
-                                  win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
+    def toggle_main_top(self, state=None):
+        """主窗口置顶：只改配置，实际置顶由 WindowManager 按 Layer 策略施加。"""
+        self.config.set("main_on_top", self.top_check.isChecked())
+        wm = self.kernel.services.get("window_manager")
+        if wm is not None:
+            wm.refresh_topmost(self._window_id)
 
     def load_clipboard(self):
         text = QApplication.clipboard().text()
@@ -260,19 +261,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "错误", str(exc))
 
     def setup_tray(self):
-        pixmap = QPixmap(16, 16)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setBrush(QColor("#4a9eff"))
-        painter.drawEllipse(2, 2, 12, 12)
-        painter.end()
-        icon = QIcon(pixmap)
-
-        # self.tray_icon = QSystemTrayIcon(icon, self)
-        self.tray_icon = QSystemTrayIcon(self)      # --修改22
-        icon_path = resource_path("assets/tray_icon.png")  # --修改22
-        self.tray_icon.setIcon(QIcon(icon_path))    # --修改22
-
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(QIcon(resource_path("assets/tray_icon.png")))
         self.tray_icon.setToolTip("Word智能伴侣")
         # 菜单内容由 build_extension_menus 在插件加载完成后填充
         self.tray_menu = QMenu()
@@ -280,21 +270,24 @@ class MainWindow(QMainWindow):
         self.tray_icon.activated.connect(self.on_tray_activated)    # --修改22
         self.tray_icon.show()
 
-    def closeEvent(self, event):        # --修改22
-        # 如果托盘图标正常且可见，则隐藏窗口（插件继续在后台运行）
-        if hasattr(self, 'tray_icon') and self.tray_icon.isVisible():
-            self.hide()
-            self.tray_icon.showMessage("程序仍在后台运行", "双击托盘图标可恢复窗口", QSystemTrayIcon.Information, 2000)
-            event.ignore()   # 阻止窗口关闭
-        else:
-            self.kernel.shutdown()
-            event.accept()
-
     def on_tray_activated(self, reason):    # --修改22
         if reason == QSystemTrayIcon.DoubleClick:
             self.show()
 
+    def _on_hidden(self):
+        """关闭转隐藏后的提示（关闭语义由 WindowManager 统一裁决）。"""
+        if hasattr(self, "tray_icon") and self.tray_icon.isVisible():
+            self.tray_icon.showMessage("程序仍在后台运行", "双击托盘图标可恢复窗口",
+                                       QSystemTrayIcon.Information, 2000)
+        else:
+            # 托盘不可用时无法恢复，直接退出
+            self.quit_app()
+
     def quit_app(self):
+        # 先强制关闭全部受管窗口，再停内核退出，避免残留窗口阻塞退出链
+        wm = self.kernel.services.get("window_manager")
+        if wm is not None:
+            wm.close_all(force=True)
         self.kernel.shutdown()
         self.tray_icon.hide()
         QApplication.quit()
@@ -303,10 +296,39 @@ class MainWindow(QMainWindow):
         font = QFont(self.config.get("font_family", "Microsoft YaHei"), self.config.get("font_size", 12))
         self.setFont(font)
 
+    def register_to_window_manager(self):
+        """把主窗口纳入窗口治理（在 kernel.attach_ui 之后调用）。"""
+        wm = self.kernel.services.get("window_manager")
+        if wm is None:
+            return None
+        from core.services.window_manager import CloseBehavior, Layer
+
+        wm.register(self._window_id, self, owner="app", layer=Layer.TOPMOST,
+                    behavior=CloseBehavior.HIDE, remember_geometry=True,
+                    on_hide=self._on_hidden)
+        return wm
+
 #  修改3
     def open_settings(self):
-        dlg = SettingsDialog(self.config, self)
-        if dlg.exec():
+        wm = self.kernel.services.get("window_manager")
+        holder = {}
+
+        def _factory():
+            dlg = SettingsDialog(self.config, self)
+            # 模态窗口关闭后会被窗口服务销毁，结果必须在销毁前记录
+            dlg.finished.connect(lambda result: holder.__setitem__("result", result))
+            return dlg
+
+        if wm is not None:
+            from core.services.window_manager import Mode
+
+            wm.open("app.settings", _factory, owner="app", mode=Mode.MODAL,
+                    remember_geometry=False)
+            accepted = holder.get("result") == 1   # QDialog.Accepted
+        else:
+            accepted = _factory().exec()
+
+        if accepted:
             # 重建 API 客户端，内核会广播 ai.client_changed 让各插件刷新引用
             self.api = self.kernel.reload_ai_client()
             # 热键组合可能已变更，重新绑定
@@ -349,20 +371,20 @@ class MainWindow(QMainWindow):
     def show_debug(self, msg):
         self.statusbar.showMessage(f"调试: {msg}", 2000)
 
-#--修改9  API调用监控 monitor_window.py
     def show_monitor(self):
-        if not hasattr(self, 'monitor_win') or self.monitor_win is None:
-            self.monitor_win = MonitorWindow()
-            # self.monitor_win.setAttribute(Qt.WA_DeleteOnClose)        #  2026.05.14  关闭不销毁
-            self.monitor_win.destroyed.connect(
-                lambda: setattr(self, 'monitor_win', None)
-            )
-        self.monitor_win.show()
-        self.monitor_win.raise_()
+        """API 调用监控：单例窗口，关闭转隐藏（由 WindowManager 治理）。"""
+        wm = self.kernel.services.get("window_manager")
+        if wm is None:
+            return
+        from core.services.window_manager import CloseBehavior, Mode
 
-#--修改15  置顶
+        wm.open("app.monitor", lambda: MonitorWindow(), owner="app",
+                mode=Mode.SINGLETON, behavior=CloseBehavior.HIDE,
+                remember_geometry=True)
+
     def showEvent(self, event):
         super().showEvent(event)
-        if self.config.get("main_on_top", False):
-            self.set_topmost(True)
-            QTimer.singleShot(50, lambda: self.set_topmost(True))
+        # 置顶由 WindowManager 在窗口显示后统一施加（含延迟兜底）
+        wm = self.kernel.services.get("window_manager")
+        if wm is not None:
+            wm.refresh_topmost(self._window_id)

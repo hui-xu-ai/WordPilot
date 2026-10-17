@@ -149,6 +149,14 @@ class PluginManager:
         record = self._records.get(plugin_id)
         if record is None or record.state != PluginState.ACTIVE:
             return
+        # 先关窗口再 deactivate：窗口由 WindowManager 持有，
+        # 若反过来，插件在 deactivate 里可能访问已被销毁的 C++ 对象
+        try:
+            windows = self.kernel.services.get("window_manager")
+            if windows is not None:
+                windows.close_owner(plugin_id)
+        except Exception:
+            logger.exception("插件 [%s] 的窗口清理失败", plugin_id)
         try:
             record.instance.deactivate()
         except Exception:

@@ -24,9 +24,11 @@ def main():
     # 2) 建外壳（窗口、托盘、菜单栏骨架）
     window = MainWindow(kernel)
 
-    # 3) 把 UI 贡献点实现交给内核，然后加载插件
+    # 3) 把 UI 贡献点实现交给内核（同时注册窗口治理服务），然后加载插件
     #    插件在 activate() 中调用 ctx.ui.add_tool(...) 注册自己的界面入口
     kernel.attach_ui(window.ui)
+    # 主窗口纳入治理：置顶策略、关闭转隐藏、几何记忆统一由窗口服务负责
+    window.register_to_window_manager()
     kernel.plugins.load_all()
 
     # 4) 插件加载完毕，外壳绑定能力并渲染插件贡献的菜单项

@@ -56,8 +56,13 @@ class CaptionItem:
 
 
 class WordNavigatorDialog(QDialog):
-    def __init__(self, parent=None):
+    #: 在窗口治理服务中的注册 id（置顶偏好与几何记忆都挂在这个 id 下）
+    WINDOW_ID = "navigator.main"
+
+    def __init__(self, parent=None, config=None, window_manager=None):
         super().__init__(parent)
+        self.app_config = config                    # 内核 ConfigManager（原 navigator_config.json 收敛到这里）
+        self.window_manager = window_manager
         # ---------- 安全初始化 COM ----------
         self._com_ok = False
         try:
@@ -77,9 +82,9 @@ class WordNavigatorDialog(QDialog):
         self.resize(450, 600)
 
         self.config = self.load_config()
+        # 置顶不再由本窗口自己加 WindowStaysOnTopHint，
+        # 改由 WindowManager 按 PALETTE 层策略统一施加
         self.topmost = self.config.get("topmost", True)
-        if self.topmost:
-            self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
 
         self.word = None
         self.doc = None
@@ -106,26 +111,31 @@ class WordNavigatorDialog(QDialog):
         QTimer.singleShot(300, self.load_captions)
 
     # ---------- 配置 ----------
+    # 历史遗留：配置原先存在独立的 config/navigator_config.json，
+    # 与主配置不通。现在统一收敛进主配置，旧文件只做一次性迁移读取。
     def load_config(self):
+        legacy = {}
         if CONFIG_FILE.exists():
             try:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except:
-                pass
-        return {}
+                    legacy = json.load(f) or {}
+            except Exception:
+                legacy = {}
+        if self.app_config is None:
+            return legacy
+        return {
+            "topmost": self.app_config.get("navigator.topmost", legacy.get("topmost", True)),
+            "font_family": self.app_config.get("navigator.font_family",
+                                               legacy.get("font_family", "Microsoft YaHei")),
+            "font_size": self.app_config.get("navigator.font_size", legacy.get("font_size", 12)),
+        }
 
     def save_config(self):
-        config = {
-            "topmost": self.topmost,
-            "font_family": self.current_font.family(),
-            "font_size": self.current_font.pointSize()
-        }
-        try:
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-        except:
-            pass
+        if self.app_config is None:
+            return
+        self.app_config.set("navigator.topmost", self.topmost)
+        self.app_config.set("navigator.font_family", self.current_font.family())
+        self.app_config.set("navigator.font_size", self.current_font.pointSize())
 
     def apply_config(self):
         family = self.config.get("font_family", "Microsoft YaHei")
@@ -217,9 +227,9 @@ class WordNavigatorDialog(QDialog):
 
     def toggle_topmost(self, state):
         self.topmost = (state == Qt.Checked)
-        self.setWindowFlag(Qt.WindowStaysOnTopHint, self.topmost)
-        self.show()
         self.save_config()
+        if self.window_manager is not None:
+            self.window_manager.set_palette_topmost(self.WINDOW_ID, self.topmost)
 
     # ---------- Word 连接与保存监测 ----------
     def _get_word_document(self):

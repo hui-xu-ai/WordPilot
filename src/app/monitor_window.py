@@ -56,11 +56,8 @@ class MonitorWindow(QWidget):           #--修改16
         super().hideEvent(event)
         self.timer.stop()
 
-    def closeEvent(self, event):        #  2026.05.14
-        self.hide()                 # 隐藏
-        self.timer.stop()
-        event.ignore()               # 不触发默认关闭（也不会 delete）
-        # event.accept()
+    # 关闭语义由 WindowManager 统一裁决（HIDE：转隐藏并触发上面的 hideEvent 停表），
+    # 本窗口不再自己 event.ignore()，避免与窗口治理互相打架
 
     def refresh(self):
         """更新最近一次调用记录（不影响历史区域）"""

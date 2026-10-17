@@ -11,12 +11,14 @@ from PySide6.QtWidgets import QDialog, QMessageBox, QVBoxLayout
 
 from core.sdk.plugin_base import PluginBase
 from core.services.config_manager import CONFIG_DIR
+from core.services.window_manager import Mode
 from plugins.image_toolbox.image_reshaper_widget import ImageReshaperWidget
 
 if TYPE_CHECKING:
     from core.sdk.context import PluginContext
 
 CONFIG_FILE = CONFIG_DIR / "Image.docx"
+WINDOW_ID = "image_toolbox.main"
 
 
 class ImageToolboxPlugin(PluginBase):
@@ -40,15 +42,28 @@ class ImageToolboxPlugin(PluginBase):
             )
             return
 
-        parent = self.ctx.ui.main_window() if hasattr(self.ctx.ui, "main_window") else None
-        dialog = QDialog(parent)
-        dialog.setWindowTitle("图片工具箱")
-        dialog.setMinimumSize(420, 480)
-        dialog.resize(420, 480)
-        layout = QVBoxLayout(dialog)
-        tool = ImageReshaperWidget(config_dir=str(CONFIG_DIR))
-        layout.addWidget(tool)
-        dialog.setLayout(layout)
-        dialog.exec()
+        windows = self.ctx.windows
+        if windows is None:
+            self.ctx.logger.error("窗口服务不可用，无法打开图片工具箱")
+            return
+
+        holder = {}
+
+        def _factory() -> QDialog:
+            dialog = QDialog()
+            dialog.setWindowTitle("图片工具箱")
+            dialog.setMinimumSize(420, 480)
+            dialog.resize(420, 480)
+            layout = QVBoxLayout(dialog)
+            tool = ImageReshaperWidget(config_dir=str(CONFIG_DIR))
+            layout.addWidget(tool)
+            dialog.setLayout(layout)
+            holder["tool"] = tool
+            return dialog
+
+        windows.open(WINDOW_ID, _factory, owner="image_toolbox",
+                     mode=Mode.MODAL, remember_geometry=True)
         # 对话框关闭后立即清理，确保文档释放
-        tool.cleanup()
+        tool = holder.get("tool")
+        if tool is not None:
+            tool.cleanup()

@@ -77,14 +77,24 @@ class ConfigManager:
             "translate": "ctrl+shift+t",
             "rewrite": "ctrl+shift+r"
         })
-        config.setdefault("follow_mouse", True)
+        # 外观（P2 起由 theme_service 消费；P3 起 ui_language 由 i18n 服务消费）
         config.setdefault("theme", "light")
+        config.setdefault("ui_language", "zh_CN")       # 界面语言（与提示词语言解耦）
+        config.setdefault("prompt_language", "zh_CN")   # 送 AI 的提示词语言，独立控制
         config.setdefault("font_family", "Microsoft YaHei")
         config.setdefault("font_size", 12)
         config.setdefault("exclude_patterns", ["参考文献", "致谢", "注释"])
         config.setdefault("max_context_len", 200)
         config.setdefault("main_on_top", False)         # 置顶
-        config.pop("proof_cache_lookup_count", None)    # 已废弃：SQLite 缓存无需查询条数
+        # 窗口治理：几何记忆与各窗口置顶偏好
+        config.setdefault("geometry", {})
+        # 桌宠（P4）：皮肤与屏幕位置
+        config.setdefault("skin", "default")
+        config.setdefault("pet.position", None)
+
+        # ---- 已废弃键的一次性清理 ----
+        config.pop("proof_cache_lookup_count", None)    # SQLite 缓存无需查询条数
+        config.pop("follow_mouse", None)                # 桌宠改为固定位置可拖拽
         return config
 
     def get(self, key, default=None):

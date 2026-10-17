@@ -7,9 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
-
 from core.sdk.plugin_base import PluginBase
+from core.services.window_manager import CloseBehavior, Layer, Mode
 from plugins.navigator.word_navigator_dialog import WordNavigatorDialog
 
 if TYPE_CHECKING:
@@ -17,11 +16,7 @@ if TYPE_CHECKING:
 
 
 class NavigatorPlugin(PluginBase):
-    """导航助手：非模态对话框，同一时间只保留一个实例。"""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._dialog: WordNavigatorDialog | None = None
+    """导航助手：非模态对话框，同一时间只保留一个实例（由 WindowManager 保障）。"""
 
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
@@ -30,30 +25,28 @@ class NavigatorPlugin(PluginBase):
         ctx.logger.info("导航助手插件已激活")
 
     def deactivate(self) -> None:
-        self._dialog = None
         super().deactivate()
 
     def open(self) -> None:
         """打开或激活导航助手窗口。"""
-        if self._dialog is not None:
-            try:
-                self._dialog.raise_()
-                self._dialog.activateWindow()
-                return
-            except RuntimeError:
-                self._dialog = None  # C++ 对象已销毁，下次重建
-
+        windows = self.ctx.windows
+        if windows is None:
+            self.ctx.logger.error("窗口服务不可用，无法打开导航助手")
+            return
         try:
-            dialog = WordNavigatorDialog(self.ctx.ui.main_window() if hasattr(self.ctx.ui, "main_window") else None)
-            dialog.setAttribute(Qt.WA_DeleteOnClose)
-            dialog.destroyed.connect(self._on_dialog_destroyed)
-            self._dialog = dialog
-            dialog.show()
+            windows.open(
+                WordNavigatorDialog.WINDOW_ID,
+                lambda: WordNavigatorDialog(config=self.ctx.config,
+                                            window_manager=windows),
+                owner="navigator",
+                mode=Mode.SINGLETON,
+                layer=Layer.PALETTE,
+                # 关闭即销毁：对话框关闭时要释放 COM 与缓存连接，不能转隐藏复用
+                behavior=CloseBehavior.DESTROY,
+                remember_geometry=True,
+            )
         except Exception:
             self._log_exception("无法打开 Word 导航助手")
-
-    def _on_dialog_destroyed(self, *_args) -> None:
-        self._dialog = None
 
     def _log_exception(self, message: str) -> None:
         if self.ctx is not None:
