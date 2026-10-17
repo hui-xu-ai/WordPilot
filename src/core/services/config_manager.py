@@ -20,13 +20,11 @@ DEFAULT_MODEL = "deepseek-v4-flash"
 DEFAULT_CONFIG = {
     "api_key": "",
     "ignore_list": [],
-    "suggestion_bg_color": "#eef3ff",
-    "suggestion_font_color": "#000000",
     "suggestion_opacity": 0.95,
     "suggestion_font_size": 12,
     "show_floating_button": True,
     "auto_show_suggestion": True,
-    # 校对缓存为 SQLite 主键查询，不再需要「查询条数」配置
+    # 配色已由主题令牌接管；校对缓存为 SQLite 主键查询，不再需要「查询条数」配置
 }
 
 class ConfigManager:
@@ -60,13 +58,10 @@ class ConfigManager:
         config.setdefault("max_tokens", 2000)
 # --修改16   
         
-        config.setdefault("proof_prompt",
-            "你是中文科技论文校对专家。修正错别字、语病、标点、专业词汇拼写。校对所有单位的空格：数字与℃、%、°之间不加空格（例：2℃、5%、9°）；数字与其他单位（如m）之间加半角空格（例：10 m）。")
-#--修改6
-        config.setdefault("translate_prompt",
-            "将以下文本翻译为{target_lang}，只输出译文：\n{text}")
-        config.setdefault("rewrite_prompt",
-            "按{style}风格改写以下文本，只输出改写后的内容：\n{text}")
+        # 提示词默认留空：空串时由语言包按「提示词语言」给出默认文案
+        config.setdefault("proof_prompt", "")
+        config.setdefault("translate_prompt", "")
+        config.setdefault("rewrite_prompt", "")
             
         config.setdefault("debounce_ms", 500)
         config.setdefault("context_before", 1)
@@ -95,6 +90,8 @@ class ConfigManager:
         # ---- 已废弃键的一次性清理 ----
         config.pop("proof_cache_lookup_count", None)    # SQLite 缓存无需查询条数
         config.pop("follow_mouse", None)                # 桌宠改为固定位置可拖拽
+        config.pop("suggestion_bg_color", None)         # 配色已由主题令牌接管
+        config.pop("suggestion_font_color", None)
         return config
 
     def get(self, key, default=None):

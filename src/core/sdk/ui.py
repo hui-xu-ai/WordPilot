@@ -25,6 +25,10 @@ class UiRegistry:
         if self._status_handler:
             self._status_handler(message, timeout)
 
+    def main_window(self):
+        """主窗口句柄（供插件把主窗口当对话框父级）；无界面环境下返回 None。"""
+        return None
+
     # ---- 贡献点（子类实现）----
     def add_tool(self, label: str, handler: Callable, order: int = 100,
                  icon: Any = None, plugin_id: str | None = None) -> None:
