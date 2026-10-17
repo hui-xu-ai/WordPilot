@@ -105,6 +105,19 @@ class PluginManager:
             return []
         return [self.load(manifest) for manifest in ordered]
 
+    def _plugin_dir(self, manifest: PluginManifest) -> Path:
+        """插件包目录：plugins/<id>/（冻结环境下同样可用）。"""
+        return Path(self.plugins_root) / manifest.id
+
+    def _register_plugin_i18n(self, manifest: PluginManifest) -> None:
+        """注册插件私有语言包（plugins/<id>/i18n/），缺失则静默跳过。"""
+        i18n = self.kernel.services.get("i18n")
+        if i18n is None:
+            return
+        directory = self._plugin_dir(manifest) / "i18n"
+        if directory.is_dir():
+            i18n.register_namespace(manifest.id, directory)
+
     def _entry_path(self, manifest: PluginManifest) -> str:
         """入口类的完整导入路径，例如 plugins.navigator.plugin。"""
         return f"{self.package_prefix}.{manifest.id}.{manifest.entry_module}"
@@ -118,6 +131,9 @@ class PluginManager:
             record.instance = None
             logger.info("插件未启用，已跳过: %s", manifest.id)
             return record
+
+        # 插件词条要在 activate() 之前就绪，否则菜单 label 无法翻译
+        self._register_plugin_i18n(manifest)
 
         missing = [name for name in manifest.requires if name not in self.kernel.services]
         if missing:
@@ -161,6 +177,9 @@ class PluginManager:
             record.instance.deactivate()
         except Exception:
             logger.exception("插件 [%s] 停用异常", plugin_id)
+        i18n = self.kernel.services.get("i18n")
+        if i18n is not None:
+            i18n.unregister_namespace(plugin_id)
         hotkeys = self.kernel.services.get("hotkeys")
         if hotkeys is not None:
             hotkeys.unregister_owner(plugin_id)

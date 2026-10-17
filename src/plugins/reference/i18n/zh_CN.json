@@ -1,0 +1,10 @@
+{
+  "plugin.name": "参考文献助手",
+  "plugin.description": "识别 EndNote / Zotero 域代码，为每条文献建立身份笔记（开发中）",
+
+  "tool_label": "📚 参考文献助手",
+  "tray_label": "参考文献助手",
+  "window.title": "参考文献助手",
+  "wip.body": "参考文献身份笔记功能开发中。\n\n当前仅挂载入口，待实现：EndNote / Zotero 域代码解析与文献去重。",
+  "log.activated": "参考文献助手插件已激活（功能开发中）"
+}

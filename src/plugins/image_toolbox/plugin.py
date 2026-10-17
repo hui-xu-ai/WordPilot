@@ -26,8 +26,9 @@ class ImageToolboxPlugin(PluginBase):
 
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
-        ctx.ui.add_tool("🖼️ 图片工具箱", self.open, order=20, plugin_id="image_toolbox")
-        ctx.ui.add_tray_action("图片工具箱", self.open, order=20, plugin_id="image_toolbox")
+        # 传 i18n key 而非已翻译文案：菜单在切换语言时由 ui_registry 现场查词重建
+        ctx.ui.add_tool("tool_label", self.open, order=20, plugin_id="image_toolbox")
+        ctx.ui.add_tray_action("tray_label", self.open, order=20, plugin_id="image_toolbox")
         ctx.logger.info("图片工具箱插件已激活")
 
     def deactivate(self) -> None:
@@ -37,8 +38,8 @@ class ImageToolboxPlugin(PluginBase):
         # 检查配置文件是否存在
         if not CONFIG_FILE.exists():
             QMessageBox.critical(
-                None, "配置缺失",
-                f"找不到必要文件：{CONFIG_FILE}\n请确保 config 文件夹包含 Image.docx。"
+                None, self.tr("error.config_missing_title"),
+                self.tr("error.config_missing_body", path=CONFIG_FILE)
             )
             return
 
@@ -51,11 +52,12 @@ class ImageToolboxPlugin(PluginBase):
 
         def _factory() -> QDialog:
             dialog = QDialog()
-            dialog.setWindowTitle("图片工具箱")
+            dialog.setWindowTitle(self.tr("window.title"))
             dialog.setMinimumSize(420, 480)
             dialog.resize(420, 480)
             layout = QVBoxLayout(dialog)
-            tool = ImageReshaperWidget(config_dir=str(CONFIG_DIR), theme=self.ctx.theme)
+            tool = ImageReshaperWidget(config_dir=str(CONFIG_DIR), theme=self.ctx.theme,
+                                       i18n=self.ctx.get_service("i18n"))
             layout.addWidget(tool)
             dialog.setLayout(layout)
             holder["tool"] = tool

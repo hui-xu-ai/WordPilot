@@ -17,6 +17,7 @@ from core.services.caption_cache import CaptionCache
 from core.services.config_manager import CONFIG_DIR, ConfigManager
 from core.services.hotkey_service import HotkeyService
 from core.services.ignore_cache import IgnoreCacheManager
+from core.services.i18n import I18nService
 from core.services.proof_cache import get_default_cache
 from core.services.service_registry import ServiceRegistry
 from core.services.theme_service import ThemeService
@@ -58,8 +59,9 @@ class Kernel:
             return self
         config = ConfigManager()
         self.services.register("config", config)
+        self.services.register("i18n", I18nService(config))
         self.services.register("theme", ThemeService(config))
-        self.services.register("ai_client", DeepSeekClient(config))
+        self.services.register("ai_client", DeepSeekClient(config, i18n=self.services.get("i18n")))
         self.services.register("ignore", IgnoreCacheManager())
         self.services.register("caption_cache", CaptionCache())
         self.services.register("proof_cache", get_default_cache())
@@ -83,6 +85,15 @@ class Kernel:
                                overwrite=True)
         return self
 
+    def set_language(self, lang: str) -> str:
+        """切换界面语言并广播，常驻界面订阅 i18n.language_changed 做重翻译。"""
+        i18n = self.services.get("i18n")
+        if i18n is None:
+            return lang
+        current = i18n.set_language(lang)
+        self.events.emit("i18n.language_changed", current)
+        return current
+
     def set_theme(self, name: str):
         """切换主题并广播，常驻界面可订阅 theme.changed 做局部刷新。"""
         theme = self.services.get("theme")
@@ -94,7 +105,7 @@ class Kernel:
 
     def reload_ai_client(self):
         """API Key 变更后重建客户端，并广播给所有插件刷新引用。"""
-        client = DeepSeekClient(self.config)
+        client = DeepSeekClient(self.config, i18n=self.services.get("i18n"))
         self.services.register("ai_client", client, overwrite=True)
         self.events.emit("ai.client_changed", client)
         return client

@@ -29,15 +29,11 @@ class ReferencePlugin(PluginBase):
 
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
-        ctx.ui.add_tool("📚 参考文献助手", self.open, order=60, plugin_id="reference")
-        ctx.logger.info("参考文献助手插件已激活（功能开发中）")
+        ctx.ui.add_tool("tool_label", self.open, order=60, plugin_id="reference")
+        ctx.logger.info(self.tr("log.activated"))
 
     def deactivate(self) -> None:
         super().deactivate()
 
     def open(self) -> None:
-        QMessageBox.information(
-            None, "参考文献助手",
-            "参考文献身份笔记功能开发中。\n\n"
-            "当前仅挂载入口，待实现：EndNote / Zotero 域代码解析与文献去重。"
-        )
+        QMessageBox.information(None, self.tr("window.title"), self.tr("wip.body"))

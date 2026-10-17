@@ -50,8 +50,10 @@ class ProofreadPlugin(PluginBase):
         ignore_mgr = ctx.get_service("ignore")
 
         # 后台监听线程
-        self.monitor = WordMonitor(config, api, ignore_mgr)
-        self.monitor.debug_signal.connect(lambda msg: ctx.ui.status(f"调试: {msg}", 2000))
+        i18n = ctx.get_service("i18n")
+        self.monitor = WordMonitor(config, api, ignore_mgr, i18n=i18n)
+        self.monitor.debug_signal.connect(
+            lambda msg: ctx.ui.status(self.tr("status.debug", msg=msg), 2000))
         self.monitor.suggestion_ready.connect(self._on_suggestion)
         self.monitor.status_update.connect(lambda msg: ctx.ui.status(msg, 3000))
         self.monitor.start()
@@ -63,6 +65,7 @@ class ProofreadPlugin(PluginBase):
             ignore_mgr=ignore_mgr,
             correction_handler=self.apply_correction,
             theme=ctx.get_service("theme"),
+            i18n=i18n,
         )
 
         self._enabled = True
@@ -75,10 +78,11 @@ class ProofreadPlugin(PluginBase):
             hotkeys.register("toggle_monitor", "ctrl+shift+e", self.toggle, owner="proofread")
             hotkeys.register("proof_cursor", "ctrl+shift+z", self.proof_cursor, owner="proofread")
 
-        # API Key 变更后刷新内部引用
-        ctx.events.subscribe("ai.client_changed", self._on_api_changed)
+        # API Key 变更后刷新内部引用；语言切换后刷新界面文案
+        self.subscribe("ai.client_changed", self._on_api_changed)
+        self.subscribe("i18n.language_changed", self._on_language_changed)
         ctx.register_capability("proofread", self)
-        ctx.logger.info("实时校对插件已激活")
+        ctx.logger.info(self.tr("log.activated"))
 
     def deactivate(self) -> None:
         if self.monitor is not None:
@@ -86,19 +90,24 @@ class ProofreadPlugin(PluginBase):
                 self.monitor.stop()
                 self.monitor.wait(2000)
             except Exception:
-                self._log_exception("停止监控线程失败")
+                self._log_exception(self.tr("log.stop_monitor_failed"))
             self.monitor = None
         if self.floating_btn is not None:
             try:
                 self.floating_btn.close()
             except Exception:
-                self._log_exception("关闭悬浮按钮失败")
+                self._log_exception(self.tr("log.close_pet_failed"))
             self.floating_btn = None
         super().deactivate()
 
     def _log_exception(self, message: str) -> None:
         if self.ctx is not None:
             self.ctx.logger.exception(message)
+
+    def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        """语言热切换后刷新本插件持有的界面文案。"""
+        if self.floating_btn is not None:
+            self.floating_btn.retranslateUi()
 
     # ---------------- 能力 ----------------
     def is_enabled(self) -> bool:
@@ -142,7 +151,7 @@ class ProofreadPlugin(PluginBase):
             if corrected and corrected.strip() != current.strip():
                 self._on_suggestion(current, corrected, -1, -1)
         except Exception:
-            self._log_exception("光标校对失败")
+            self._log_exception(self.tr("log.proof_cursor_failed"))
 
     def apply_correction(self, corrected_text: str, start: int | None = None,
                          end: int | None = None, original_text: str | None = None) -> None:
@@ -161,7 +170,7 @@ class ProofreadPlugin(PluginBase):
                 sent_range = get_sentence_range(word.Selection)
 
             if sent_range.Start >= sent_range.End:
-                self._status("未找到句子")
+                self._status(self.tr("status.sentence_not_found"))
                 return
 
             tokenized = TokenizedSentence(sent_range)
@@ -175,7 +184,7 @@ class ProofreadPlugin(PluginBase):
                 # 有图片/公式：弹窗提示手动修改，仅清除标记
                 clear_error_marks(sent_range.Start, sent_range.End)
                 self._notify_manual_edit()
-                self._status("已清除标记，请手动修改")
+                self._status(self.tr("status.marks_cleared"))
             else:
                 # 纯文本：直接替换主体，保留尾部
                 clear_error_marks(sent_range.Start, sent_range.End)
@@ -192,16 +201,17 @@ class ProofreadPlugin(PluginBase):
                     corrected_body = corrected_text[:-len(tail_text)]
 
                 replace_range.Text = corrected_body
-                self._status("修改已应用")
+                self._status(self.tr("status.applied"))
 
         except Exception as exc:
-            QMessageBox.warning(None, "错误", f"替换失败：{exc}")
+            QMessageBox.warning(None, self.tr("error.replace_title"),
+                                self.tr("error.replace_failed", error=exc))
 
     def _notify_manual_edit(self) -> None:
         parent = QApplication.activeWindow()
         msg_box = QMessageBox(parent)
-        msg_box.setWindowTitle("提示")
-        msg_box.setText("句子中含有图片或公式，请对照建议手动修改。")
+        msg_box.setWindowTitle(self.tr("manual.title"))
+        msg_box.setText(self.tr("manual.body"))
         msg_box.setStandardButtons(QMessageBox.Ok)
         msg_box.setModal(False)
         msg_box.show()
@@ -213,6 +223,9 @@ class ProofreadPlugin(PluginBase):
             self.monitor.api = client
         if self.floating_btn is not None:
             self.floating_btn.api = client
+
+    def _on_language_changed(self, _event, _lang=None) -> None:
+        self.retranslateUi()
 
     def _status(self, message: str, timeout: int = 3000) -> None:
         if self.ctx is not None:

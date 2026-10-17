@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import glob
 import os
+from pathlib import Path
 
 block_cipher = None
 
@@ -14,6 +15,22 @@ plugin_datas = [
 # 内置主题（模板 + 令牌 + 用户覆盖示例）——同样逐文件展开，目标保留 themes 目录
 theme_datas = [(path, 'assets/themes') for path in glob.glob('src/assets/themes/*')]
 
+# 内核语言包：assets/i18n/<lang>.json
+i18n_datas = [(path, 'assets/i18n') for path in glob.glob('src/assets/i18n/*.json')]
+
+# 插件语言包：逐文件展开到 plugins/<id>/i18n/，与插件目录结构一致
+# （拍平会让所有插件的 zh_CN.json 互相覆盖，只剩最后一份）
+plugin_i18n_datas = [
+    (path, os.path.join('plugins', Path(path).parent.parent.name, 'i18n'))
+    for path in glob.glob('src/plugins/*/i18n/*.json')
+]
+
+# 桌宠皮肤包：assets/skins/<skin>/{skin.json,*.svg}，按皮肤目录保留结构
+skin_datas = [
+    (path, os.path.join('assets/skins', Path(path).parent.name))
+    for path in glob.glob('src/assets/skins/*/*')
+]
+
 a = Analysis(
     ['src/main.py'],
     pathex=['src'],
@@ -25,7 +42,7 @@ a = Analysis(
         ('src/config/MWindow_config.example.json', 'config'),
         ('src/config/navigator_config.example.json', 'config'),
         # 插件清单：插件通过 plugin.json 被动态发现，必须随包分发
-    ] + plugin_datas + theme_datas,
+    ] + plugin_datas + theme_datas + i18n_datas + plugin_i18n_datas + skin_datas,
     hiddenimports=[
         # 插件入口由 plugin.json 动态 import，静态分析扫不到，需显式声明
         'plugins.proofread.plugin',

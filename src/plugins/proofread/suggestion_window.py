@@ -9,6 +9,8 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushBu
 from infra.utils import resource_path  # 或直接定义在文件内   #  -修改21
 from plugins.proofread.word_monitor import clear_error_marks  # --修改17  --修改19 proof_sentence
 
+PLUGIN_ID = "proofread"
+
 
 # def diff_fragments(original: str, corrected: str) -> list:
     # """返回差异片段列表，每个片段包含 original 和 suggest 字符串"""
@@ -54,9 +56,10 @@ class SuggestionCard(QWidget):
     accepted = Signal(str, int, int, str)
     ignored = Signal(str, int, int, str)
 
-    def __init__(self, parent=None, theme=None):
+    def __init__(self, parent=None, theme=None, i18n=None):
         super().__init__(parent)
         self._theme = theme
+        self._i18n = i18n
         # 无边框 + 置顶 + 工具窗口
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)   # 背景透明
@@ -65,6 +68,7 @@ class SuggestionCard(QWidget):
         self.corrected_text = ""
         self.start_pos = 0
         self.end_pos = 0
+        self._perfect_label = None      # 「无错误」标签，供 retranslateUi 刷新
 
         # 主布局
         main_layout = QVBoxLayout(self)
@@ -93,8 +97,8 @@ class SuggestionCard(QWidget):
         btn_layout = QHBoxLayout(self.btn_container)
         btn_layout.setContentsMargins(4, 2, 4, 0)       #       左上右下间距
         btn_layout.setSpacing(8)
-        self.accept_btn = QPushButton("✔ 确认")
-        self.ignore_btn = QPushButton("✘ 忽略")
+        self.accept_btn = QPushButton(self.tr("bubble.accept"))
+        self.ignore_btn = QPushButton(self.tr("bubble.ignore"))
         self.accept_btn.setProperty("accent", True)
         btn_layout.addWidget(self.accept_btn)
         btn_layout.addWidget(self.ignore_btn)
@@ -111,6 +115,19 @@ class SuggestionCard(QWidget):
         # 样式统一由主题提供（base.qss 的 #diff_row 等选择器），
         # 这里不再写内联 setStyleSheet，避免 widget 级样式盖掉应用级主题
 
+    # ---------------- 多语言 ----------------
+    def tr(self, key: str, /, **params) -> str:
+        """带插件命名空间的查词；i18n 不可用时原样返回 key。"""
+        if self._i18n is None:
+            return key
+        return self._i18n.tr(f"{PLUGIN_ID}.{key}", **params)
+
+    def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        self.accept_btn.setText(self.tr("bubble.accept"))
+        self.ignore_btn.setText(self.tr("bubble.ignore"))
+        if self._perfect_label is not None:
+            self._perfect_label.setText(self.tr("bubble.perfect"))
+
     def clear_diff(self):
         """清空旧差异条目（不清除按钮容器）"""
         while self.diff_layout.count():
@@ -118,6 +135,7 @@ class SuggestionCard(QWidget):
             widget = item.widget()
             if widget:
                 widget.deleteLater()
+        self._perfect_label = None
 
     def show_suggestion(self, original, corrected, anchor_point=None, config=None, start=None, end=None):
         self.original_text = original
@@ -162,7 +180,7 @@ class SuggestionCard(QWidget):
                 if tag == 'insert':
                     left_display = (
                         f"<span style='color:{muted}; {mono}'>{pre_o}</span>"
-                        f"<span style='color:{del_text}; background:{del_bg}; font-weight:bold; padding:1px 4px; border-radius:4px;'>　插入　</span>"
+                        f"<span style='color:{del_text}; background:{del_bg}; font-weight:bold; padding:1px 4px; border-radius:4px;'>{self.tr('bubble.insert')}</span>"
                         f"<span style='color:{muted}; {mono}'>{post_o}</span>"
                     )
                 else:
@@ -177,7 +195,7 @@ class SuggestionCard(QWidget):
                 if tag == 'delete':
                     right_display = (
                         f"<span style='color:{muted}; {mono}'>{pre_s}</span>"
-                        f"<span style='color:{ins_text}; background:{ins_bg}; font-weight:bold; padding:1px 4px; border-radius:4px;'>　删除　</span>"
+                        f"<span style='color:{ins_text}; background:{ins_bg}; font-weight:bold; padding:1px 4px; border-radius:4px;'>{self.tr('bubble.delete')}</span>"
                         f"<span style='color:{muted}; {mono}'>{post_s}</span>"
                     )
                 else:
@@ -221,10 +239,11 @@ class SuggestionCard(QWidget):
 
             self.btn_container.setVisible(True)
         else:
-            no_error = QLabel("✔ 完美，继续加油")
+            no_error = QLabel(self.tr("bubble.perfect"))
             no_error.setObjectName("stateOk")     # 绿色由主题令牌提供
             no_error.setAlignment(Qt.AlignCenter)
             no_error.setWordWrap(False)
+            self._perfect_label = no_error
             self.diff_layout.addWidget(no_error)
             self.btn_container.setVisible(False)
 
@@ -258,7 +277,7 @@ class SuggestionCard(QWidget):
 class FloatingButton(QToolButton):
     suggestion_accepted = Signal(str, int, int)   # 原有信号    --修改18
     def __init__(self, config, api=None, parent=None, ignore_mgr=None, correction_handler=None,
-                 theme=None):
+                 theme=None, i18n=None):
         """悬浮按钮 + 建议卡片（属 proofread 插件，随插件启停）。
 
         correction_handler(corrected_text, start, end) 由插件注入，
@@ -267,6 +286,7 @@ class FloatingButton(QToolButton):
         super().__init__(parent)
         self.config = config
         self._theme = theme
+        self._i18n = i18n
         self.api = api                    # 新增
         self.ignore_mgr = ignore_mgr          # 存储      --修改17
         self._correction_handler = correction_handler
@@ -286,7 +306,7 @@ class FloatingButton(QToolButton):
         self.dragPos = None
 
         # 创建建议卡片（唯一实例）
-        self.suggestion_card = SuggestionCard(theme=self._theme)
+        self.suggestion_card = SuggestionCard(theme=self._theme, i18n=self._i18n)
         self.suggestion_card.accepted.connect(self.on_accepted)
         # self.suggestion_card.rejected.connect(self.on_rejected)       #   --修改17
         self.suggestion_card.ignored.connect(self.on_ignored)
@@ -310,7 +330,7 @@ class FloatingButton(QToolButton):
         # 这里只标记身份，避免 widget 级样式覆盖主题
         self.btn.setObjectName("petButton")
         self.setObjectName("petWindow")
-        self.btn.setToolTip("智能校对, ctrl+点击切换显示/隐藏")           #  悬浮图标的提示语
+        self.btn.setToolTip(self.tr("pet.tooltip"))           #  悬浮图标的提示语
         layout.addWidget(self.btn)
 
 #--修改16
@@ -322,6 +342,17 @@ class FloatingButton(QToolButton):
         self.show()
         if not self.config.get("show_floating_button", True):
             self.hide()
+
+    # ---------------- 多语言 ----------------
+    def tr(self, key: str, /, **params) -> str:
+        """带插件命名空间的查词；i18n 不可用时原样返回 key。"""
+        if self._i18n is None:
+            return key
+        return self._i18n.tr(f"{PLUGIN_ID}.{key}", **params)
+
+    def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        self.btn.setToolTip(self.tr("pet.tooltip"))
+        self.suggestion_card.retranslateUi()
 
     def eventFilter(self, watched, event):
         if watched == self.btn:

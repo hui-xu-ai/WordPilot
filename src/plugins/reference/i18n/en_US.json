@@ -1,0 +1,10 @@
+{
+  "plugin.name": "Reference Assistant",
+  "plugin.description": "Recognize EndNote / Zotero field codes and keep an identity note per reference (WIP)",
+
+  "tool_label": "📚 Reference Assistant",
+  "tray_label": "Reference Assistant",
+  "window.title": "Reference Assistant",
+  "wip.body": "The reference identity note feature is under development.\n\nOnly the entry point is mounted for now. TODO: parse EndNote / Zotero field codes and de-duplicate references.",
+  "log.activated": "Reference assistant plugin activated (feature under development)"
+}

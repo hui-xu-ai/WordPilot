@@ -6,7 +6,8 @@
 - 不再 import 任何插件内部模块，具体功能由 plugins/ 下的插件
   通过 ctx.ui 贡献点（工具菜单项 / 托盘菜单项）挂载进来；
 - 需要调用插件能力时，一律通过 kernel.capabilities 取，
-  插件未加载时外壳仍然可用（按钮自动降级为只改自己的状态）。
+  插件未加载时外壳仍然可用（按钮自动降级为只改自己的状态）；
+- 所有可见文案走 i18n（self.tr），切换语言时由 retranslateUi() 统一刷新。
 
 新增一个功能时，本文件应当零改动。
 """
@@ -17,7 +18,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
                                QSystemTrayIcon, QMenu, QMessageBox, QCheckBox, QApplication,
                                QLabel)
 
-from __version__ import APP_TITLE
+from __version__ import __version__
 from core.kernel import Kernel
 from core.services.api_logger import clear_api_log
 from core.services.config_manager import ConfigManager
@@ -37,14 +38,17 @@ class MainWindow(QMainWindow):
         self.config: ConfigManager = kernel.config
         self.api = kernel.services.get("ai_client")
         self.ignore_mgr = kernel.services.get("ignore")
+        self.i18n = kernel.services.get("i18n")
         self._window_id = self.WINDOW_ID
-        self.setWindowTitle(APP_TITLE)
+        self.setWindowTitle(self._window_title())
         self.setMinimumSize(600, 400)
 
         # UI 贡献点收集器：插件加载后由 build_extension_menus 统一渲染
         self.ui = QtUiRegistry(self)
+        self.ui.bind_i18n(self.i18n)
         # 插件能力（插件加载后由 bind_plugins 绑定）
         self._proofread = None
+        self._unsubscribes: list = []
 
         self.init_ui()
         self.setup_tray()
@@ -61,11 +65,36 @@ class MainWindow(QMainWindow):
             self.hotkeys.register("rewrite", "ctrl+shift+r",
                                   lambda: self.clipboard_action("rewrite"))
 
-        # 初始不置顶      --修改17
-        if self.config.get("main_on_top", False):         #  不置顶--修改17
+        # 初始置顶状态
+        if self.config.get("main_on_top", False):
             self.top_check.blockSignals(True)
             self.top_check.setChecked(True)
             self.top_check.blockSignals(False)
+
+        self._subscribe_events()
+
+    # ---------------- 翻译辅助 ----------------
+    def tr(self, key: str, /, **params) -> str:
+        if self.i18n is None:
+            return key
+        return self.i18n.tr(key, **params)
+
+    def _window_title(self) -> str:
+        return self.tr("app.window_title", name=self.tr("app.name"),
+                       version=__version__, author=self.tr("app.author"))
+
+    def _ready_message(self) -> str:
+        return self.tr("app.status.ready", author=self.tr("app.author"))
+
+    def _subscribe_events(self):
+        """订阅内核事件；保存退订闭包，窗口销毁时注销。"""
+        self._unsubscribes.append(
+            self.kernel.events.subscribe("i18n.language_changed",
+                                         lambda _e, _p: self.retranslateUi())
+        )
+        self._unsubscribes.append(
+            self.kernel.events.subscribe("theme.changed", lambda _e, _p: self.apply_style())
+        )
 
     # ---------------- 插件集成 ----------------
     def bind_plugins(self):
@@ -92,8 +121,8 @@ class MainWindow(QMainWindow):
         for label, handler in self.ui.tray_actions():
             self.tray_menu.addAction(label, handler)
         self.tray_menu.addSeparator()
-        self.tray_menu.addAction("显示主窗口", self.show)
-        self.tray_menu.addAction("退出", self.quit_app)
+        self.tray_menu.addAction(self.tr("app.tray.show_main"), self.show)
+        self.tray_menu.addAction(self.tr("app.tray.quit"), self.quit_app)
 
     def _on_proof_toggled(self, _event, enabled):
         self._sync_proof_button(bool(enabled))
@@ -102,29 +131,29 @@ class MainWindow(QMainWindow):
         """只更新按钮外观，不回环触发 toggled 信号。"""
         self.proof_btn.blockSignals(True)
         self.proof_btn.setChecked(on)
-        self.proof_btn.setText("🔴 监听中" if on else "⚪ 已暂停")
+        self.proof_btn.setText(self.tr("app.proof.on") if on else self.tr("app.proof.off"))
         self.proof_btn.blockSignals(False)
 
-#  修改3
+    # ---------------- 界面 ----------------
     def init_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
 
         # 实时校对控制组
-        proof_group = QGroupBox("实时校对控制")
+        self.proof_group = QGroupBox(self.tr("app.proof.group"))
         proof_layout = QFormLayout()
-        self.proof_btn = QPushButton("🔴 监听中")
+        self.proof_btn = QPushButton(self.tr("app.proof.on"))
         self.proof_btn.setCheckable(True)
         self.proof_btn.setChecked(True)
         self.proof_btn.toggled.connect(self.toggle_proof)
-        proof_layout.addRow("状态：", self.proof_btn)
+        proof_layout.addRow(self.tr("app.proof.status_label"), self.proof_btn)
 
         debounce_layout = QHBoxLayout()
         debounce_slider = QSlider(Qt.Horizontal)
         debounce_slider.setRange(200, 5000)
         debounce_slider.setValue(self.config.get("debounce_ms", 500))
-        debounce_slider.setToolTip("检测到句子结束后的延迟（毫秒），避免过快触发校对")
+        debounce_slider.setToolTip(self.tr("app.proof.debounce_tip"))
         debounce_label = QLabel(f"{debounce_slider.value()} ms")
         debounce_slider.valueChanged.connect(lambda v: (
             self.config.set("debounce_ms", v),
@@ -132,36 +161,35 @@ class MainWindow(QMainWindow):
         ))
         debounce_layout.addWidget(debounce_slider)
         debounce_layout.addWidget(debounce_label)
-        proof_layout.addRow("句子检测频率：", debounce_layout)
-# --修改16 增加提示
+        proof_layout.addRow(self.tr("app.proof.debounce_label"), debounce_layout)
 
         ctx_spin = QSpinBox()
         ctx_spin.setRange(0, 5)
-        ctx_spin.setValue(self.config.get("context_before", 0))         #--默认上下文
+        ctx_spin.setValue(self.config.get("context_before", 0))
         ctx_spin.valueChanged.connect(lambda v: (self.config.set("context_before", v),
-                                                  self.config.set("context_after", v)))
-        proof_layout.addRow("上下文(前后句)：", ctx_spin)
+                                                 self.config.set("context_after", v)))
+        proof_layout.addRow(self.tr("app.proof.context_label"), ctx_spin)
 
-        self.top_check = QCheckBox("主窗口置顶")
+        self.top_check = QCheckBox(self.tr("app.proof.topmost"))
         self.top_check.setChecked(self.config.get("main_on_top", False))
         self.top_check.stateChanged.connect(self.toggle_main_top)
         proof_layout.addRow(self.top_check)
-        proof_group.setLayout(proof_layout)
-        main_layout.addWidget(proof_group)
+        self.proof_group.setLayout(proof_layout)
+        main_layout.addWidget(self.proof_group)
 
         # 剪贴板处理组
-        cb_group = QGroupBox("剪贴板处理")
+        self.clip_group = QGroupBox(self.tr("app.clipboard.group"))
         cb_layout = QVBoxLayout()
-        btn_load = QPushButton("📋 读取剪贴板")
-        btn_load.clicked.connect(self.load_clipboard)
-        cb_layout.addWidget(btn_load)
+        self.btn_load = QPushButton(self.tr("app.clipboard.load"))
+        self.btn_load.clicked.connect(self.load_clipboard)
+        cb_layout.addWidget(self.btn_load)
         self.clip_preview = QTextEdit()
-        self.clip_preview.setPlaceholderText("剪贴板内容...")
+        self.clip_preview.setPlaceholderText(self.tr("app.clipboard.placeholder"))
         cb_layout.addWidget(self.clip_preview)
         btn_row = QHBoxLayout()
-        self.correct_btn = QPushButton("🛠 纠错")
-        self.translate_btn = QPushButton("🌐 翻译")
-        self.rewrite_btn = QPushButton("✏️ 改写")
+        self.correct_btn = QPushButton(self.tr("app.clipboard.proof"))
+        self.translate_btn = QPushButton(self.tr("app.clipboard.translate"))
+        self.rewrite_btn = QPushButton(self.tr("app.clipboard.rewrite"))
         self.correct_btn.clicked.connect(lambda: self.clipboard_action("proof"))
         self.translate_btn.clicked.connect(lambda: self.clipboard_action("translate"))
         self.rewrite_btn.clicked.connect(lambda: self.clipboard_action("rewrite"))
@@ -170,40 +198,72 @@ class MainWindow(QMainWindow):
         btn_row.addWidget(self.rewrite_btn)
         cb_layout.addLayout(btn_row)
         self.clip_result = QTextEdit()
-        self.clip_result.setPlaceholderText("结果将显示在此...")
+        self.clip_result.setPlaceholderText(self.tr("app.clipboard.result_placeholder"))
         cb_layout.addWidget(self.clip_result)
         res_btn_row = QHBoxLayout()
-        btn_insert = QPushButton("📝 插入Word")
-        btn_copy = QPushButton("📋 复制结果")
-        btn_insert.clicked.connect(self.insert_to_word)
-        btn_copy.clicked.connect(lambda: QApplication.clipboard().setText(self.clip_result.toPlainText()))
-        res_btn_row.addWidget(btn_insert)
-        res_btn_row.addWidget(btn_copy)
+        self.btn_insert = QPushButton(self.tr("app.clipboard.insert"))
+        self.btn_copy = QPushButton(self.tr("app.clipboard.copy"))
+        self.btn_insert.clicked.connect(self.insert_to_word)
+        self.btn_copy.clicked.connect(
+            lambda: QApplication.clipboard().setText(self.clip_result.toPlainText()))
+        res_btn_row.addWidget(self.btn_insert)
+        res_btn_row.addWidget(self.btn_copy)
         cb_layout.addLayout(res_btn_row)
-        cb_group.setLayout(cb_layout)
-        main_layout.addWidget(cb_group)
+        self.clip_group.setLayout(cb_layout)
+        main_layout.addWidget(self.clip_group)
 
         # 菜单栏
         menu_bar = self.menuBar()
-        settings_action = menu_bar.addAction("⚙ 设置")
-        settings_action.triggered.connect(self.open_settings)
+        self.settings_action = menu_bar.addAction(self.tr("app.menu.settings"))
+        self.settings_action.triggered.connect(self.open_settings)
 
-        # 创建清理缓存清理子菜单       #--修改18
-        cleanup_menu = QMenu("🧹 清理缓存", self)
-        cleanup_menu.addAction("清空所有记录的忽略句子 (ignore_db.json)", self.clear_ignore_only)       #--修改18
-        cleanup_menu.addAction("清空 API 调用日志 (api_calls.log)", self.clear_api_log_only)  #--修改18
-        cleanup_menu.addAction("清空全部（忽略列表 + API 日志）", self.clear_all_cache)         #--修改18
-        # 将子菜单挂载到菜单栏动作
-        cleanup_action = menu_bar.addAction("🧹 清理缓存")
-        cleanup_action.setMenu(cleanup_menu)
+        self.cleanup_menu = QMenu(self.tr("app.menu.cleanup"), self)
+        self.cleanup_menu.addAction(self.tr("app.cleanup.ignore"), self.clear_ignore_only)
+        self.cleanup_menu.addAction(self.tr("app.cleanup.log"), self.clear_api_log_only)
+        self.cleanup_menu.addAction(self.tr("app.cleanup.all"), self.clear_all_cache)
+        self.cleanup_action = menu_bar.addAction(self.tr("app.menu.cleanup"))
+        self.cleanup_action.setMenu(self.cleanup_menu)
 
         # 工具菜单：外壳先挂自带项，插件贡献项在加载后由 build_extension_menus 追加
-        self.tools_menu = menu_bar.addMenu("工具")
-        self.ui.add_tool("📊 API 监控", self.show_monitor, order=50, plugin_id="app")
+        self.tools_menu = menu_bar.addMenu(self.tr("app.menu.tools"))
+        self.ui.add_tool("menu.monitor", self.show_monitor, order=50, plugin_id="app")
 
         # 状态栏
         self.statusbar = self.statusBar()
-        self.statusbar.showMessage("就绪 | 作者: Xu Hui")
+        self.statusbar.showMessage(self._ready_message())
+
+    def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        """切换语言后刷新全部可见文案（菜单重建 + 控件重设文本）。"""
+        self.setWindowTitle(self._window_title())
+        self.proof_group.setTitle(self.tr("app.proof.group"))
+        self.clip_group.setTitle(self.tr("app.clipboard.group"))
+        self.top_check.setText(self.tr("app.proof.topmost"))
+        self.btn_load.setText(self.tr("app.clipboard.load"))
+        self.clip_preview.setPlaceholderText(self.tr("app.clipboard.placeholder"))
+        self.correct_btn.setText(self.tr("app.clipboard.proof"))
+        self.translate_btn.setText(self.tr("app.clipboard.translate"))
+        self.rewrite_btn.setText(self.tr("app.clipboard.rewrite"))
+        self.clip_result.setPlaceholderText(self.tr("app.clipboard.result_placeholder"))
+        self.btn_insert.setText(self.tr("app.clipboard.insert"))
+        self.btn_copy.setText(self.tr("app.clipboard.copy"))
+
+        self.settings_action.setText(self.tr("app.menu.settings"))
+        self.cleanup_action.setText(self.tr("app.menu.cleanup"))
+        self.cleanup_menu.setTitle(self.tr("app.menu.cleanup"))
+        for index, key in enumerate(("app.cleanup.ignore", "app.cleanup.log", "app.cleanup.all")):
+            actions = self.cleanup_menu.actions()
+            if index < len(actions):
+                actions[index].setText(self.tr(key))
+        self.tools_menu.setTitle(self.tr("app.menu.tools"))
+
+        self.tray_icon.setToolTip(self.tr("app.tray.tooltip"))
+        self.statusbar.showMessage(self._ready_message())
+
+        if self._proofread is not None:
+            self._sync_proof_button(self._proofread.is_enabled())
+        else:
+            self._sync_proof_button(self.proof_btn.isChecked())
+        self.build_extension_menus()   # 插件入口同样需要重翻译
 
     def toggle_proof(self, enabled):
         if self._proofread is not None:
@@ -223,16 +283,15 @@ class MainWindow(QMainWindow):
         text = QApplication.clipboard().text()
         self.clip_preview.setPlainText(text)
 
-#--修改8
     def clipboard_action(self, action):
         text = self.clip_preview.toPlainText().strip()
         if not text:
-            self.clip_result.setPlainText("⚠️ 请先点击“读取剪贴板”加载文本。")
+            self.clip_result.setPlainText(self.tr("app.clipboard.empty_tip"))
             return
         if action == "proof":
             result = self.api.clipboard_proof(text)
             if result == text:
-                self.clip_result.setPlainText("✅ 无需修正，文本已是最佳。")
+                self.clip_result.setPlainText(self.tr("app.clipboard.no_change"))
             else:
                 self.clip_result.setPlainText(result)
         elif action == "translate":
@@ -240,15 +299,15 @@ class MainWindow(QMainWindow):
             if result:
                 self.clip_result.setPlainText(result)
             else:
-                self.clip_result.setPlainText("❌ 翻译失败，请检查API Key与网络。")
+                self.clip_result.setPlainText(self.tr("app.clipboard.fail_translate"))
         elif action == "rewrite":
             result = self.api.rewrite(text)
             if result:
                 self.clip_result.setPlainText(result)
             else:
-                self.clip_result.setPlainText("❌ 改写失败，请检查API Key与网络。")
+                self.clip_result.setPlainText(self.tr("app.clipboard.fail_rewrite"))
         else:
-            self.clip_result.setPlainText("未知操作")
+            self.clip_result.setPlainText(self.tr("app.clipboard.unknown_action"))
 
     def insert_to_word(self):
         text = self.clip_result.toPlainText()
@@ -258,26 +317,27 @@ class MainWindow(QMainWindow):
             word = get_word_app()
             word.Selection.TypeText(text)
         except WordNotRunningError as exc:
-            QMessageBox.warning(self, "错误", str(exc))
+            QMessageBox.warning(self, self.tr("app.clipboard.error_title"), str(exc))
 
     def setup_tray(self):
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon(resource_path("assets/tray_icon.png")))
-        self.tray_icon.setToolTip("Word智能伴侣")
+        self.tray_icon.setToolTip(self.tr("app.tray.tooltip"))
         # 菜单内容由 build_extension_menus 在插件加载完成后填充
         self.tray_menu = QMenu()
         self.tray_icon.setContextMenu(self.tray_menu)
-        self.tray_icon.activated.connect(self.on_tray_activated)    # --修改22
+        self.tray_icon.activated.connect(self.on_tray_activated)
         self.tray_icon.show()
 
-    def on_tray_activated(self, reason):    # --修改22
+    def on_tray_activated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
             self.show()
 
     def _on_hidden(self):
         """关闭转隐藏后的提示（关闭语义由 WindowManager 统一裁决）。"""
         if hasattr(self, "tray_icon") and self.tray_icon.isVisible():
-            self.tray_icon.showMessage("程序仍在后台运行", "双击托盘图标可恢复窗口",
+            self.tray_icon.showMessage(self.tr("app.tray.background_title"),
+                                       self.tr("app.tray.background_body"),
                                        QSystemTrayIcon.Information, 2000)
         else:
             # 托盘不可用时无法恢复，直接退出
@@ -288,6 +348,12 @@ class MainWindow(QMainWindow):
         wm = self.kernel.services.get("window_manager")
         if wm is not None:
             wm.close_all(force=True)
+        for unsubscribe in self._unsubscribes:
+            try:
+                unsubscribe()
+            except Exception:
+                pass
+        self._unsubscribes.clear()
         self.kernel.shutdown()
         self.tray_icon.hide()
         QApplication.quit()
@@ -310,13 +376,14 @@ class MainWindow(QMainWindow):
                     on_hide=self._on_hidden)
         return wm
 
-#  修改3
     def open_settings(self):
         wm = self.kernel.services.get("window_manager")
         holder = {}
 
         def _factory():
-            dlg = SettingsDialog(self.config, self, theme=self.kernel.services.get("theme"))
+            dlg = SettingsDialog(self.config, self,
+                                 theme=self.kernel.services.get("theme"),
+                                 i18n=self.i18n)
             # 模态窗口关闭后会被窗口服务销毁，结果必须在销毁前记录
             dlg.finished.connect(lambda result: holder.__setitem__("result", result))
             return dlg
@@ -336,42 +403,31 @@ class MainWindow(QMainWindow):
             # 热键组合可能已变更，重新绑定
             if self.hotkeys is not None:
                 self.hotkeys.apply()
-            # 刷新字体
+            # 界面语言：内核广播 i18n.language_changed，各常驻界面自行重翻译
+            if self.i18n is not None:
+                self.kernel.set_language(self.config.get("ui_language", "zh_CN"))
+            # 主题可能已变更（设置页内部已应用），这里同步外壳
             self.apply_style()
+            self.retranslateUi()
 
-    def cleanup_cache(self):        #--修改18
-        menu = QMenu(self)
-        action_ignore = menu.addAction("清空所有记录的忽略句子")
-        action_log = menu.addAction("清空 API 调用日志")
-        action_all = menu.addAction("清空全部")
-        action_ignore.triggered.connect(self.clear_ignore_only)
-        action_log.triggered.connect(self.clear_api_log_only)
-        action_all.triggered.connect(self.clear_all_cache)
-        # 弹出菜单
-        btn = self.sender()
-        if btn:
-            menu.exec(btn.mapToGlobal(btn.pos()))
-        else:
-            menu.exec(self.mapToGlobal(QPoint(0, 0)))
-
-    def clear_ignore_only(self):         #--修改18
+    def clear_ignore_only(self):
         self.ignore_mgr.clear_ignore()
-        QMessageBox.information(self, "完成", "所有记录的忽略句子已清空。")
-        self.statusbar.showMessage("所有记录的忽略句子已清空", 3000)
+        QMessageBox.information(self, self.tr("app.cleanup.title_done"),
+                                self.tr("app.cleanup.done_ignore"))
+        self.statusbar.showMessage(self.tr("app.cleanup.status_ignore"), 3000)
 
-    def clear_api_log_only(self):        #--修改18
+    def clear_api_log_only(self):
         clear_api_log()
-        QMessageBox.information(self, "完成", "API 调用日志已清空。")
-        self.statusbar.showMessage("API 调用日志已清空", 3000)
+        QMessageBox.information(self, self.tr("app.cleanup.title_done"),
+                                self.tr("app.cleanup.done_log"))
+        self.statusbar.showMessage(self.tr("app.cleanup.status_log"), 3000)
 
-    def clear_all_cache(self):       #--修改18
+    def clear_all_cache(self):
         self.ignore_mgr.clear_ignore()
         clear_api_log()
-        QMessageBox.information(self, "完成", "所有缓存已清空。")
-        self.statusbar.showMessage("所有缓存已清空", 3000)
-
-    def show_debug(self, msg):
-        self.statusbar.showMessage(f"调试: {msg}", 2000)
+        QMessageBox.information(self, self.tr("app.cleanup.title_done"),
+                                self.tr("app.cleanup.done_all"))
+        self.statusbar.showMessage(self.tr("app.cleanup.status_all"), 3000)
 
     def show_monitor(self):
         """API 调用监控：单例窗口，关闭转隐藏（由 WindowManager 治理）。"""
@@ -380,7 +436,7 @@ class MainWindow(QMainWindow):
             return
         from core.services.window_manager import CloseBehavior, Mode
 
-        wm.open("app.monitor", lambda: MonitorWindow(), owner="app",
+        wm.open("app.monitor", lambda: MonitorWindow(i18n=self.i18n), owner="app",
                 mode=Mode.SINGLETON, behavior=CloseBehavior.HIDE,
                 remember_geometry=True)
 

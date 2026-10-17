@@ -88,13 +88,37 @@ class PluginBase:
         3) ctx.register_capability(...) 暴露能力给外壳或其它插件。
 
     deactivate 中必须释放：后台线程、窗口、热键、定时器。
+
+    多语言：直接用 self.tr("xxx.yyy")，key 会自动带上本插件的命名空间，
+    语言包放在 plugins/<plugin_id>/i18n/<lang>.json，由内核自动注册。
+    未激活（ctx 为空）时 tr() 原样返回 key，保证插件在离屏/测试环境下不炸。
     """
 
     def __init__(self) -> None:
         self.ctx: "PluginContext" | None = None
+        self._unsubscribes: list = []
 
     def activate(self, ctx: "PluginContext") -> None:
         self.ctx = ctx
 
     def deactivate(self) -> None:
+        # 先退订，避免残留处理器持有已销毁的对象
+        for unsubscribe in self._unsubscribes:
+            try:
+                unsubscribe()
+            except Exception:
+                pass
+        self._unsubscribes.clear()
         self.ctx = None
+
+    def subscribe(self, event: str, handler) -> None:
+        """订阅内核事件；deactivate 时自动退订，防止插件卸载后仍被回调。"""
+        if self.ctx is None:
+            return
+        self._unsubscribes.append(self.ctx.events.subscribe(event, handler))
+
+    def tr(self, key: str, /, **params) -> str:
+        """带插件命名空间的查词；ctx 缺失时原样返回 key。"""
+        if self.ctx is None:
+            return key
+        return self.ctx.tr(key, **params)

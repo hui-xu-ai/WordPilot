@@ -59,10 +59,13 @@ class WordNavigatorDialog(QDialog):
     #: 在窗口治理服务中的注册 id（置顶偏好与几何记忆都挂在这个 id 下）
     WINDOW_ID = "navigator.main"
 
-    def __init__(self, parent=None, config=None, window_manager=None):
+    def __init__(self, parent=None, config=None, window_manager=None, i18n=None,
+                 plugin_id="navigator"):
         super().__init__(parent)
         self.app_config = config                    # 内核 ConfigManager（原 navigator_config.json 收敛到这里）
         self.window_manager = window_manager
+        self.i18n = i18n
+        self._ns = plugin_id
         # ---------- 安全初始化 COM ----------
         self._com_ok = False
         try:
@@ -77,7 +80,7 @@ class WordNavigatorDialog(QDialog):
         self._new_table = []
         self._new_figure = []
 
-        self.setWindowTitle("Word 导航助手 - Xu Hui")
+        self.setWindowTitle(self.tr("window.title"))
         self.setMinimumSize(450, 600)
         self.resize(450, 600)
 
@@ -113,6 +116,26 @@ class WordNavigatorDialog(QDialog):
     # ---------- 配置 ----------
     # 历史遗留：配置原先存在独立的 config/navigator_config.json，
     # 与主配置不通。现在统一收敛进主配置，旧文件只做一次性迁移读取。
+    # ---------- 多语言 ----------
+    def tr(self, key: str, /, **params) -> str:
+        """带插件命名空间的查词；i18n 不可用时原样返回 key。"""
+        if self.i18n is None:
+            return key
+        return self.i18n.tr(f"{self._ns}.{key}", **params)
+
+    def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        """切换语言后刷新常驻界面的文案。"""
+        self.setWindowTitle(self.tr("window.title"))
+        self.btn_refresh.setText(self.tr("btn.refresh"))
+        self.btn_font.setText(self.tr("btn.font"))
+        self.btn_about.setText(self.tr("btn.about"))
+        self.chk_topmost.setText(self.tr("chk.topmost"))
+        self.btn_return.setText(self.tr("btn.return"))
+        self.search_edit.setPlaceholderText(self.tr("search.placeholder"))
+        self.tab_widget.setTabText(0, self.tr("tab.table"))
+        self.tab_widget.setTabText(1, self.tr("tab.figure"))
+        self.status_label.setText(self.tr("status.ready"))
+
     def load_config(self):
         legacy = {}
         if CONFIG_FILE.exists():
@@ -148,36 +171,36 @@ class WordNavigatorDialog(QDialog):
         layout = QVBoxLayout(self)
 
         toolbar = QHBoxLayout()
-        self.btn_refresh = QPushButton("🔄 刷新列表")
+        self.btn_refresh = QPushButton(self.tr("btn.refresh"))
         self.btn_refresh.clicked.connect(self.load_captions)
         toolbar.addWidget(self.btn_refresh)
 
-        self.btn_font = QPushButton("🔤 字体")
+        self.btn_font = QPushButton(self.tr("btn.font"))
         self.btn_font.clicked.connect(self.change_font)
         toolbar.addWidget(self.btn_font)
 
-        self.btn_about = QPushButton("ℹ️ 关于")
-        self.btn_about.clicked.connect(lambda: QMessageBox.information(self, "关于",
-            f"Word导航助手 v{_plugin_version()}\n手动刷新仅更新文本，保存后自动更新页码"))
+        self.btn_about = QPushButton(self.tr("btn.about"))
+        self.btn_about.clicked.connect(lambda: QMessageBox.information(self, self.tr("about.title"),
+            self.tr("about.body", version=_plugin_version())))
         toolbar.addWidget(self.btn_about)
 
-        self.chk_topmost = QCheckBox("📌 置顶")
+        self.chk_topmost = QCheckBox(self.tr("chk.topmost"))
         self.chk_topmost.setChecked(self.topmost)
         self.chk_topmost.stateChanged.connect(self.toggle_topmost)
         toolbar.addStretch()
         toolbar.addWidget(self.chk_topmost)
         layout.addLayout(toolbar)
 
-        self.btn_return = QPushButton("↰  返回上一位置")
+        self.btn_return = QPushButton(self.tr("btn.return"))
         # 样式交给主题（base.qss 里的 QPushButton#navReturnBtn）
         self.btn_return.setObjectName("navReturnBtn")
         self.btn_return.clicked.connect(self.go_back)
         layout.addWidget(self.btn_return)
 
         search_layout = QHBoxLayout()
-        search_layout.addWidget(QLabel("🔍 筛选："))
+        search_layout.addWidget(QLabel(self.tr("search.label")))
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("输入关键词过滤...")
+        self.search_edit.setPlaceholderText(self.tr("search.placeholder"))
         self.search_edit.textChanged.connect(self.filter_lists)
         search_layout.addWidget(self.search_edit)
         layout.addLayout(search_layout)
@@ -186,8 +209,8 @@ class WordNavigatorDialog(QDialog):
         self.tab_widget.currentChanged.connect(self._on_tab_changed)  # 记录标签页切换
         self.table_list = QListWidget()
         self.figure_list = QListWidget()
-        self.tab_widget.addTab(self.table_list, "📊 表题注")
-        self.tab_widget.addTab(self.figure_list, "📈 图题注")
+        self.tab_widget.addTab(self.table_list, self.tr("tab.table"))
+        self.tab_widget.addTab(self.figure_list, self.tr("tab.figure"))
         layout.addWidget(self.tab_widget)
 
         self.table_list.itemDoubleClicked.connect(self.on_table_double_clicked)
@@ -197,7 +220,7 @@ class WordNavigatorDialog(QDialog):
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
-        self.status_label = QLabel("就绪")
+        self.status_label = QLabel(self.tr("status.ready"))
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setObjectName("hintLabel")   # 样式见 base.qss
         layout.addWidget(self.status_label)
@@ -207,7 +230,7 @@ class WordNavigatorDialog(QDialog):
 
     # ---------- 字体 ----------
     def change_font(self):
-        result = QFontDialog.getFont(self.current_font, self, "选择字体")
+        result = QFontDialog.getFont(self.current_font, self, self.tr("font.dialog_title"))
         font = result[0] if isinstance(result[0], QFont) else result[1]
         ok = result[1] if isinstance(result[0], QFont) else result[0]
         if ok and isinstance(font, QFont):
@@ -224,7 +247,7 @@ class WordNavigatorDialog(QDialog):
     # ---------- Word 连接与保存监测 ----------
     def _get_word_document(self):
         if not self._com_ok:
-            self.status_label.setText("COM 初始化失败，无法连接 Word")
+            self.status_label.setText(self.tr("com_error"))
             return None, None, ""
         try:
             self.word = get_word_app()
@@ -289,10 +312,10 @@ class WordNavigatorDialog(QDialog):
         self._captions_cache_data = []   # 每次刷新前都重置，保证属性存在
         word, doc, full_path = self._get_word_document()
         if not doc:
-            self.status_label.setText("未找到打开的 Word 文档，请确认 Word 已启动并打开文件")
+            self.status_label.setText(self.tr("status.no_doc"))
             return
         if self._scanning:
-            self.status_label.setText("后台扫描正在进行中，请稍后...")
+            self.status_label.setText(self.tr("status.scanning"))
             return
             
         # ---------- 缓存优先 ----------
@@ -309,7 +332,7 @@ class WordNavigatorDialog(QDialog):
                 self._load_from_cache(word, doc, fingerprint, cached_data, update_pages, silent)
                 return
             except Exception as e:
-                self.status_label.setText(f"缓存加载失败：{e}，即将进行全量扫描")
+                self.status_label.setText(self.tr("status.cache_failed", error=e))
                 # 加载失败直接进行全量扫描，不要递归调用 _refresh_captions
         # 未命中缓存或加载失败 → 全量扫描
         self._do_full_scan(word, doc, full_path, update_pages, silent)
@@ -347,10 +370,11 @@ class WordNavigatorDialog(QDialog):
                 self.progress_bar.setMaximum(total_fields)
                 self.progress_bar.setValue(0)
                 self.progress_bar.setVisible(True)
-            self.status_label.setText("正在扫描题注..." if silent else f"扫描域 0/{total_fields}...")
+            self.status_label.setText(self.tr("status.scanning_captions") if silent
+                                    else self.tr("status.scan_progress", current=0, total=total_fields))
             QTimer.singleShot(1, self._scan_fields_batch)
         except Exception as e:
-            self.status_label.setText(f"初始化出错: {e}")
+            self.status_label.setText(self.tr("status.init_error", error=e))
             self.progress_bar.setVisible(False)
             self._scanning = False
             self._restore_screen_updating(word)   # 异常路径也要恢复 Word 屏幕刷新
@@ -372,13 +396,13 @@ class WordNavigatorDialog(QDialog):
             self._scan_index = end_index + 1
             if not self._scan_silent:
                 self.progress_bar.setValue(end_index)
-                self.status_label.setText(f"扫描域 {end_index}/{self._scan_total}...")
+                self.status_label.setText(self.tr("status.scan_progress", current=end_index, total=self._scan_total))
             if self._scan_index <= self._scan_total:
                 QTimer.singleShot(1, self._scan_fields_batch)
             else:
                 self._process_seq_info()
         except Exception as e:
-            self.status_label.setText(f"扫描中断: {e}")
+            self.status_label.setText(self.tr("status.scan_aborted", error=e))
             self._scanning = False
             self.progress_bar.setVisible(False)
             self._restore_screen_updating()   # 扫描中断时恢复 Word 屏幕刷新
@@ -397,7 +421,8 @@ class WordNavigatorDialog(QDialog):
         if not self._scan_silent:
             self.progress_bar.setMaximum(total)
             self.progress_bar.setValue(0)
-        self.status_label.setText("更新题注中..." if self._scan_silent else f"处理题注 0/{total}...")
+        self.status_label.setText(self.tr("status.updating") if self._scan_silent
+                                    else self.tr("status.process_progress", current=0, total=total))
         QTimer.singleShot(1, self._process_seq_batch)
 
     def _process_seq_batch(self):
@@ -432,7 +457,7 @@ class WordNavigatorDialog(QDialog):
                                     page_num = str(para_range.Information(3))
                                 except:
                                     pass
-                        display = f"{text}  [第{page_num}页]"
+                        display = self.tr("caption.display", text=text, page=page_num)
                         item = CaptionItem(display, field=field, start=start_pos,
                                           end=para_range.End, page=page_num)
                         if seq_type == "表":
@@ -451,7 +476,7 @@ class WordNavigatorDialog(QDialog):
             self._seq_index = end_index
             if not self._scan_silent:
                 self.progress_bar.setValue(end_index)
-                self.status_label.setText(f"处理题注 {end_index}/{total}...")
+                self.status_label.setText(self.tr("status.process_progress", current=end_index, total=total))
             if self._seq_index < total:
                 QTimer.singleShot(1, self._process_seq_batch)
             else:
@@ -459,7 +484,7 @@ class WordNavigatorDialog(QDialog):
         except Exception as e:
             # 外层兜底：QTimer 回调里未捕获的异常会吞掉且不再调度，
             # 必须在此恢复屏幕刷新与扫描状态
-            self.status_label.setText(f"题注处理中断: {e}")
+            self.status_label.setText(self.tr("status.process_aborted", error=e))
             self._scanning = False
             self.progress_bar.setVisible(False)
             self._restore_screen_updating()
@@ -539,15 +564,16 @@ class WordNavigatorDialog(QDialog):
 
             # 6. 状态提示
             total = len(self._new_table) + len(self._new_figure)
-            msg = f"快速加载完成，共 {total} 个题注（表 {len(self._new_table)}，图 {len(self._new_figure)}）"
+            msg = self.tr("status.fast_loaded", total=total,
+                           tables=len(self._new_table), figures=len(self._new_figure))
             if update_pages:
-                msg += " [页码已更新]"
+                msg += self.tr("status.pages_updated")
             else:
-                msg += " [使用缓存页码]"
+                msg += self.tr("status.pages_cached")
             self.status_label.setText(msg)
 
             if silent:
-                QTimer.singleShot(3000, lambda: self.status_label.setText("就绪"))
+                QTimer.singleShot(3000, lambda: self.status_label.setText(self.tr("status.ready")))
 
             # 7. 保存更新后的缓存（页码可能已变）
             self.cache.save_document_cache(fingerprint, cached_data)
@@ -589,12 +615,14 @@ class WordNavigatorDialog(QDialog):
                 self.tab_widget.setCurrentIndex(1)
 
         if self._scan_silent:
-            self.status_label.setText("自动更新完成")
+            self.status_label.setText(self.tr("status.auto_updated"))
             QTimer.singleShot(3000, lambda: self.status_label.setText("就绪"))
         else:
             self.status_label.setText(
-                f"加载完成，共 {num_table + num_figure} 个题注（表 {num_table}，图 {num_figure}）"
-                + (" [已更新页码]" if self._scan_update_pages else " [沿用页码]")
+                self.tr("status.loaded", total=num_table + num_figure,
+                    tables=num_table, figures=num_figure)
+                + (self.tr("status.pages_updated") if self._scan_update_pages
+                   else self.tr("status.pages_cached"))
             )
         self.progress_bar.setVisible(False)
         self._scanning = False
@@ -646,11 +674,11 @@ class WordNavigatorDialog(QDialog):
                 pass
             if item.select_in_document(doc):
                 word.ActiveWindow.ScrollIntoView(word.Selection.Range, True)
-                self.status_label.setText(f"已跳转至「{list_item.text().split('[')[0].strip()}」")
+                self.status_label.setText(self.tr("status.jumped", target=list_item.text().split("[")[0].strip()))
             else:
-                self.status_label.setText("跳转失败：无法定位题注")
+                self.status_label.setText(self.tr("status.jump_failed"))
         except Exception as e:
-            QMessageBox.critical(self, "跳转失败", str(e))
+            QMessageBox.critical(self, self.tr("error.jump_title"), str(e))
         finally:
             try:
                 word.ScreenUpdating = True
@@ -659,7 +687,7 @@ class WordNavigatorDialog(QDialog):
 
     def go_back(self):
         if not self.history_stack:
-            self.status_label.setText("没有可返回的位置")
+            self.status_label.setText(self.tr("status.no_history"))
             return
         try:
             word, _, _ = self._get_word_document()
@@ -669,9 +697,9 @@ class WordNavigatorDialog(QDialog):
             prev_range = self.history_stack.pop()
             prev_range.Select()
             word.ActiveWindow.ScrollIntoView(prev_range, True)
-            self.status_label.setText("已返回跳转前位置")
+            self.status_label.setText(self.tr("status.back"))
         except Exception as e:
-            QMessageBox.critical(self, "返回失败", str(e))
+            QMessageBox.critical(self, self.tr("error.back_title"), str(e))
         finally:
             try:
                 word.ScreenUpdating = True

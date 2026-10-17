@@ -323,11 +323,12 @@ class WordMonitor(QThread):
     suggestion_ready = Signal(str, str, int, int)
     status_update = Signal(str)
 
-    def __init__(self, config, api, ignore_mgr=None):
+    def __init__(self, config, api, ignore_mgr=None, i18n=None):
         super().__init__()
         self.config = config
         self.api = api
         self.ignore_mgr = ignore_mgr
+        self._i18n = i18n
         self.running = True
         self.proof_enabled = True          # ← 新增这一行        --修改22
         self.last_text = ""
@@ -336,7 +337,19 @@ class WordMonitor(QThread):
         
        
         self.last_selection_range = None          # 上次选择的 Range (start, end)        # --修改20
-        
+
+    # ---------------- 多语言 ----------------
+    def tr(self, key: str, /, **params) -> str:
+        """状态栏文案：跟随界面语言；服务缺失时原样返回 key。"""
+        if self._i18n is None:
+            return key
+        return self._i18n.tr(f"proofread.{key}", **params)
+
+    def prompt_tr(self, key: str, /, **params) -> str:
+        """发给 AI 的指令文案：跟随提示词语言，与界面语言解耦。"""
+        if self._i18n is None:
+            return key
+        return self._i18n.prompt_tr(f"proofread.{key}", **params)
 
     # word_monitor.py - class WordMonitor       --修改18 重写校对逻辑
     def run(self):
@@ -344,7 +357,7 @@ class WordMonitor(QThread):
             self._run_loop()
 
     def _run_loop(self):
-        self.debug_signal.emit("监控线程已启动")
+        self.debug_signal.emit(self.tr("monitor.started"))
         try:
             while self.running:
                 try:
@@ -387,21 +400,21 @@ class WordMonitor(QThread):
                             self.last_selection_range[0] == self.last_selection_range[1] and
                             current_text and len(current_text) >= 8):
                             
-                            self.status_update.emit("选中句子，正在校对句子…")
-                            try:                            
+                            self.status_update.emit(self.tr("monitor.proofing_selection"))
+                            try:
                                 clear_error_marks(sentence_range.Start, sentence_range.End)
                                 pure, corrected, s_start, s_end = proof_sentence(
-                                    sentence_range, self.api, self.config
+                                    sentence_range, self.api, self.config, i18n=self._i18n
                                 )
                                 if pure:
                                     self.last_marked_text = pure
                                     self.suggestion_ready.emit(pure, corrected, s_start, s_end)
                                     if corrected != pure:
-                                        self.status_update.emit("校对建议已生成")
+                                        self.status_update.emit(self.tr("monitor.suggestion_ready"))
                                     else:
-                                        self.status_update.emit("未发现错误")
+                                        self.status_update.emit(self.tr("monitor.no_error"))
                             except Exception as e:
-                                self.status_update.emit(f"选中句子校对失败: {e}")
+                                self.status_update.emit(self.tr("monitor.selection_failed", error=e))
 
                         # 更新 last_selection_range
                         if sel_start is not None:
@@ -424,27 +437,27 @@ class WordMonitor(QThread):
                                     # 句子内容发生了变化
                                     if not prev_complete and is_complete:
                                         # 句子刚完成，触发校对
-                                        self.status_update.emit("检测到刚完成的句子，正在校对…")
+                                        self.status_update.emit(self.tr("monitor.sentence_detected"))
 
                                         # 检查忽略列表
                                         if self.ignore_mgr and self.ignore_mgr.is_ignored(current_text):
-                                            self.status_update.emit("句子已被忽略，跳过校对")
+                                            self.status_update.emit(self.tr("monitor.ignored"))
                                             self.sentence_state[sent_key] = (current_text, is_complete)
                                             continue
 
                                         # 调用统一校对函数（内部处理分词、缓存、API、标记）
                                         pure, corrected, start_pos, end_pos = proof_sentence(
-                                            sentence_range, self.api, self.config
+                                            sentence_range, self.api, self.config, i18n=self._i18n
                                         )
                                         if pure is not None:
                                             self.last_marked_text = pure
                                             self.suggestion_ready.emit(pure, corrected, start_pos, end_pos)
                                             if corrected != pure:
-                                                self.status_update.emit("校对建议已生成")
+                                                self.status_update.emit(self.tr("monitor.suggestion_ready"))
                                             else:
-                                                self.status_update.emit("未发现错误")
+                                                self.status_update.emit(self.tr("monitor.no_error"))
                                         else:
-                                            self.status_update.emit("句子太短，跳过")
+                                            self.status_update.emit(self.tr("monitor.too_short"))
 
                                         # 更新状态
                                         self.sentence_state[sent_key] = (current_text, is_complete)
@@ -457,23 +470,27 @@ class WordMonitor(QThread):
 
                     time.sleep(0.2)
                 except Exception as e:
-                    self.debug_signal.emit(f"监控出错: {str(e)}")
-                    self.status_update.emit("请打开word文档")
+                    self.debug_signal.emit(self.tr("monitor.error", error=e))
+                    self.status_update.emit(self.tr("monitor.open_word"))
                     time.sleep(1)
         finally:
-            self.debug_signal.emit("监控线程已停止")
+            self.debug_signal.emit(self.tr("monitor.stopped"))
 
 
     def stop(self):
         self.running = False
-        self.debug_signal.emit("监控线程停止请求已发送")
+        self.debug_signal.emit(self.tr("monitor.stop_requested"))
         
 ###   --修改21
-def proof_sentence(sentence_range, api, config):
+def proof_sentence(sentence_range, api, config, i18n=None):
     tokenized = TokenizedSentence(sentence_range)
     raw_text = tokenized.get_text_for_api()
     if not raw_text or len(raw_text) < 6:
         return None, None, None, None
+
+    def prompt_tr(key: str) -> str:
+        """提示词语言（与界面语言独立），服务缺失时回退到 key 本身。"""
+        return i18n.prompt_tr(f"proofread.{key}") if i18n is not None else key
 
     # 1. 分离正文和尾部（尾部为结束符号+可能的换行符）
     body_text, tail_text = split_trailing_chars(raw_text)
@@ -482,10 +499,7 @@ def proof_sentence(sentence_range, api, config):
     has_placeholder = bool(re.search(r'\[(IMG|EQ)\d+\]', raw_text))
     api_prompt = raw_text
     if has_placeholder:
-        api_prompt = (
-            "请校对以下文本。文本中的[IMG0]、[EQ1]等标签代表图片或公式，"
-            "请保持这些标签完全不变，只修正文字错误：\n" + raw_text
-        )
+        api_prompt = prompt_tr("prompt.placeholder_notice") + raw_text
 
     # 3. 缓存查询（SQLite，键统一为 body_text；proof_text 内部用同一键读写）
     corrected_full = get_default_cache().get(body_text)

@@ -58,6 +58,22 @@ class PluginContext:
         """主题服务（P2 起可用）；未注册时返回 None，插件需自行判空。"""
         return self.kernel.services.get("theme")
 
+    @property
+    def tr(self):
+        """插件文案翻译：key 自动带 <plugin_id>. 命名空间。
+
+        服务缺失时返回恒等函数（返回 key 本身），与 NullUiRegistry 一样的降级哲学。
+        """
+        i18n = self.kernel.services.get("i18n")
+        if i18n is None:
+            return lambda key, **kwargs: key
+        prefix = f"{self.manifest.id}."
+
+        def _tr(key: str, /, **kwargs) -> str:
+            return i18n.tr(prefix + key, **kwargs)
+
+        return _tr
+
     def get_service(self, name: str, default: Any = None) -> Any:
         return self.kernel.services.get(name, default)
 

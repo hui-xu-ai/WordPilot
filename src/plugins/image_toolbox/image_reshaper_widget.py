@@ -10,6 +10,8 @@ from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QComboBox,
 
 from plugins.image_toolbox.word_image_processor import WordImageProcessor
 
+PLUGIN_ID = "image_toolbox"
+
 
 def _format_bytes(size):
     if size is None:
@@ -22,16 +24,22 @@ def _format_bytes(size):
 
 
 class ColorButton(QPushButton):
-    def __init__(self, default_color=(255, 255, 255)):
+    def __init__(self, default_color=(255, 255, 255), i18n=None):
         super().__init__()
+        self._i18n = i18n
         self._color = QColor(*default_color)
         self.clicked.connect(self._choose_color)
         self.setFixedSize(40, 24)
         self._update_style()
 
+    def tr(self, key, /, **params):
+        if self._i18n is None:
+            return key
+        return self._i18n.tr(f"{PLUGIN_ID}.{key}", **params)
+
     def _choose_color(self):
         init = QColor(*self.rgb) if self._color.isValid() else QColor(255, 255, 255)
-        color = QColorDialog.getColor(initial=init, title="选择背景色")
+        color = QColorDialog.getColor(initial=init, title=self.tr("dialog.color_title"))
         if color.isValid():
             self._color = color
             self._update_style()
@@ -48,9 +56,16 @@ class ColorButton(QPushButton):
 
 
 class ImageReshaperWidget(QWidget):
-    def __init__(self, parent=None, config_dir=None, theme=None):
+    """图片裁剪/居中面板。
+
+    多语言：下拉框的显示文本会随语言变化，因此逻辑判断一律走 itemData 里
+    的稳定键（none/crop/center、pct/px），绝不依赖显示文本。
+    """
+
+    def __init__(self, parent=None, config_dir=None, theme=None, i18n=None):
         super().__init__(parent)
         self._theme = theme
+        self._i18n = i18n
         self.config_dir = config_dir or os.path.join(os.path.dirname(__file__), "config")
         os.makedirs(self.config_dir, exist_ok=True)
         self.processor = None
@@ -60,12 +75,44 @@ class ImageReshaperWidget(QWidget):
         self.apply_btn.setObjectName("apply_btn")
         self.apply_btn.setProperty("accent", True)
 
+    # ---------------- 多语言 ----------------
+    def tr(self, key: str, /, **params) -> str:
+        if self._i18n is None:
+            return key
+        return self._i18n.tr(f"{PLUGIN_ID}.{key}", **params)
+
+    def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        self.title_label.setText(self.tr("widget.title"))
+        self.width_group.setTitle(self.tr("group.width"))
+        self.height_group.setTitle(self.tr("group.height"))
+        self.bg_group.setTitle(self.tr("group.background"))
+        self.width_mode_label.setText(self.tr("label.mode"))
+        self.width_margin_label.setText(self.tr("label.margin"))
+        self.height_mode_label.setText(self.tr("label.mode"))
+        self.height_margin_label.setText(self.tr("label.margin"))
+        self.bg_color_label.setText(self.tr("label.bg_color"))
+        self.apply_btn.setText(self.tr("btn.apply"))
+        self.info_text.setPlaceholderText(self.tr("info.placeholder"))
+
+        for combo, keys in ((self.width_mode_combo, ("mode.none", "mode.crop", "mode.center")),
+                            (self.height_mode_combo, ("mode.none", "mode.crop", "mode.center")),
+                            (self.width_unit_combo, ("unit.percent", "unit.pixel")),
+                            (self.height_unit_combo, ("unit.percent", "unit.pixel"))):
+            for index, key in enumerate(keys):
+                combo.setItemText(index, self.tr(key))
+
+        self.width_px_spin.setSuffix(self.tr("suffix.pixel"))
+        self.height_px_spin.setSuffix(self.tr("suffix.pixel"))
+
+    # ---------------- 初始化 ----------------
     def _init_processor(self):
         try:
             self.processor = WordImageProcessor(self.config_dir)
         except Exception as e:
-            QMessageBox.warning(self, "初始化失败",
-                                f"无法初始化图片处理器：{e}\n请确保 Word 已运行且 Image.docx 存在。")
+            QMessageBox.warning(
+                self, self.tr("error.init_title"),
+                self.tr("error.init_body", error=e)
+            )
             self.processor = None
 
     def cleanup(self):
@@ -79,28 +126,30 @@ class ImageReshaperWidget(QWidget):
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(12)
 
-        title = QLabel("Word 图片裁剪与居中工具")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        main_layout.addWidget(title)
+        self.title_label = QLabel(self.tr("widget.title"))
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_label.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        main_layout.addWidget(self.title_label)
 
         # ----- 宽度设置 -----
-        width_group = QGroupBox("宽度方向设置")
-        width_layout = QGridLayout(width_group)
+        self.width_group = QGroupBox(self.tr("group.width"))
+        width_layout = QGridLayout(self.width_group)
 
         self.width_mode_combo = QComboBox()
-        self.width_mode_combo.addItems(["不操作", "裁剪", "居中"])
+        for key, data in (("mode.none", "none"), ("mode.crop", "crop"), ("mode.center", "center")):
+            self.width_mode_combo.addItem(self.tr(key), data)
         self.width_mode_combo.setCurrentIndex(2)          # 默认居中
 
         # 边缘距离：单位 + 数值
         self.width_unit_combo = QComboBox()
-        self.width_unit_combo.addItems(["百分比", "像素"])
+        self.width_unit_combo.addItem(self.tr("unit.percent"), "pct")
+        self.width_unit_combo.addItem(self.tr("unit.pixel"), "px")
         self.width_unit_combo.setCurrentIndex(0)          # 默认百分比
 
         self.width_px_spin = QSpinBox()
         self.width_px_spin.setRange(0, 10000)
         self.width_px_spin.setValue(4)                      #  默认像素边缘间距
-        self.width_px_spin.setSuffix(" 像素")
+        self.width_px_spin.setSuffix(self.tr("suffix.pixel"))
         self.width_px_spin.setVisible(False)               # 初始为百分比模式
 
         self.width_pct_spin = QDoubleSpinBox()
@@ -113,9 +162,11 @@ class ImageReshaperWidget(QWidget):
 
         self.width_unit_combo.currentIndexChanged.connect(self._on_width_unit_changed)
 
-        width_layout.addWidget(QLabel("操作模式："), 0, 0)
+        self.width_mode_label = QLabel(self.tr("label.mode"))
+        self.width_margin_label = QLabel(self.tr("label.margin"))
+        width_layout.addWidget(self.width_mode_label, 0, 0)
         width_layout.addWidget(self.width_mode_combo, 0, 1)
-        width_layout.addWidget(QLabel("边缘距离："), 0, 2)
+        width_layout.addWidget(self.width_margin_label, 0, 2)
         # 单位组合框
         width_layout.addWidget(self.width_unit_combo, 0, 3)
         # 像素输入框
@@ -123,24 +174,26 @@ class ImageReshaperWidget(QWidget):
         # 百分比输入框
         width_layout.addWidget(self.width_pct_spin, 0, 5)
 
-        main_layout.addWidget(width_group)
+        main_layout.addWidget(self.width_group)
 
         # ----- 高度设置 -----
-        height_group = QGroupBox("高度方向设置")
-        height_layout = QGridLayout(height_group)
+        self.height_group = QGroupBox(self.tr("group.height"))
+        height_layout = QGridLayout(self.height_group)
 
         self.height_mode_combo = QComboBox()
-        self.height_mode_combo.addItems(["不操作", "裁剪", "居中"])
+        for key, data in (("mode.none", "none"), ("mode.crop", "crop"), ("mode.center", "center")):
+            self.height_mode_combo.addItem(self.tr(key), data)
         self.height_mode_combo.setCurrentIndex(1)          # 默认裁剪
 
         self.height_unit_combo = QComboBox()
-        self.height_unit_combo.addItems(["百分比", "像素"])
+        self.height_unit_combo.addItem(self.tr("unit.percent"), "pct")
+        self.height_unit_combo.addItem(self.tr("unit.pixel"), "px")
         self.height_unit_combo.setCurrentIndex(0)
 
         self.height_px_spin = QSpinBox()
         self.height_px_spin.setRange(0, 10000)
         self.height_px_spin.setValue(4)             #  默认像素边缘间距
-        self.height_px_spin.setSuffix(" 像素")
+        self.height_px_spin.setSuffix(self.tr("suffix.pixel"))
         self.height_px_spin.setVisible(False)
 
         self.height_pct_spin = QDoubleSpinBox()
@@ -153,33 +206,36 @@ class ImageReshaperWidget(QWidget):
 
         self.height_unit_combo.currentIndexChanged.connect(self._on_height_unit_changed)
 
-        height_layout.addWidget(QLabel("操作模式："), 0, 0)
+        self.height_mode_label = QLabel(self.tr("label.mode"))
+        self.height_margin_label = QLabel(self.tr("label.margin"))
+        height_layout.addWidget(self.height_mode_label, 0, 0)
         height_layout.addWidget(self.height_mode_combo, 0, 1)
-        height_layout.addWidget(QLabel("边缘距离："), 0, 2)
+        height_layout.addWidget(self.height_margin_label, 0, 2)
         height_layout.addWidget(self.height_unit_combo, 0, 3)
         height_layout.addWidget(self.height_px_spin, 0, 4)
         height_layout.addWidget(self.height_pct_spin, 0, 5)
 
-        main_layout.addWidget(height_group)
+        main_layout.addWidget(self.height_group)
 
-        # 仅在裁剪模式下启用边缘距离控件
-        self.width_mode_combo.currentTextChanged.connect(
-            lambda t: self._set_width_margin_enabled(t == "裁剪"))
-        self.height_mode_combo.currentTextChanged.connect(
-            lambda t: self._set_height_margin_enabled(t == "裁剪"))
+        # 仅在裁剪模式下启用边缘距离控件（判断走 itemData，不受语言影响）
+        self.width_mode_combo.currentIndexChanged.connect(
+            lambda _i: self._set_width_margin_enabled(self.width_mode_combo.currentData() == "crop"))
+        self.height_mode_combo.currentIndexChanged.connect(
+            lambda _i: self._set_height_margin_enabled(self.height_mode_combo.currentData() == "crop"))
 
         # 初始状态：宽度居中（禁用），高度裁剪（启用）
         self._set_width_margin_enabled(False)
         self._set_height_margin_enabled(True)
 
         # ----- 背景色 -----
-        bg_group = QGroupBox("背景颜色（用于空白检测与填充）")
-        bg_layout = QHBoxLayout(bg_group)
-        self.bg_color_btn = ColorButton(default_color=(255, 255, 255))
-        bg_layout.addWidget(QLabel("当前背景色："))
+        self.bg_group = QGroupBox(self.tr("group.background"))
+        bg_layout = QHBoxLayout(self.bg_group)
+        self.bg_color_btn = ColorButton(default_color=(255, 255, 255), i18n=self._i18n)
+        self.bg_color_label = QLabel(self.tr("label.bg_color"))
+        bg_layout.addWidget(self.bg_color_label)
         bg_layout.addWidget(self.bg_color_btn)
         bg_layout.addStretch()
-        main_layout.addWidget(bg_group)
+        main_layout.addWidget(self.bg_group)
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
@@ -189,7 +245,7 @@ class ImageReshaperWidget(QWidget):
         # ----- 应用按钮 -----
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        self.apply_btn = QPushButton("应用")
+        self.apply_btn = QPushButton(self.tr("btn.apply"))
         self.apply_btn.setMinimumWidth(120)
         self.apply_btn.setMinimumHeight(30)
         self.apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -202,25 +258,21 @@ class ImageReshaperWidget(QWidget):
         self.info_text = QTextEdit()
         self.info_text.setReadOnly(True)
         self.info_text.setMaximumHeight(150)
-        self.info_text.setPlaceholderText("操作信息将显示在此处...")
+        self.info_text.setPlaceholderText(self.tr("info.placeholder"))
         main_layout.addWidget(self.info_text)
 
     def _on_width_unit_changed(self, index):
         """切换宽度单位时，显示对应的输入框"""
-        if self.width_unit_combo.currentText() == "百分比":
-            self.width_px_spin.setVisible(False)
-            self.width_pct_spin.setVisible(True)
-        else:
-            self.width_px_spin.setVisible(True)
-            self.width_pct_spin.setVisible(False)
+        self._apply_unit(self.width_unit_combo, self.width_px_spin, self.width_pct_spin)
 
     def _on_height_unit_changed(self, index):
-        if self.height_unit_combo.currentText() == "百分比":
-            self.height_px_spin.setVisible(False)
-            self.height_pct_spin.setVisible(True)
-        else:
-            self.height_px_spin.setVisible(True)
-            self.height_pct_spin.setVisible(False)
+        self._apply_unit(self.height_unit_combo, self.height_px_spin, self.height_pct_spin)
+
+    @staticmethod
+    def _apply_unit(unit_combo, px_spin, pct_spin):
+        use_percent = unit_combo.currentData() == "pct"
+        px_spin.setVisible(not use_percent)
+        pct_spin.setVisible(use_percent)
 
     def _set_width_margin_enabled(self, enabled):
         self.width_unit_combo.setEnabled(enabled)
@@ -242,16 +294,15 @@ class ImageReshaperWidget(QWidget):
 
     def on_apply(self):
         if not self.processor:
-            self.log("处理器未初始化，无法操作", error=True)
+            self.log(self.tr("error.not_initialized"), error=True)
             return
 
-        mode_map = {"不操作": "none", "裁剪": "crop", "居中": "center"}
-        width_mode = mode_map[self.width_mode_combo.currentText()]
-        height_mode = mode_map[self.height_mode_combo.currentText()]
+        width_mode = self.width_mode_combo.currentData()
+        height_mode = self.height_mode_combo.currentData()
 
         # 读取边缘距离及其单位
         if width_mode == "crop":
-            if self.width_unit_combo.currentText() == "百分比":
+            if self.width_unit_combo.currentData() == "pct":
                 margin_w = self.width_pct_spin.value()
                 margin_w_unit = 'pct'
             else:
@@ -262,7 +313,7 @@ class ImageReshaperWidget(QWidget):
             margin_w_unit = 'px'
 
         if height_mode == "crop":
-            if self.height_unit_combo.currentText() == "百分比":
+            if self.height_unit_combo.currentData() == "pct":
                 margin_h = self.height_pct_spin.value()
                 margin_h_unit = 'pct'
             else:
@@ -276,7 +327,7 @@ class ImageReshaperWidget(QWidget):
 
         self.apply_btn.setEnabled(False)
         self.info_text.clear()
-        self.log("处理中，请稍候...")
+        self.log(self.tr("status.processing"))
         self.repaint()
 
         try:
@@ -286,13 +337,13 @@ class ImageReshaperWidget(QWidget):
                 margin_w_unit, margin_h_unit)
             if success:
                 self.log(msg)
-                self.log(f"原始图片大小：{_format_bytes(orig_bytes)}")
-                self.log(f"处理后大小：{_format_bytes(new_bytes)}")
+                self.log(self.tr("status.orig_size", size=_format_bytes(orig_bytes)))
+                self.log(self.tr("status.new_size", size=_format_bytes(new_bytes)))
             else:
                 self.log(msg, error=True)
                 if orig_bytes is not None:
-                    self.log(f"提取图片大小：{_format_bytes(orig_bytes)}")
+                    self.log(self.tr("status.extracted_size", size=_format_bytes(orig_bytes)))
         except Exception as e:
-            self.log(f"意外错误: {e}", error=True)
+            self.log(self.tr("error.unexpected", error=e), error=True)
         finally:
             self.apply_btn.setEnabled(True)
