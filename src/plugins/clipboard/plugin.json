@@ -2,13 +2,12 @@
   "id": "clipboard",
   "name": "翻译改写工具",
   "version": "1.0.0",
-  "description": "读取剪贴板文本，一键翻译 / 改写，结果可复制或插入 Word",
+  "description": "读取剪贴板文本，一键翻译 / 改写 / 纠错，结果可复制",
   "author": "Xu Hui",
   "entry": "plugin:ClipboardPlugin",
   "requires": [
     "config",
-    "ai_client",
-    "word_bridge"
+    "ai_client"
   ],
   "deps": [],
   "enabled_by_default": true

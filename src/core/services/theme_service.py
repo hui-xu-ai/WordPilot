@@ -75,6 +75,10 @@ class ThemeService:
     # ---------------- 渲染 ----------------
     def _load(self) -> None:
         self._tokens = self._load_tokens(self.current)
+        # 路径令牌：QSS 的 image: url() 需要绝对路径（正斜杠），
+        # 例如 QCheckBox::indicator:checked 的对勾图
+        icons_dir = Path(resource_path("assets/icons"))
+        self._tokens["path.icons"] = icons_dir.as_posix()
         base_path = self.themes_dir / "base.qss"
         try:
             self._base_qss = base_path.read_text(encoding="utf-8")

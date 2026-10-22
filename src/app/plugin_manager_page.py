@@ -1,12 +1,12 @@
 # app/plugin_manager_page.py
-"""插件管理面板（内置页）。
+"""插件管理面板（内置页，卡片网格风格）。
 
 规则（与微内核约定一致）：
 - 这里列出所有「已发现」的插件（内置 + 用户目录安装的）；
-- 勾选 = 启用 + 显示在左侧导航轨 + 上桌宠右键菜单（同一开关）；
-- 用户安装的插件与默认关闭的插件，必须勾选后才开始工作；
-- 上下箭头调整侧边栏顺序；
-- 支持从文件夹或 zip 安装新插件（进 plugins_user/，安装后默认未勾选）。
+- 卡片右上角的开关 = 启用 + 显示在左侧导航轨 + 上桌宠右键菜单（同一开关）；
+- 用户安装的插件与默认关闭的插件，必须打开开关后才开始工作；
+- 侧边栏顺序：直接在导航轨上拖动插件图标即可（面板里不再提供箭头）；
+- 支持从文件夹或 zip 安装新插件（进 plugins_user/，安装后默认关闭）。
 
 面板本身只调 PluginManager 的公开 API，不碰插件内部。
 """
@@ -15,11 +15,17 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QCheckBox, QFileDialog, QHBoxLayout, QLabel,
-                               QMessageBox, QPushButton, QScrollArea,
-                               QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QFileDialog, QGridLayout, QHBoxLayout, QLabel,
+                               QLineEdit, QMessageBox, QPushButton,
+                               QScrollArea, QVBoxLayout, QWidget)
 
+from app import icon_factory
+from app.switch import Switch
 from core.plugin_manager import PluginState
+
+CARD_MIN_WIDTH = 300
+CARD_HEIGHT = 124
+CARD_ICON_SIZE = 32
 
 
 class PluginManagerPage(QWidget):
@@ -30,36 +36,52 @@ class PluginManagerPage(QWidget):
         self._building = False
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(10)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(12)
 
-        # 顶部：提示 + 安装/刷新
-        top_row = QHBoxLayout()
+        # 页头：标题 + 副标题；右侧搜索框 + 安装按钮
+        header = QHBoxLayout()
+        header.setSpacing(10)
+        title_col = QVBoxLayout()
+        title_col.setSpacing(2)
+        self.title_label = QLabel()
+        self.title_label.setObjectName("pageTitle")
+        title_col.addWidget(self.title_label)
         self.hint_label = QLabel()
-        self.hint_label.setObjectName("hintLabel")
+        self.hint_label.setObjectName("pageSubtitle")
         self.hint_label.setWordWrap(True)
-        top_row.addWidget(self.hint_label, 1)
+        title_col.addWidget(self.hint_label)
+        header.addLayout(title_col, 1)
+
+        self.search_edit = QLineEdit()
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.setFixedWidth(220)
+        self.search_edit.textChanged.connect(self._apply_filter)
+        header.addWidget(self.search_edit, 0, Qt.AlignTop)
+
         self.install_btn = QPushButton()
         self.install_btn.setProperty("accent", True)
         self.install_btn.clicked.connect(self.install_plugin)
-        top_row.addWidget(self.install_btn)
-        layout.addLayout(top_row)
+        header.addWidget(self.install_btn, 0, Qt.AlignTop)
+        layout.addLayout(header)
 
-        # 插件列表（可滚动，插件多了也不撑破窗口）
+        # 卡片网格（可滚动，插件多了也不撑破窗口）
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QScrollArea.NoFrame)
         self.list_host = QWidget()
-        self.list_layout = QVBoxLayout(self.list_host)
-        self.list_layout.setContentsMargins(0, 0, 0, 0)
-        self.list_layout.setSpacing(6)
-        self.list_layout.addStretch(1)
+        self.grid = QGridLayout(self.list_host)
+        self.grid.setContentsMargins(0, 4, 0, 0)
+        self.grid.setSpacing(10)
         self.scroll.setWidget(self.list_host)
         layout.addWidget(self.scroll, 1)
+
+        self._cards: list[tuple[QWidget, str, str]] = []   # (卡片, 名称, 描述)
 
         # 插件启停/安装后重建列表；页面构造早于插件加载，
         # 所以每次显示时也刷新一次，保证列表永远是最新的
         self.kernel.events.subscribe("plugins.changed", lambda _e, _p: self.rebuild())
+        self.kernel.events.subscribe("theme.changed", lambda _e, _p: self.rebuild())
         self.retranslateUi()
 
     def showEvent(self, event) -> None:      # noqa: N802 - Qt 命名惯例
@@ -74,22 +96,46 @@ class PluginManagerPage(QWidget):
         return self.i18n.tr(key, **params)
 
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        self.title_label.setText(self.tr("plugins.title"))
         self.hint_label.setText(self.tr("plugins.hint"))
+        self.search_edit.setPlaceholderText(self.tr("plugins.search_placeholder"))
         self.install_btn.setText(self.tr("plugins.install"))
         self.rebuild()
 
-    # ---------------- 列表 ----------------
+    # ---------------- 主题辅助 ----------------
+    def _token(self, key: str, default: str) -> str:
+        theme = self.kernel.services.get("theme")
+        return theme.token(key, default) if theme is not None else default
+
+    def _plugin_icons(self) -> dict[str, str]:
+        """插件 id -> 图标名（取插件注册页面/工具时声明的图标）。"""
+        icons: dict[str, str] = {}
+        ui = getattr(self.kernel, "ui", None)
+        if ui is None:
+            return icons
+        try:
+            for _label, _factory, icon, plugin_id in ui.pages():
+                icons.setdefault(plugin_id, icon)
+            for _label, _handler, icon, plugin_id in ui.tools():
+                icons.setdefault(plugin_id, icon)
+        except Exception:
+            pass
+        return icons
+
+    # ---------------- 卡片网格 ----------------
     def rebuild(self) -> None:
         if self._building:
             return
         self._building = True
         try:
-            while self.list_layout.count() > 1:      # 保住末尾 stretch
-                item = self.list_layout.takeAt(0)
+            while self.grid.count():
+                item = self.grid.takeAt(0)
                 widget = item.widget()
                 if widget is not None:
+                    widget.hide()            # 先藏再摘父级，避免闪出独立小窗口
                     widget.setParent(None)
                     widget.deleteLater()
+            self._cards.clear()
 
             records = self.kernel.plugins.all()
             order = self._order()
@@ -99,54 +145,90 @@ class PluginManagerPage(QWidget):
             if not records:
                 empty = QLabel(self.tr("plugins.empty"))
                 empty.setObjectName("hintLabel")
-                self.list_layout.insertWidget(0, empty)
+                self.grid.addWidget(empty, 0, 0)
                 return
 
+            icons = self._plugin_icons()
             for index, record in enumerate(records):
-                self.list_layout.insertWidget(
-                    index, self._make_row(record, index, len(records)))
+                card = self._make_card(record, icons.get(record.manifest.id))
+                row, col = divmod(index, 2)
+                self.grid.addWidget(card, row, col)
+                self._cards.append((card, record.manifest.name or record.manifest.id,
+                                    record.manifest.description))
+            self._apply_filter()
         finally:
             self._building = False
 
-    def _make_row(self, record, index: int, total: int) -> QWidget:
+    def _make_card(self, record, icon_name: str | None) -> QWidget:
         manifest = record.manifest
-        row = QWidget()
-        row.setObjectName("pluginRow")
-        row_layout = QHBoxLayout(row)
-        row_layout.setContentsMargins(10, 8, 10, 8)
+        card = QWidget()
+        card.setObjectName("pluginCard")
+        card.setMinimumWidth(CARD_MIN_WIDTH)
+        card.setFixedHeight(CARD_HEIGHT)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(14, 12, 14, 12)
+        card_layout.setSpacing(6)
 
-        enabled_box = QCheckBox(manifest.name or manifest.id)
-        enabled_box.setChecked(record.state == PluginState.ACTIVE)
-        enabled_box.toggled.connect(
-            lambda on, pid=manifest.id: self._toggle(pid, on))
-        row_layout.addWidget(enabled_box)
+        # 顶行：图标 + 名称/版本 + 开关
+        top = QHBoxLayout()
+        top.setSpacing(10)
+        icon_label = QLabel()
+        icon_label.setFixedSize(CARD_ICON_SIZE, CARD_ICON_SIZE)
+        icon = icon_factory.icon(icon_name or "puzzle",
+                                 self._token("color.accent", "#0078d4"))
+        icon_label.setPixmap(icon.pixmap(CARD_ICON_SIZE, CARD_ICON_SIZE))
+        top.addWidget(icon_label, 0, Qt.AlignTop)
 
-        info = QLabel(f"v{manifest.version}  {manifest.description}")
-        info.setObjectName("hintLabel")
-        row_layout.addWidget(info, 1)
+        name_col = QVBoxLayout()
+        name_col.setSpacing(2)
+        name = QLabel(manifest.name or manifest.id)
+        name.setObjectName("pluginCardName")
+        name_col.addWidget(name)
+        meta = QLabel(f"v{manifest.version} · {manifest.author}")
+        meta.setObjectName("hintLabel")
+        name_col.addWidget(meta)
+        top.addLayout(name_col, 1)
 
+        toggle = Switch(accent=self._token("color.accent", "#0078d4"),
+                        track_off=self._token("color.border.strong", "#c8c8c8"),
+                        knob=self._token("color.on_accent", "#ffffff"))
+        toggle.setChecked(record.state == PluginState.ACTIVE)
+        toggle.setToolTip(self.tr("plugins.state.active")
+                          if record.state == PluginState.ACTIVE
+                          else self.tr("plugins.state.disabled"))
+        toggle.toggled.connect(lambda on, pid=manifest.id: self._toggle(pid, on))
+        top.addWidget(toggle, 0, Qt.AlignTop)
+        card_layout.addLayout(top)
+
+        # 描述 + 状态徽标
+        desc_row = QHBoxLayout()
+        desc = QLabel(manifest.description)
+        desc.setObjectName("hintLabel")
+        desc.setWordWrap(True)
+        desc_row.addWidget(desc, 1)
         state_text = {
             PluginState.ACTIVE: self.tr("plugins.state.active"),
             PluginState.DISABLED: self.tr("plugins.state.disabled"),
             PluginState.FAILED: self.tr("plugins.state.failed"),
         }.get(record.state, "")
-        state = QLabel(state_text)
-        state.setObjectName("hintLabel")
-        if record.state == PluginState.FAILED and record.error:
-            state.setToolTip(record.error)
-        row_layout.addWidget(state)
+        badge = QLabel(state_text)
+        badge.setObjectName("pluginCardBadge")
+        if record.state == PluginState.ACTIVE:
+            badge.setProperty("state", "active")
+        elif record.state == PluginState.FAILED:
+            badge.setProperty("state", "failed")
+            if record.error:
+                badge.setToolTip(record.error)
+        desc_row.addWidget(badge, 0, Qt.AlignBottom)
+        card_layout.addLayout(desc_row)
+        return card
 
-        up_btn = QToolButton()
-        up_btn.setText("↑")
-        up_btn.setEnabled(index > 0)
-        up_btn.clicked.connect(lambda _c=False, i=index: self._move(i, -1))
-        down_btn = QToolButton()
-        down_btn.setText("↓")
-        down_btn.setEnabled(index < total - 1)
-        down_btn.clicked.connect(lambda _c=False, i=index: self._move(i, 1))
-        row_layout.addWidget(up_btn)
-        row_layout.addWidget(down_btn)
-        return row
+    def _apply_filter(self) -> None:
+        keyword = self.search_edit.text().strip().lower()
+        for card, name, desc in self._cards:
+            visible = (not keyword or keyword in name.lower()
+                       or keyword in desc.lower())
+            card.setVisible(visible)
 
     # ---------------- 操作 ----------------
     def _order(self) -> list[str]:
@@ -159,18 +241,6 @@ class PluginManagerPage(QWidget):
             return
         self.kernel.plugins.set_enabled(plugin_id, on)
         # plugins.changed 事件会触发 rebuild；导航轨由主窗口监听同一事件重建
-
-    def _move(self, index: int, delta: int) -> None:
-        records = self.kernel.plugins.all()
-        order = self._order()
-        records.sort(key=lambda r: (order.index(r.manifest.id)
-                                    if r.manifest.id in order else len(order),
-                                    r.manifest.id))
-        ids = [r.manifest.id for r in records]
-        target = index + delta
-        if 0 <= target < len(ids):
-            ids[index], ids[target] = ids[target], ids[index]
-            self.kernel.plugins.set_order(ids)
 
     def install_plugin(self) -> None:
         path, _filter = QFileDialog.getOpenFileName(

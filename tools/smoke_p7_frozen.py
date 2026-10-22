@@ -56,6 +56,10 @@ if toc.is_file():
     for pid in ("proofread", "navigator", "image_toolbox", "clipboard", "reference"):
         check(f"plugins.{pid}.plugin" in toc_text, f"模块 plugins.{pid}.plugin 已收集")
     check("plugins.proofread.pet_window" in toc_text, "模块 plugins.proofread.pet_window 已收集")
+    # P8：主窗口新增的三个 app 层模块（由 main_window 静态 import，理论上自动收集，此处兜底断言）
+    for mod in ("app.title_bar", "app.switch", "app.settings_page"):
+        check(mod in toc_text, f"模块 {mod} 已收集（P8 无边框标题栏 / 开关 / 设置页）")
+    check("app.settings_dialog" not in toc_text, "模块 app.settings_dialog 已不再打包（P8 删除）")
 
 print("\n=== 2) 皮肤包引用完整性 ===")
 for skin_dir in sorted((INTERNAL / "assets" / "skins").glob("*")):
@@ -93,6 +97,35 @@ check(not broken_render, f"{len(svg_files)} 个 SVG 全部可渲染（坏: {brok
 check(any(p.name == "puzzle.svg" for p in svg_files), "图标 puzzle.svg（插件管理）随包")
 check(any(p.name == "eyes_sleep.svg" for p in svg_files), "部件 eyes_sleep.svg（打盹眼）随包")
 check(any(p.name == "mouth_happy.svg" for p in svg_files), "部件 mouth_happy.svg（正确表情）随包")
+
+print("\n=== 3b) P8 新增图标随包 ===")
+icons_dir = INTERNAL / "assets" / "icons"
+for name in ("check", "win-min", "win-max", "win-restore", "win-close", "search"):
+    check((icons_dir / f"{name}.svg").is_file(), f"图标 {name}.svg 随包（P8 新增）")
+
+print("\n=== 3c) P8 样式与语言包内容 ===")
+qss_file = INTERNAL / "assets" / "themes" / "base.qss"
+check(qss_file.is_file(), "base.qss 随包")
+if qss_file.is_file():
+    qss = qss_file.read_text(encoding="utf-8")
+    for sel in ("#titleBar", "#titleBarClose", "#pluginCard", "#settingsNav", "#contentCard", "#navDropIndicator"):
+        check(sel in qss, f"base.qss 含 {sel} 样式段")
+    check("check.svg" in qss, "base.qss 复选框勾选复用 check.svg")
+
+zh_file = INTERNAL / "assets" / "i18n" / "zh_CN.json"
+check(zh_file.is_file(), "zh_CN.json 随包")
+if zh_file.is_file():
+    zh = json.loads(zh_file.read_text(encoding="utf-8"))
+    check(zh.get("app.nav.dashboard") == "智能纠错", f"app.nav.dashboard=智能纠错（实际 {zh.get('app.nav.dashboard')}）")
+    for key in ("app.titlebar.minimize", "app.titlebar.maximize", "app.titlebar.close", "plugins.title", "settings.saved_hint"):
+        check(key in zh, f"zh_CN 含 {key}")
+
+clip_manifest = INTERNAL / "plugins" / "clipboard" / "plugin.json"
+check(clip_manifest.is_file(), "clipboard 插件清单随包")
+if clip_manifest.is_file():
+    clip_zh = json.loads((clip_manifest.parent / "i18n" / "zh_CN.json").read_text(encoding="utf-8"))
+    check("correct" in clip_zh, "clipboard 词条含 correct（P8 恢复纠错）")
+    check("insert" not in clip_zh, "clipboard 词条已移除 insert（P8 取消插入 Word）")
 
 print("\n=== 4) 插件清单自洽 ===")
 for plugin_dir in sorted((INTERNAL / "plugins").glob("*")):

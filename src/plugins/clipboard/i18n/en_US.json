@@ -1,16 +1,19 @@
 {
   "plugin.name": "Translate & Rewrite",
   "page_label": "Translate & Rewrite",
+  "input_label": "Source",
   "load": "Read clipboard",
   "placeholder": "Clipboard content…",
+  "result_label": "Result",
+  "result_placeholder": "Result will appear here…",
+  "copy": "Copy result",
   "translate": "Translate",
   "rewrite": "Rewrite",
-  "result_placeholder": "Result will appear here…",
-  "insert": "Insert into Word",
-  "copy": "Copy result",
+  "correct": "Proofread",
   "empty_tip": "Clipboard is empty",
   "fail_translate": "Translation failed; check network or API settings",
   "fail_rewrite": "Rewrite failed; check network or API settings",
+  "fail_correct": "Proofreading failed; check network or API settings",
   "error_title": "Error",
   "hotkey_done": "Clipboard processed; result copied back"
 }

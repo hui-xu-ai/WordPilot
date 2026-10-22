@@ -54,7 +54,7 @@ pm.set_enabled("navigator", True)  # 保持配置干净
 print("\n=== 4) 插件管理面板 ===")
 panel = mw._page_widgets.get("plugins")
 assert panel is not None
-print("面板行数:", panel.list_layout.count() - 1)
+print("面板卡片数:", len(panel._cards))
 
 print("\n=== 5) 桌宠表情状态机 ===")
 proof = kernel.capabilities.get("proofread")
@@ -96,7 +96,10 @@ for pid, w in mw._page_widgets.items():
 mw._on_page_requested("plugin:clipboard")
 clip = mw._page_widgets.get("plugin:clipboard")
 print("clipboard page:", type(clip).__name__ if clip else "未构造")
-assert clip is not None and not hasattr(clip, "correct_btn"), "纠错按钮应已移除"
+assert clip is not None, "翻译改写页应能构造"
+# P8：纠错恢复为页面三操作之一；「插入 Word」已移除，按钮全部沉底
+assert hasattr(clip, "correct_btn"), "P8 起恢复纠错按钮"
+assert not hasattr(clip, "btn_insert"), "插入 Word 按钮应已移除"
 
 # 配置复位
 kernel.config.set("plugins", {})

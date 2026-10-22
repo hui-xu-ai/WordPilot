@@ -1,16 +1,19 @@
 {
   "plugin.name": "翻译改写工具",
   "page_label": "翻译改写",
+  "input_label": "原文",
   "load": "读取剪贴板",
   "placeholder": "剪贴板内容…",
+  "result_label": "结果",
+  "result_placeholder": "结果将显示在此…",
+  "copy": "复制结果",
   "translate": "翻译",
   "rewrite": "改写",
-  "result_placeholder": "结果将显示在此…",
-  "insert": "插入 Word",
-  "copy": "复制结果",
+  "correct": "纠错",
   "empty_tip": "剪贴板为空",
   "fail_translate": "翻译失败，请检查网络或 API 设置",
   "fail_rewrite": "改写失败，请检查网络或 API 设置",
+  "fail_correct": "纠错失败，请检查网络或 API 设置",
   "error_title": "错误",
   "hotkey_done": "已处理剪贴板内容，结果已写回剪贴板"
 }

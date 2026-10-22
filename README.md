@@ -60,11 +60,11 @@ SmartProof/
 │   ├── __version__.py       # 应用名/版本号/作者的唯一来源
 │   ├── main.py              # 入口：建内核→建外壳→挂 UI→加载插件（无业务装配）
 │   ├── app/                 # 前端表现层（PySide6，不碰 COM / API / 缓存）
-│   │   ├── main_window.py   # 外壳：顶部工具栏 + 左侧图标轨 + 内容区 + 状态栏
-│   │   ├── nav_rail.py      # 可折叠图标导航轨（窄态图标 / 展开图标+文字）
+│   │   ├── main_window.py   # 外壳：无边框 + 自绘标题栏 + 左侧图标轨 + 内容区 + 状态栏
+│   │   ├── nav_rail.py      # 可折叠图标导航轨（窄态图标 / 展开图标+文字，插件可拖动排序）
 │   │   ├── icon_factory.py  # SVG 图标按主题令牌染色渲染
 │   │   ├── ui_registry.py   # UI 贡献点（导航页/动作/托盘项/状态栏）的 Qt 实现
-│   │   ├── settings_dialog.py / monitor_window.py
+│   │   ├── settings_page.py / monitor_window.py / title_bar.py / switch.py
 │   ├── core/                # 微内核
 │   │   ├── kernel.py        # 生命周期：boot → attach_ui → plugins → shutdown
 │   │   ├── plugin_manager.py# 插件清单发现 / 依赖拓扑排序 / 加载 / 故障隔离

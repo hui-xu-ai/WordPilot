@@ -13,7 +13,7 @@
 │ 前端 app/          只有 PySide6，不碰 COM / API / 缓存      │
 │   main_window     外壳：窗口 / 托盘 / 菜单 / 剪贴板工具      │
 │   ui_registry     UI 贡献点的 Qt 实现（add_tool / add_tray） │
-│   settings_dialog / monitor_window                        │
+│   settings_page / monitor_window / title_bar / switch     │
 ├───────────────────────────────────────────────────────────┤
 │ 微内核 core/                 事件总线 ─── 前后端解耦        │
 │   kernel         生命周期：boot → attach_ui → plugins      │
@@ -60,9 +60,9 @@
 | `core/services/ignore_cache.py` | 忽略句子库（存 sha256 哈希） | 已修悬空调用 |
 | `core/services/hotkey_service.py` | `keyboard` 库全局热键，插件按需注册 | 依赖管理员权限时行为需注意 |
 | `core/services/word_constants.py` | Word COM 常量字典 | |
-| `app/main_window.py` | 外壳：顶部工具栏 + 左侧导航 + QStackedWidget 内容区 + 状态栏 | 关闭窗口默认最小化到托盘 |
+| `app/main_window.py` | 外壳：无边框（自绘标题栏）+ 左侧导航 + QStackedWidget 内容区 + 状态栏 | 关闭窗口默认最小化到托盘 |
 | `app/ui_registry.py` | 收集插件的界面入口（工具 / 托盘 / 页面）并供外壳渲染 | label 存 i18n key |
-| `app/settings_dialog.py` | 设置对话框（API、提示词、界面、外观） | 界面语言与提示词语言分离 |
+| `app/settings_page.py` | 设置页（主窗口内置页：API、提示词、界面、外观 四个分区） | 界面语言与提示词语言分离 |
 | `app/monitor_window.py` | API 调用监控（内嵌为主界面内容页） | |
 | `plugins/proofread/` | 实时校对：监控线程 + 桌宠窗口 + 替换逻辑 + 热键 | 桌宠见 §8，校对见 §4 |
 | `plugins/navigator/` | 题录导航：扫描 SEQ 域→列表→跳转/返回 | 见 §5 性能问题 |
@@ -143,14 +143,19 @@
 - **桌宠**：`assets/skins/<id>/` 皮肤包（skin.json + SVG 分部件）；
   桌宠本体 + 建议气泡合并为单个受管窗口 `proofread.pet`，
   主体颜色即状态色（绿/红/黄/灰），带眨眼与呼吸动画。
-- **主界面信息架构**：无顶部工具栏；左侧可折叠图标导航轨（NavRail：
-  窄态 52px 纯图标 + tooltip，汉堡键展开为 180px 图标+文字）+
-  QStackedWidget 内容区 + 状态栏；置顶钉与设置钉在轨底。
-- **仪表盘 = 智能校对总面板**：校对状态与开关、校对参数、缓存清洗、
-  API 监控全部收在仪表盘，不再各自占页面/工具栏。
+- **主界面信息架构**：无边框窗口（自绘标题栏：图标+标题+最小化/最大化/关闭，
+  缩放靠状态栏右下角 QSizeGrip）；左侧可折叠图标导航轨（NavRail：
+  窄态 52px 纯图标 + tooltip，汉堡键展开为 180px 图标+文字，
+  插件条目可按住拖动排序）+ QStackedWidget 内容区 + 状态栏；
+  轨底依次是置顶钉、插件管理、设置。
+- **智能纠错页 = 校对总面板**：校对状态与开关、校对参数、缓存清洗、
+  API 监控全部收在一页（内容可滚动），不再各自占页面/工具栏。
+- **设置 = 主窗口内置页**（不再是弹窗）：左侧子导航 + 四个分区，
+  保存后立即热生效（语言/主题/皮肤/热键/AI 客户端）。
 - **插件面板化**：每个插件包 = GUI 面板 + 后端 + 语言包；
   `add_page()`（导航页，惰性构造）与 `add_tool()`（动作入口）直接挂图标轨。
-- **插件管理**：内置「插件管理」页负责安装（文件夹/zip -> plugins_user/）、
-  勾选启用（勾选=启用+上轨+上桌宠菜单）、上下调序（plugins.order）；
-  用户安装的插件默认不启用，必须勾选才开始工作；启停变化经
+- **插件管理**：内置「插件管理」页（卡片网格 + 搜索 + 安装按钮），
+  卡片上的开关 = 启用 + 上轨 + 上桌宠菜单；顺序直接在侧边栏拖动调整
+  （松手写入 plugins.order）；支持安装（文件夹/zip -> plugins_user/）；
+  用户安装的插件默认关闭，必须打开开关才开始工作；启停变化经
   `plugins.changed` 事件驱动外壳重建导航。

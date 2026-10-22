@@ -37,17 +37,18 @@ QGroupBox::title {
 QPushButton {
     background-color: @color.bg.card;
     border: 1px solid @color.border.strong;
-    border-radius: @radius.sm px;
-    padding: @spacing.sm px @spacing.md px;
-    min-height: 20px;
+    border-bottom: 2px solid @color.border.strong;
+    border-radius: @radius.md px;
+    padding: @spacing.sm px @spacing.lg px;
+    min-height: 28px;
     color: @color.text.primary;
 }
 QPushButton:hover {
     background-color: @color.bg.hover;
-    border-color: @color.border.focus;
 }
 QPushButton:pressed {
     background-color: @color.bg.disabled;
+    border-bottom-width: 1px;
 }
 QPushButton:disabled {
     color: @color.text.disabled;
@@ -105,7 +106,24 @@ QPlainTextEdit:focus,
 QSpinBox:focus,
 QDoubleSpinBox:focus,
 QComboBox:focus {
-    border-color: @color.border.focus;
+    border-color: @color.border;
+    border-bottom: 2px solid @color.border.focus;
+}
+/* 数字框的步进按钮：扁平化，去掉系统默认的厚重箭头 */
+QSpinBox::up-button,
+QDoubleSpinBox::up-button,
+QSpinBox::down-button,
+QDoubleSpinBox::down-button {
+    background-color: transparent;
+    border: none;
+    border-left: 1px solid @color.border;
+    width: 20px;
+}
+QSpinBox::up-button:hover,
+QDoubleSpinBox::up-button:hover,
+QSpinBox::down-button:hover,
+QDoubleSpinBox::down-button:hover {
+    background-color: @color.bg.hover;
 }
 QLineEdit:read-only,
 QTextEdit:read-only,
@@ -213,17 +231,34 @@ QRadioButton {
     spacing: @spacing.sm px;
     background-color: transparent;
 }
-QCheckBox::indicator,
-QRadioButton::indicator {
-    width: 16px;
-    height: 16px;
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
     border: 1px solid @color.border.strong;
     border-radius: @radius.sm px;
     background-color: @color.bg.card;
 }
+QCheckBox::indicator:hover {
+    border-color: @color.accent;
+}
 QCheckBox::indicator:checked {
     background-color: @color.accent;
     border-color: @color.accent;
+    image: url("@path.icons/check.svg");
+}
+QCheckBox::indicator:disabled {
+    background-color: @color.bg.disabled;
+    border-color: @color.border;
+}
+QRadioButton::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1px solid @color.border.strong;
+    border-radius: 9px;
+    background-color: @color.bg.card;
+}
+QRadioButton::indicator:checked {
+    border: 5px solid @color.accent;
 }
 
 /* ---------- 滚动条 ---------- */
@@ -401,6 +436,108 @@ QLabel#sectionTitle {
 }
 QLabel#pluginName {
     color: @color.text.primary;
+}
+
+/* ---------- 自绘标题栏（无边框窗口） ---------- */
+QWidget#titleBar {
+    background-color: @color.bg.card;
+    border-bottom: 1px solid @color.border;
+}
+QLabel#titleBarTitle {
+    font-weight: bold;
+    color: @color.text.primary;
+    padding-left: @spacing.xs px;
+}
+QToolButton#titleBarBtn {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 9 px 14 px;
+}
+QToolButton#titleBarBtn:hover {
+    background-color: @color.bg.hover;
+}
+QToolButton#titleBarClose:hover {
+    background-color: #e81123;
+}
+
+/* ---------- 页面骨架：页头 + 卡片 ---------- */
+QLabel#pageTitle {
+    font-size: 20 px;
+    font-weight: bold;
+    color: @color.text.primary;
+}
+QLabel#pageSubtitle {
+    color: @color.text.secondary;
+    font-size: @font.size.small px;
+}
+QLabel#cardTitle {
+    font-size: 14 px;
+    font-weight: bold;
+    color: @color.text.primary;
+}
+/* 页面内的通栏卡片（取代 QGroupBox 的边框标题样式） */
+QWidget#contentCard {
+    padding: @spacing.md px;
+}
+
+/* ---------- 设置页：左侧子导航 ---------- */
+QListWidget#settingsNav {
+    background-color: transparent;
+    border: none;
+    outline: none;
+}
+QListWidget#settingsNav::item {
+    padding: 9 px @spacing.md px;
+    border-radius: @radius.md px;
+    color: @color.text.secondary;
+    margin: 1 px 0;
+}
+QListWidget#settingsNav::item:hover {
+    background-color: @color.bg.hover;
+}
+QListWidget#settingsNav::item:selected {
+    background-color: @color.bg.hover;
+    color: @color.accent;
+    font-weight: bold;
+}
+
+/* ---------- 插件管理：卡片网格 ---------- */
+QWidget#pluginCard {
+    background-color: @color.bg.card;
+    border: 1px solid @color.border;
+    border-radius: @radius.lg px;
+}
+QWidget#pluginCard:hover {
+    border-color: @color.border.focus;
+}
+QLabel#pluginCardName {
+    font-size: 14 px;
+    font-weight: bold;
+    color: @color.text.primary;
+}
+QLabel#pluginCardBadge {
+    color: @color.text.secondary;
+    font-size: @font.size.small px;
+    border: 1px solid @color.border;
+    border-radius: 8px;
+    padding: 1 px 8 px;
+}
+QLabel#pluginCardBadge[state="active"] {
+    color: @color.state.ok;
+    border-color: @color.state.ok;
+}
+QLabel#pluginCardBadge[state="failed"] {
+    color: @color.state.error;
+    border-color: @color.state.error;
+}
+/* 侧边栏拖动排序的插入指示条 */
+QFrame#navDropIndicator {
+    background-color: @color.accent;
+    border: none;
+    max-height: 2px;
+    min-height: 2px;
+    margin: 0 6px;
 }
 
 /* ---------- 校对建议卡片（proofread 插件） ---------- */

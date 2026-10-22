@@ -41,10 +41,11 @@ def snap(name):
     mw.grab().save(path)
     print("已输出:", path)
 
-# 窄态：仪表盘 / 翻译改写（插件页）/ 插件管理
+# 窄态：智能纠错 / 翻译改写（插件页）/ 插件管理 / 设置
 mw.show_page("dashboard");           snap("rail_dashboard")
 mw.show_page("plugin:clipboard");    snap("rail_clipboard")
 mw.show_page("plugins");             snap("rail_plugins")
+mw.show_page("settings");            snap("rail_settings")
 
 # 展开态
 mw.nav.set_collapsed(False)
@@ -54,6 +55,7 @@ mw.nav.set_collapsed(True)
 # 深色主题对照
 k.set_theme("dark")
 mw.show_page("dashboard");  snap("rail_dark")
+mw.show_page("plugins");    snap("rail_plugins_dark")
 k.set_theme("light")
 
 # 复位语言与折叠状态，避免污染用户配置
