@@ -103,5 +103,22 @@
   "prompt.rewrite.default": "按{style}风格改写以下文本，只输出改写后的内容：\n{text}",
   "prompt.rewrite.system": "你是文本改写机器人。严禁聊天、提问或添加额外文字。直接给出改写结果。",
   "prompt.error": "出错了，请检查 API 设置和网络连接问题！",
-  "app.nav.expand": "展开 / 折叠导航"
+  "app.nav.expand": "展开 / 折叠导航",
+  "app.nav.plugins": "插件管理",
+  "app.cleanup.group": "缓存清洗",
+  "app.cleanup.ignore_short": "清空忽略句",
+  "app.cleanup.log_short": "清空 API 日志",
+  "app.cleanup.all_short": "全部清空",
+  "plugins.hint": "勾选的插件会启用并显示在左侧导航轨与桌宠右键菜单；用箭头调整侧边栏顺序。",
+  "plugins.install": "安装插件…",
+  "plugins.empty": "未发现任何插件",
+  "plugins.state.active": "已启用",
+  "plugins.state.disabled": "未启用",
+  "plugins.state.failed": "加载失败",
+  "plugins.install_title": "选择插件包（zip）",
+  "plugins.install_dir": "或选择插件文件夹",
+  "plugins.install_ok_title": "安装成功",
+  "plugins.install_ok": "插件 {name} 已安装，勾选后开始工作。",
+  "plugins.install_fail_title": "安装失败",
+  "plugins.install_fail": "安装失败：{error}"
 }

@@ -20,10 +20,11 @@ from infra.utils import resource_path
 
 logger = logging.getLogger(__name__)
 
-#: 桌宠状态 -> 主题令牌（颜色即状态：绿=无错 / 红=有错 / 黄=校对中 / 灰=未启用）
+#: 桌宠状态 -> 主题令牌（颜色即状态：绿=无错/正确 / 红=有错 / 黄=校对中 / 灰=未启用）
 STATE_TOKENS = {
-    "idle": "color.state.ok",
-    "error": "color.state.error",
+    "idle": "color.state.ok",      # 打盹休息（闭眼）
+    "ok": "color.state.ok",        # 校对正确（开心笑，2 秒后回落 idle）
+    "error": "color.state.error",  # 有修改建议（皱眉，等用户决策）
     "busy": "color.state.busy",
     "disabled": "color.state.off",
 }
@@ -145,7 +146,20 @@ class SkinService:
         if name == "mouth":
             mouths = manifest.get("mouths", {})
             return mouths.get(state) or mouths.get(DEFAULT_STATE) or parts.get("mouth", "")
+        if name in ("eye_left", "eye_right"):
+            # 眼睛按状态选开/闭：eye_states 把状态映射到 eyes 里的变体
+            eye_states = manifest.get("eye_states", {})
+            variant = eye_states.get(state, "open")
+            eyes = manifest.get("eyes", {})
+            return eyes.get(variant) or parts.get(name, "")
         return parts.get(name, "")
+
+    def eye_variant(self, state: str, skin_id: str | None = None) -> str:
+        """当前状态下眼睛的变体名（open/sleep），供界面层决定是否眨眼。"""
+        manifest = self._manifest(skin_id)
+        if manifest is None:
+            return "open"
+        return manifest.get("eye_states", {}).get(state, "open")
 
     # ---------------- 工具 ----------------
     def _manifest(self, skin_id: str | None = None) -> dict | None:

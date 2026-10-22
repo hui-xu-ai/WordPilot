@@ -52,11 +52,11 @@ class UiRegistry:
 
     # ---- 查询（供桌宠菜单等消费方枚举入口）----
     def tools(self) -> list:
-        """[(已翻译名称, 回调, 图标)]，按 order 升序。"""
+        """[(已翻译名称, 回调, 图标, plugin_id)]，按 order 升序。"""
         return []
 
     def pages(self) -> list:
-        """[(已翻译名称, 页面工厂, 图标)]，按 order 升序。"""
+        """[(已翻译名称, 页面工厂, 图标, plugin_id)]，按 order 升序。"""
         return []
 
     def tray_actions(self) -> list:

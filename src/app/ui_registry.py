@@ -54,8 +54,8 @@ class QtUiRegistry(UiRegistry):
         self._tray.append((order, label, handler, plugin_id))
         self._tray.sort(key=lambda item: item[0])
 
-    def tools(self) -> list[tuple[str, Callable, Any]]:
-        return [(self._text(label, pid), handler, icon)
+    def tools(self) -> list[tuple[str, Callable, Any, str | None]]:
+        return [(self._text(label, pid), handler, icon, pid)
                 for _o, label, handler, icon, pid in self._tools]
 
     def add_page(self, label: str, factory: Callable, order: int = 100,
@@ -67,8 +67,8 @@ class QtUiRegistry(UiRegistry):
         return [(self._text(label, pid), handler)
                 for _o, label, handler, pid in self._tray]
 
-    def pages(self) -> list[tuple[str, Callable, Any]]:
-        return [(self._text(label, pid), factory, icon)
+    def pages(self) -> list[tuple[str, Callable, Any, str | None]]:
+        return [(self._text(label, pid), factory, icon, pid)
                 for _o, label, factory, icon, pid in self._pages]
 
     def remove_plugin(self, plugin_id: str) -> None:

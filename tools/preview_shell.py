@@ -41,10 +41,10 @@ def snap(name):
     mw.grab().save(path)
     print("已输出:", path)
 
-# 窄态：仪表盘 / 剪贴板（插件页）/ 监控
-mw.show_page("dashboard");  snap("rail_dashboard")
-mw.show_page("plugin:0");   snap("rail_clipboard")
-mw.show_page("monitor");    snap("rail_monitor")
+# 窄态：仪表盘 / 翻译改写（插件页）/ 插件管理
+mw.show_page("dashboard");           snap("rail_dashboard")
+mw.show_page("plugin:clipboard");    snap("rail_clipboard")
+mw.show_page("plugins");             snap("rail_plugins")
 
 # 展开态
 mw.nav.set_collapsed(False)

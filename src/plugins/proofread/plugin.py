@@ -99,6 +99,8 @@ class ProofreadPlugin(PluginBase):
             )
             pet.proofreadToggleRequested.connect(self.toggle)
             pet.settingsRequested.connect(self._open_settings)
+            # 用户在气泡上点了确认/忽略 -> 气泡关闭 -> 表情从 error 回落到打盹
+            pet.bubbleToggled.connect(self._on_bubble_toggled)
             return pet
 
         if windows is None:
@@ -129,13 +131,25 @@ class ProofreadPlugin(PluginBase):
             main_window.open_settings()
 
     def _plugin_tools(self) -> list:
-        """桌宠右键菜单「插件」子菜单的数据：[(名称, 回调)]，现场取值。"""
+        """桌宠右键菜单「插件」子菜单的数据：[(名称, 回调)]，现场取值。
+
+        已启用插件的工作面板点击后弹出主界面并自动切到对应 Tab；
+        窗口型插件（如导航助手）点击后直接打开自己的窗口。
+        """
         if self.ctx is None:
             return []
+        entries: list = []
         try:
-            return [(label, handler) for label, handler, _icon in self.ctx.ui.tools()]
+            main_window = self.ctx.ui.main_window()
+            for label, _factory, _icon, plugin_id in self.ctx.ui.pages():
+                if plugin_id and main_window is not None:
+                    entries.append(
+                        (label, lambda pid=plugin_id: main_window.show_page(f"plugin:{pid}")))
+            for label, handler, _icon, _pid in self.ctx.ui.tools():
+                entries.append((label, handler))
         except Exception:
             return []
+        return entries
 
     def deactivate(self) -> None:
         if self.monitor is not None:
@@ -219,12 +233,29 @@ class ProofreadPlugin(PluginBase):
 
     # ---------------- 校对与替换 ----------------
     def _on_suggestion(self, original: str, corrected: str, start: int, end: int) -> None:
-        """收到校对结果：有差异 -> error，无差异 -> idle。"""
+        """收到校对结果：有差异 -> error（等用户决策）；无差异 -> ok（2 秒后回落打盹）。"""
         if self.floating_btn is None:
             return
         has_diff = bool(original and corrected and original.strip() != corrected.strip())
         self.floating_btn.set_suggestion(original, corrected, start, end)
-        self.set_state("error" if has_diff else "idle")
+        if has_diff:
+            self.set_state("error")
+        else:
+            self._show_ok()
+
+    def _show_ok(self) -> None:
+        """正确表情：停留 2 秒后静默回到打盹（期间来了新结果就不回落）。"""
+        self.set_state("ok")
+        QTimer.singleShot(2000, self._ok_revert)
+
+    def _ok_revert(self) -> None:
+        if self._state == "ok":
+            self.set_state("idle")
+
+    def _on_bubble_toggled(self, visible: bool) -> None:
+        """气泡关闭（用户已在确认/忽略中做出抉择）-> 错误表情回落到打盹。"""
+        if not visible and self._state == "error":
+            self.set_state("idle")
 
     def proof_cursor(self) -> None:
         """对光标所在句立即做一次校对（热键 ctrl+shift+z）。"""
@@ -239,7 +270,7 @@ class ProofreadPlugin(PluginBase):
             if has_diff:
                 self._on_suggestion(current, corrected, -1, -1)
             else:
-                self.set_state("idle")
+                self._show_ok()
         except Exception:
             self._log_exception(self.tr("log.proof_cursor_failed"))
             self.set_state("idle")

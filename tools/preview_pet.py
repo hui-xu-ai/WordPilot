@@ -20,8 +20,8 @@ from core.services.skin_service import SkinService        # noqa: E402
 from plugins.proofread.pet_window import _FALLBACK_COLORS  # noqa: E402
 
 SCALE = 3
-STATES = ("idle", "error", "busy", "disabled")
-LABELS = {"idle": "无错误", "error": "有修改建议", "busy": "校对中", "disabled": "未启用"}
+STATES = ("idle", "ok", "error", "busy", "disabled")
+LABELS = {"idle": "打盹", "ok": "正确(开心)", "error": "有建议(等决策)", "busy": "校对中", "disabled": "未启用"}
 
 skins = SkinService(None, None)
 width, height = skins.size()

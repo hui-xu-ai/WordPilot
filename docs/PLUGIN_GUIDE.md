@@ -133,6 +133,9 @@ ctx.ui.status(self.tr("status.done"))   # 写入主窗口状态栏
 
 ### 多语言约定
 
+- **启用规则**：内置插件默认启用（plugin.json 的 `enabled_by_default`）；
+  安装到 `plugins_user/` 的插件默认不启用，用户必须在「插件管理」面板勾选，
+  勾选后才会 activate、上轨、上桌宠菜单。排序由面板写入 `plugins.order`。
 - 语言包是纯 JSON：`assets/i18n/<lang>.json`（内核/外壳）与 `plugins/<id>/i18n/<lang>.json`（插件私有）；
   插件词条会自动加 `<plugin_id>.` 命名空间，互不撞键。
 - 回退链：当前语言 → 基准语言(zh_CN) → key 本身（并记 warning）。

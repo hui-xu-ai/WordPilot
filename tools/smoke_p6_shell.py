@@ -31,7 +31,7 @@ assert "clipboard" in loaded, "clipboard 插件未加载"
 print("\n=== 2) 导航轨条目 ===")
 pages = list(mw.nav._pages.keys())
 print("pages:", pages)
-assert "dashboard" in pages and "monitor" in pages
+assert "dashboard" in pages and "plugins" in pages  # P7: 监控并入仪表盘，新增插件管理页
 assert any(p.startswith("plugin:") for p in pages), "插件页未上轨"
 # 剪贴板页与图片工具页应是插件页
 page_widgets = mw._page_widgets
@@ -48,12 +48,11 @@ print("dashboard/clipboard 图标渲染 OK")
 print("\n=== 4) 页面切换 ===")
 # 注意：image_toolbox 页构造时会拉起隐藏 Word 工作文档，
 # 无 Word 的离屏环境会硬崩（改造前弹窗路径同样如此），冒烟按工厂来源跳过该页。
-plugin_pages = mw.ui.pages()
 skip_ids = set()
-for index, (_label, factory, _icon) in enumerate(plugin_pages):
+for _label, factory, _icon, pid in mw.ui.pages():
     owner = type(getattr(factory, "__self__", None)).__name__
     if owner == "ImageToolboxPlugin":
-        skip_ids.add(f"plugin:{index}")
+        skip_ids.add(f"plugin:{pid}")
 for pid in pages:
     if pid in skip_ids:
         print(f"  {pid:12s} -> (跳过：需要真实 Word 环境)")

@@ -42,5 +42,6 @@
   "monitor.ignored": "Sentence ignored, skipping",
   "monitor.too_short": "Sentence too short, skipping",
   "prompt.placeholder_notice": "Please proofread the text below. Tags such as [IMG0] and [EQ1] stand for images or formulas; keep them exactly as they are and fix text errors only:\n",
-  "pet.menu.plugins": "Plugins"
+  "pet.menu.plugins": "Plugins",
+  "pet.state.ok": "Looks good"
 }

@@ -41,13 +41,11 @@ class ClipboardWidget(QWidget):
         layout.addWidget(self.clip_preview)
 
         btn_row = QHBoxLayout()
-        self.correct_btn = QPushButton()
         self.translate_btn = QPushButton()
         self.rewrite_btn = QPushButton()
-        self.correct_btn.clicked.connect(lambda: self.run_action("proof"))
         self.translate_btn.clicked.connect(lambda: self.run_action("translate"))
         self.rewrite_btn.clicked.connect(lambda: self.run_action("rewrite"))
-        for btn in (self.correct_btn, self.translate_btn, self.rewrite_btn):
+        for btn in (self.translate_btn, self.rewrite_btn):
             btn_row.addWidget(btn)
         layout.addLayout(btn_row)
 
@@ -73,7 +71,6 @@ class ClipboardWidget(QWidget):
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
         self.btn_load.setText(self.tr("load"))
         self.clip_preview.setPlaceholderText(self.tr("placeholder"))
-        self.correct_btn.setText(self.tr("proof"))
         self.translate_btn.setText(self.tr("translate"))
         self.rewrite_btn.setText(self.tr("rewrite"))
         self.clip_result.setPlaceholderText(self.tr("result_placeholder"))
@@ -97,13 +94,7 @@ class ClipboardWidget(QWidget):
         api = self._ctx.get_service("ai_client")
         if api is None:
             return
-        if action == "proof":
-            result = api.clipboard_proof(text)
-            if result == text:
-                self.clip_result.setPlainText(self.tr("no_change"))
-            else:
-                self.clip_result.setPlainText(result)
-        elif action == "translate":
+        if action == "translate":
             result = api.translate(text)
             self.clip_result.setPlainText(result or self.tr("fail_translate"))
         elif action == "rewrite":

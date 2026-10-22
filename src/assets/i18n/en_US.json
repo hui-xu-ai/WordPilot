@@ -103,5 +103,22 @@
   "prompt.rewrite.default": "Rewrite the following text in a {style} style. Output the rewritten text only:\n{text}",
   "prompt.rewrite.system": "You are a rewriting bot. Do not chat, ask questions, or add extra text. Give the rewritten result directly.",
   "prompt.error": "Something went wrong. Please check your API settings and network connection!",
-  "app.nav.expand": "Expand / collapse navigation"
+  "app.nav.expand": "Expand / collapse navigation",
+  "app.nav.plugins": "Plugins",
+  "app.cleanup.group": "Cache cleanup",
+  "app.cleanup.ignore_short": "Clear ignored",
+  "app.cleanup.log_short": "Clear API log",
+  "app.cleanup.all_short": "Clear all",
+  "plugins.hint": "Checked plugins are enabled and appear in the left rail and the pet menu; use the arrows to reorder.",
+  "plugins.install": "Install plugin…",
+  "plugins.empty": "No plugins found",
+  "plugins.state.active": "Enabled",
+  "plugins.state.disabled": "Disabled",
+  "plugins.state.failed": "Failed",
+  "plugins.install_title": "Choose plugin package (zip)",
+  "plugins.install_dir": "Or choose a plugin folder",
+  "plugins.install_ok_title": "Installed",
+  "plugins.install_ok": "Plugin {name} installed. Check it to start using it.",
+  "plugins.install_fail_title": "Install failed",
+  "plugins.install_fail": "Install failed: {error}"
 }

@@ -125,16 +125,21 @@ class NavRail(QWidget):
         btn.setText(entry.get("text", ""))
         btn.setToolTip(entry.get("text", ""))
         btn.setCursor(Qt.PointingHandCursor)
+        handler: Callable | None = entry.get("handler")
         if page:
             btn.setCheckable(True)
             self._group.addButton(btn)
             page_id = entry["id"]
             self._pages[page_id] = btn
             btn.clicked.connect(lambda _c=False, pid=page_id: self._on_page_clicked(pid))
-        else:
-            handler: Callable | None = entry.get("handler")
+        elif entry.get("checkable"):
+            # 可勾选的动作按钮（如置顶钉）：toggled 直传布尔给处理器
+            btn.setCheckable(True)
+            btn.setChecked(bool(entry.get("checked", False)))
             if handler is not None:
-                btn.clicked.connect(lambda _c=False, h=handler: h())
+                btn.toggled.connect(handler)
+        elif handler is not None:
+            btn.clicked.connect(lambda _c=False, h=handler: h())
         return btn
 
     # ---------------- 状态 ----------------

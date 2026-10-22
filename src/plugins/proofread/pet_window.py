@@ -37,6 +37,7 @@ WINDOW_ID = "proofread.pet"
 #: 状态 -> 回退色（主题服务不可用时兜底，保证桌宠永远看得见）
 _FALLBACK_COLORS = {
     "idle": "#107c10",
+    "ok": "#107c10",
     "error": "#c42b1c",
     "busy": "#d83b01",
     "disabled": "#8a8a8a",
@@ -165,12 +166,14 @@ class PetCanvas(QWidget):
         self._draw(painter, "body", rect, colors)
 
         layout = self._skins.layout()
+        # 闭眼状态（打盹/停用）不眨眼
+        eyes_open = self._skins.eye_variant(self._state) == "open"
         for name in ("eye_left", "eye_right"):
             box = layout.get(name)
             if not box:
                 continue
             target = QRectF(box["x"], box["y"], box["w"], box["h"])
-            if self._blink < 1.0:
+            if eyes_open and self._blink < 1.0:
                 # 眨眼：以眼睛中心为轴压扁
                 shrink = target.height() * (1 - self._blink)
                 target = target.adjusted(0, shrink / 2, 0, -shrink / 2)

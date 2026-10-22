@@ -42,5 +42,6 @@
   "monitor.ignored": "句子已被忽略，跳过校对",
   "monitor.too_short": "句子太短，跳过",
   "prompt.placeholder_notice": "请校对以下文本。文本中的[IMG0]、[EQ1]等标签代表图片或公式，请保持这些标签完全不变，只修正文字错误：\n",
-  "pet.menu.plugins": "插件"
+  "pet.menu.plugins": "插件",
+  "pet.state.ok": "无错误"
 }
