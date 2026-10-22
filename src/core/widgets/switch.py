@@ -1,4 +1,4 @@
-# app/switch.py
+# core/widgets/switch.py
 """iOS/Fluent 风格拨动开关（Switch）。
 
 QCheckBox 的 QSS 表现力有限（画不出滑动的圆头），这里直接自绘：

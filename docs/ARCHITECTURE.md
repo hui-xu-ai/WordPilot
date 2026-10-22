@@ -63,8 +63,8 @@
 | `app/main_window.py` | 外壳：无边框（自绘标题栏）+ 左侧导航 + QStackedWidget 内容区 + 状态栏 | 关闭窗口默认最小化到托盘 |
 | `app/ui_registry.py` | 收集插件的界面入口（工具 / 托盘 / 页面）并供外壳渲染 | label 存 i18n key |
 | `app/settings_page.py` | 设置页（主窗口内置页：API、提示词、界面、外观 四个分区） | 界面语言与提示词语言分离 |
-| `app/monitor_window.py` | API 调用监控（内嵌为主界面内容页） | |
-| `plugins/proofread/` | 实时校对：监控线程 + 桌宠窗口 + 替换逻辑 + 热键 | 桌宠见 §8，校对见 §4 |
+| `core/widgets/` | 通用 Qt 控件库（Switch / MonitorPanel），外壳与插件共用 | 插件不可 import app 层，故下沉到 core |
+| `plugins/proofread/` | 智能纠错：监控线程 + 桌宠窗口 + 替换逻辑 + 热键 + 纠错主页 | 桌宠见 §8，纠错见 §4 |
 | `plugins/navigator/` | 题录导航：扫描 SEQ 域→列表→跳转/返回 | 见 §5 性能问题 |
 | `plugins/image_toolbox/` | 图片工具箱：借隐藏文档 `Image.docx` 批量裁剪居中 | |
 | `plugins/reference/` | 参考文献助手（开发中，默认不启用） | 对应 `work/` 下两个测试文档 |
@@ -79,7 +79,7 @@
 
 > COM 要点：Word 的对象模型对并发访问敏感。任何跨线程持有 Word Range/Field 对象都要小心生命周期，`ScreenUpdating` 的开关必须成对出现（异常路径也要恢复）。
 
-## 4. 实时校对数据流
+## 4. 智能纠错数据流
 
 1. 监控线程取光标所在句 `sentence_range`。
 2. `TokenizedSentence` 用 `Range.Words` 遍历，把内嵌图片/公式替换为 `[IMG0]/[EQ1]` 占位符，得到 `pure_text`。

@@ -6,9 +6,9 @@
     │ 自绘标题栏（图标+标题 / 最小化 最大化 关闭）│
     ├──────┬──────────────────────────────────────┤
     │ 图标 │ 内容区（QStackedWidget）             │
-    │ 导航 │  智能纠错(状态+参数+清洗+API监控) /  │
-    │ 轨   │  插件页(翻译改写/图片工具…)         │
-    │ ──── │  插件管理 / 设置（轨底直达）         │
+    │ 导航 │  插件页（智能纠错/翻译改写/图片工具…）│
+    │ 轨   │  插件管理 / 设置（轨底内置直达）     │
+    │ ──── │                                      │
     │ 置顶 │                                      │
     │ 插件 │                                      │
     │ 设置 │                                      │
@@ -21,7 +21,8 @@
 - 左侧是可折叠图标导航轨（NavRail）：窄态纯图标 + tooltip，
   汉堡键展开为「图标 + 文字」；插件页直接挂在轨上，点图标即达，
   插件条目可按住拖动排序，松手即保存（plugins.order）；
-- 智能校对是核心功能：校对状态、参数、缓存清洗、API 监控全部收在「智能纠错」页；
+- 智能纠错是核心功能，但它也是普通插件：页面由 proofread 插件注册，
+  禁用插件后侧边栏入口随之消失（外壳零硬编码）；
 - 设置是主窗口内的一个页面（不再是弹窗），保存后立即热生效；
 - 图标全部是 assets/icons/ 下的 SVG 线条稿，经 icon_factory 按主题令牌染色；
 - 外壳不认识任何插件内部模块，功能一律经 ctx.ui 贡献点挂载；
@@ -31,22 +32,18 @@
 """
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import (QApplication, QFormLayout, QHBoxLayout,
-                               QLabel, QMainWindow, QMenu, QMessageBox,
-                               QPushButton, QScrollArea, QSizeGrip, QSlider,
-                               QSpinBox, QStackedWidget, QSystemTrayIcon,
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMainWindow, QMenu,
+                               QSizeGrip, QStackedWidget, QSystemTrayIcon,
                                QVBoxLayout, QWidget)
 
 from __version__ import __version__
 from app import icon_factory
-from app.monitor_window import MonitorWindow
 from app.nav_rail import NavRail
 from app.plugin_manager_page import PluginManagerPage
 from app.settings_page import SettingsPage
 from app.title_bar import TitleBar
 from app.ui_registry import QtUiRegistry
 from core.kernel import Kernel
-from core.services.api_logger import clear_api_log
 from core.services.config_manager import ConfigManager
 from infra.utils import resource_path
 
@@ -58,7 +55,6 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.kernel = kernel
         self.config: ConfigManager = kernel.config
-        self.ignore_mgr = kernel.services.get("ignore")
         self.i18n = kernel.services.get("i18n")
         self._window_id = self.WINDOW_ID
         # 无边框窗口：标题栏自绘；保留 Window flag 以拥有任务栏按钮
@@ -69,13 +65,16 @@ class MainWindow(QMainWindow):
         # UI 贡献点收集器：插件加载后由 build_extension_menus 统一渲染
         self.ui = QtUiRegistry(self)
         self.ui.bind_i18n(self.i18n)
-        self._proofread = None
         self._unsubscribes: list = []
 
         # 页面注册表：page_id -> stack 中的 QWidget（内置页 + 插件页）
         self._page_widgets: dict[str, QWidget] = {}
         # 插件页工厂缓存：惰性构造（首次切到该页才建）；page_id = plugin:<插件id>
         self._plugin_factories: dict[str, tuple] = {}   # page_id -> (factory, built)
+        # 用户显式选中的页（点击导航 / 外部直达）；None 表示走默认页逻辑。
+        # 外壳构造时插件还没加载，此时默认页会先落到「插件管理」，
+        # 等插件加载完重建导航，默认页应让位给第一个插件页（智能纠错）。
+        self._explicit_page: str | None = None
 
         self.init_ui()
         self.setup_tray()
@@ -125,12 +124,8 @@ class MainWindow(QMainWindow):
 
     # ---------------- 插件集成 ----------------
     def bind_plugins(self):
-        """插件加载完成后调用：绑定能力、渲染贡献点、同步初始状态。"""
-        self._proofread = self.kernel.capabilities.get("proofread")
-        self.kernel.events.subscribe("proofread.toggled", self._on_proof_toggled)
+        """插件加载完成后调用：渲染贡献点（页面/工具/托盘全部来自插件注册）。"""
         self.build_extension_menus()
-        if self._proofread is not None:
-            self._sync_proof_state(self._proofread.is_enabled())
 
     def build_extension_menus(self):
         """把插件注册的界面入口渲染出来。
@@ -147,25 +142,6 @@ class MainWindow(QMainWindow):
 
         self._collect_plugin_factories()
         self._rebuild_nav()
-
-    def _on_proof_toggled(self, _event, enabled):
-        self._sync_proof_state(bool(enabled))
-
-    def _sync_proof_state(self, on: bool):
-        """只更新智能纠错页上的校对状态外观，不回环触发 toggled 信号。"""
-        self.dashboard_status.setText(
-            self.tr("app.proof.on") if on else self.tr("app.proof.off"))
-        self.dashboard_status.setProperty("state", "ok" if on else "off")
-        self.dashboard_status.style().unpolish(self.dashboard_status)
-        self.dashboard_status.style().polish(self.dashboard_status)
-        self.proof_toggle.blockSignals(True)
-        self.proof_toggle.setChecked(on)
-        self.proof_toggle.setText(self.tr("app.proof.on") if on
-                                  else self.tr("app.proof.off"))
-        self.proof_toggle.setProperty("state", "ok" if on else "off")
-        self.proof_toggle.style().unpolish(self.proof_toggle)
-        self.proof_toggle.style().polish(self.proof_toggle)
-        self.proof_toggle.blockSignals(False)
 
     # ---------------- 界面：骨架 ----------------
     def init_ui(self):
@@ -201,8 +177,7 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         body.addWidget(self.stack, 1)
 
-        # 内置页：智能纠错（校对总面板）+ 插件管理 + 设置
-        self._add_builtin_page("dashboard", self._build_dashboard_page())
+        # 内置页：插件管理 + 设置（功能页全部由插件经贡献点注册）
         self._add_builtin_page("plugins", PluginManagerPage(
             self.kernel, parent=None, i18n=self.i18n))
         settings_page = SettingsPage(
@@ -212,10 +187,6 @@ class MainWindow(QMainWindow):
             skins=self.kernel.services.get("skins"))
         settings_page.saved.connect(self._on_settings_saved)
         self._add_builtin_page("settings", settings_page)
-
-        # API 监控已并入智能纠错页；托盘保留一个入口，点开即跳到该页
-        self.ui.add_tray_action("app.nav.monitor", lambda: self.show_page("dashboard"),
-                                order=50, plugin_id="app")
 
         # 状态栏：右下角放 QSizeGrip（无边框窗口的缩放手柄）
         self.statusbar = self.statusBar()
@@ -246,134 +217,6 @@ class MainWindow(QMainWindow):
     def _add_builtin_page(self, page_id: str, widget: QWidget) -> None:
         self.stack.addWidget(widget)
         self._page_widgets[page_id] = widget
-
-    def _page_header(self, layout: QVBoxLayout, title: str = "", subtitle: str = "") -> tuple[QLabel, QLabel]:
-        """现代页面页头：大标题 + 副标题。返回两个 label 供 retranslate 填充。"""
-        title_label = QLabel(title)
-        title_label.setObjectName("pageTitle")
-        layout.addWidget(title_label)
-        subtitle_label = QLabel(subtitle)
-        subtitle_label.setObjectName("pageSubtitle")
-        subtitle_label.setWordWrap(True)
-        layout.addWidget(subtitle_label)
-        return title_label, subtitle_label
-
-    def _card(self, layout: QVBoxLayout, stretch: int = 0) -> QVBoxLayout:
-        """一张通栏卡片（样式见 base.qss #contentCard）。"""
-        card = QWidget()
-        card.setObjectName("contentCard")
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(16, 14, 16, 14)
-        card_layout.setSpacing(10)
-        layout.addWidget(card, stretch)
-        return card_layout
-
-    def _build_dashboard_page(self) -> QWidget:
-        """智能纠错页：校对状态 + 参数 + 缓存清洗 + API 监控。
-
-        内容放在滚动区里：窗口高度不够时滚动而不是把底部控件裁掉。
-        """
-        outer = QWidget()
-        outer.setObjectName("pageDashboard")
-        outer_layout = QVBoxLayout(outer)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        outer_layout.addWidget(scroll)
-
-        page = QWidget()
-        scroll.setWidget(page)
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(14)
-
-        # 页头：标题 + 副标题，右侧是校对总开关
-        header = QHBoxLayout()
-        header_text = QVBoxLayout()
-        header_text.setSpacing(2)
-        self.dashboard_title = QLabel()
-        self.dashboard_title.setObjectName("pageTitle")
-        header_text.addWidget(self.dashboard_title)
-        self.dashboard_hint = QLabel()
-        self.dashboard_hint.setObjectName("pageSubtitle")
-        self.dashboard_hint.setWordWrap(True)
-        header_text.addWidget(self.dashboard_hint)
-        header.addLayout(header_text, 1)
-        self.proof_toggle = QPushButton()
-        self.proof_toggle.setObjectName("proofToggle")
-        self.proof_toggle.setCheckable(True)
-        self.proof_toggle.setChecked(True)
-        self.proof_toggle.toggled.connect(self.toggle_proof)
-        header.addWidget(self.proof_toggle, 0, Qt.AlignTop)
-        layout.addLayout(header)
-
-        # ---- 卡片：校对状态 ----
-        status_card = self._card(layout)
-        self.proof_card_title = QLabel()
-        self.proof_card_title.setObjectName("cardTitle")
-        status_card.addWidget(self.proof_card_title)
-        status_row = QHBoxLayout()
-        self.dashboard_status = QLabel()
-        self.dashboard_status.setObjectName("dashboardStatus")
-        self.dashboard_status.setProperty("state", "ok")
-        status_row.addWidget(self.dashboard_status, 0, Qt.AlignLeft)
-        status_row.addStretch()
-        status_card.addLayout(status_row)
-
-        params = QFormLayout()
-        params.setSpacing(10)
-        params.setHorizontalSpacing(16)
-        debounce_layout = QHBoxLayout()
-        debounce_slider = QSlider(Qt.Horizontal)
-        debounce_slider.setRange(200, 5000)
-        debounce_slider.setValue(self.config.get("debounce_ms", 500))
-        debounce_label = QLabel(f"{debounce_slider.value()} ms")
-        debounce_slider.valueChanged.connect(lambda v: (
-            self.config.set("debounce_ms", v),
-            debounce_label.setText(f"{v} ms")
-        ))
-        debounce_layout.addWidget(debounce_slider)
-        debounce_layout.addWidget(debounce_label)
-        self.debounce_label = QLabel()
-        params.addRow(self.debounce_label, debounce_layout)
-
-        ctx_spin = QSpinBox()
-        ctx_spin.setRange(0, 5)
-        ctx_spin.setValue(self.config.get("context_before", 0))
-        ctx_spin.valueChanged.connect(lambda v: (self.config.set("context_before", v),
-                                                 self.config.set("context_after", v)))
-        self.context_label = QLabel()
-        params.addRow(self.context_label, ctx_spin)
-        status_card.addLayout(params)
-
-        # ---- 卡片：缓存清洗（智能校对的维护功能） ----
-        cleanup_card = self._card(layout)
-        self.cleanup_card_title = QLabel()
-        self.cleanup_card_title.setObjectName("cardTitle")
-        cleanup_card.addWidget(self.cleanup_card_title)
-        cleanup_row = QHBoxLayout()
-        self.cleanup_ignore_btn = QPushButton()
-        self.cleanup_log_btn = QPushButton()
-        self.cleanup_all_btn = QPushButton()
-        self.cleanup_ignore_btn.clicked.connect(self.clear_ignore_only)
-        self.cleanup_log_btn.clicked.connect(self.clear_api_log_only)
-        self.cleanup_all_btn.clicked.connect(self.clear_all_cache)
-        for btn in (self.cleanup_ignore_btn, self.cleanup_log_btn, self.cleanup_all_btn):
-            cleanup_row.addWidget(btn)
-        cleanup_row.addStretch(1)
-        cleanup_card.addLayout(cleanup_row)
-
-        # ---- 卡片：API 监控（吃剩余空间） ----
-        monitor_card = self._card(layout, stretch=1)
-        self.monitor_card_title = QLabel()
-        self.monitor_card_title.setObjectName("cardTitle")
-        monitor_card.addWidget(self.monitor_card_title)
-        self.monitor_widget = MonitorWindow(i18n=self.i18n)
-        self.monitor_widget.close_btn.setVisible(False)    # 内嵌页不需要关闭按钮
-        self.monitor_widget.setWindowTitle("")
-        monitor_card.addWidget(self.monitor_widget)
-        return outer
 
     def _collect_plugin_factories(self) -> None:
         """登记插件页工厂（不构造）；控件在首次切换到该页时才创建。
@@ -429,10 +272,7 @@ class MainWindow(QMainWindow):
         return order if isinstance(order, list) else []
 
     def _rebuild_nav(self) -> None:
-        pages = [
-            {"id": "dashboard", "text": self.tr("app.nav.dashboard"),
-             "icon": self._nav_icon("dashboard", checkable=True)},
-        ]
+        pages = []
         # 插件页按用户排序（plugins.order）排，未进列表的保持注册顺序在后；
         # 插件条目可直接在轨上拖动排序
         order = self._plugin_order()
@@ -474,21 +314,36 @@ class MainWindow(QMainWindow):
         self.nav.set_entries(pages, actions, bottom)
         self.nav.set_toggle_icon(self._nav_icon("menu", checkable=False),
                                  self.tr("app.nav.expand"))
-        # 重建后保持当前页
-        current = self.nav.current_page() or "dashboard"
-        self._on_page_requested(current)
+        # 重建后保持当前页：优先用户显式选择的，其次第一个插件页，最后「插件管理」
+        available = [entry["id"] for entry in pages if entry.get("id")]
+        current = self._explicit_page
+        if current not in available:
+            current = self._default_page()
+        self._show_page(current)
+
+    def _default_page(self) -> str:
+        """内容区第一页：优先第一个插件页，插件全禁用时落到「插件管理」。"""
+        for page_id in self._plugin_factories:
+            return page_id
+        return "plugins"
 
     def _on_nav_order_changed(self, keys: list[str]) -> None:
         """侧边栏拖动排序落盘：keys 是插件 id 的新顺序。"""
         self.kernel.plugins.set_order([k for k in keys if isinstance(k, str)])
 
-    def _on_page_requested(self, page_id: str) -> None:
+    def _show_page(self, page_id: str) -> None:
+        """内部切页：不改用户显式选择，用于导航重建后的复位。"""
         widget = self._ensure_page_built(page_id)
         if widget is None:
-            page_id = "dashboard"
+            page_id = self._default_page()
             widget = self._page_widgets[page_id]
         self.nav.set_current_page(page_id)
         self.stack.setCurrentWidget(widget)
+
+    def _on_page_requested(self, page_id: str) -> None:
+        """用户点击导航或外部直达：记住显式选择后再切页。"""
+        self._explicit_page = page_id
+        self._show_page(page_id)
 
     def show_page(self, page_id: str) -> None:
         """切到指定页并抬出主窗口。"""
@@ -509,20 +364,7 @@ class MainWindow(QMainWindow):
                 self.tr("app.titlebar.maximize"),
                 self.tr("app.titlebar.close"))
 
-        # 智能纠错页
-        self.dashboard_title.setText(self.tr("app.nav.dashboard"))
-        self.dashboard_hint.setText(self.tr("app.dashboard.hint"))
-        self.proof_card_title.setText(self.tr("app.proof.group"))
-        self.debounce_label.setText(self.tr("app.proof.debounce_label"))
-        self.context_label.setText(self.tr("app.proof.context_label"))
-        self.cleanup_card_title.setText(self.tr("app.cleanup.group"))
-        self.cleanup_ignore_btn.setText(self.tr("app.cleanup.ignore_short"))
-        self.cleanup_log_btn.setText(self.tr("app.cleanup.log_short"))
-        self.cleanup_all_btn.setText(self.tr("app.cleanup.all_short"))
-        self.monitor_card_title.setText(self.tr("app.nav.monitor"))
-
-        # 监控与插件页：实现 retranslateUi 的页面统一刷新
-        self.monitor_widget.retranslateUi()
+        # 内置页与插件页：实现 retranslateUi 的页面统一刷新
         for page_id in ("plugins", "settings"):
             page = self._page_widgets.get(page_id)
             if page is not None and hasattr(page, "retranslateUi"):
@@ -533,19 +375,7 @@ class MainWindow(QMainWindow):
 
         self.tray_icon.setToolTip(self.tr("app.tray.tooltip"))
         self.statusbar.showMessage(self._ready_message())
-
-        if self._proofread is not None:
-            self._sync_proof_state(self._proofread.is_enabled())
-        else:
-            self._sync_proof_state(self.proof_toggle.isChecked())
         self.build_extension_menus()   # 插件入口文案同样需要重翻译
-
-    # ---------------- 业务：校对开关 ----------------
-    def toggle_proof(self, enabled):
-        if self._proofread is not None:
-            self._proofread.set_enabled(enabled)
-        else:
-            self._sync_proof_state(enabled)
 
     def toggle_main_top(self, checked=False):
         """主窗口置顶：只改配置，实际置顶由 WindowManager 按 Layer 策略施加。"""
@@ -639,30 +469,13 @@ class MainWindow(QMainWindow):
         # 主题可能已变更（设置页内部已应用），这里同步外壳
         self.apply_style()
         self.retranslateUi()
+        # 广播一次：需要响应设置变更的插件自行订阅（例如桌宠按需显示/隐藏），
+        # 外壳不认识任何具体插件
+        self.kernel.events.emit("settings.saved", None)
 
     def open_settings(self):
         """兼容旧调用（桌宠右键「设置」等）：设置现在是主窗口内的一页。"""
         self.show_page("settings")
-
-    # ---------------- 清理缓存 ----------------
-    def clear_ignore_only(self):
-        self.ignore_mgr.clear_ignore()
-        QMessageBox.information(self, self.tr("app.cleanup.title_done"),
-                                self.tr("app.cleanup.done_ignore"))
-        self.statusbar.showMessage(self.tr("app.cleanup.status_ignore"), 3000)
-
-    def clear_api_log_only(self):
-        clear_api_log()
-        QMessageBox.information(self, self.tr("app.cleanup.title_done"),
-                                self.tr("app.cleanup.done_log"))
-        self.statusbar.showMessage(self.tr("app.cleanup.status_log"), 3000)
-
-    def clear_all_cache(self):
-        self.ignore_mgr.clear_ignore()
-        clear_api_log()
-        QMessageBox.information(self, self.tr("app.cleanup.title_done"),
-                                self.tr("app.cleanup.done_all"))
-        self.statusbar.showMessage(self.tr("app.cleanup.status_all"), 3000)
 
     def showEvent(self, event):
         super().showEvent(event)

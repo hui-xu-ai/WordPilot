@@ -31,7 +31,7 @@ assert "clipboard" in loaded, "clipboard 插件未加载"
 print("\n=== 2) 导航轨条目 ===")
 pages = list(mw.nav._pages.keys())
 print("pages:", pages)
-assert "dashboard" in pages and "plugins" in pages  # P7: 监控并入仪表盘，新增插件管理页
+assert "plugin:proofread" in pages and "plugins" in pages  # P9: 智能纠错由插件注册
 assert any(p.startswith("plugin:") for p in pages), "插件页未上轨"
 # 剪贴板页与图片工具页应是插件页
 page_widgets = mw._page_widgets
@@ -82,7 +82,7 @@ for pid, w in page_widgets.items():
         clipboard_page = w
         clipboard_page.clip_preview.setPlainText("切换语言后这段文字不应丢失")
 kernel.set_language("en_US")
-print("[EN] dashboard label:", [e for e in [mw.tr("app.nav.dashboard")]][0])
+print("[EN] 智能纠错 label:", mw.nav._pages["plugin:proofread"].text())
 for pid, w in mw._page_widgets.items():
     if hasattr(w, "retranslateUi") and pid.startswith("plugin:"):
         pass  # retranslateUi 已在 retranslateUi() 中统一调用

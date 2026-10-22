@@ -1,6 +1,6 @@
 # SmartProof · Word 智能伴侣
 
-面向中文毕业论文 / 科技论文写作场景的 Microsoft Word 桌面辅助工具。基于 **PySide6 + pywin32(COM)**，通过 **DeepSeek API** 提供实时校对能力，并内置题录导航、图片无损裁剪等论文写作实用工具。
+面向中文毕业论文 / 科技论文写作场景的 Microsoft Word 桌面辅助工具。基于 **PySide6 + pywin32(COM)**，通过 **DeepSeek API** 提供智能纠错能力，并内置题录导航、图片无损裁剪等论文写作实用工具。
 
 > 作者：Xu Hui　当前版本：v3.0　平台：Windows（依赖本机已安装的 Microsoft Word）
 
@@ -74,7 +74,7 @@ SmartProof/
 │   │                        #            / i18n / theme / skins / window_manager
 │   │                        #            / proof_cache / caption_cache / ignore / hotkeys
 │   ├── plugins/             # 每个功能一个插件包（plugin.json + plugin.py + i18n/）
-│   │   ├── proofread/       # 实时校对（监控线程 + 桌宠窗口 + 替换逻辑）
+│   │   ├── proofread/       # 智能纠错（监控线程 + 桌宠窗口 + 替换逻辑 + 纠错主页）
 │   │   ├── clipboard/       # 剪贴板工具（纠错/翻译/改写）
 │   │   ├── navigator/       # 题录导航
 │   │   ├── image_toolbox/   # 图片无损裁剪

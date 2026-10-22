@@ -23,17 +23,21 @@ kernel.attach_ui(mw.ui)
 kernel.plugins.load_all()
 mw.bind_plugins()
 
-print("=== 1) 骨架：无工具栏、监控并入仪表盘 ===")
+print("=== 1) 骨架：无工具栏、智能纠错由插件注册 ===")
 assert not hasattr(mw, "toolbar") or mw.findChild(object) is None
 pages = list(mw.nav._pages.keys())
 print("nav pages:", pages)
-assert "monitor" not in pages, "监控页应已并入仪表盘"
-assert "dashboard" in pages and "plugins" in pages
-assert hasattr(mw, "monitor_widget") and mw.monitor_widget.parent() is not None
+assert "monitor" not in pages, "监控页应已并入智能纠错页"
+assert "dashboard" not in pages, "外壳不应再有内置的 dashboard 页"
+assert "plugin:proofread" in pages and "plugins" in pages
+# 智能纠错页内部自带监控面板
+dash = mw._page_widgets.get("plugin:proofread")
+assert dash is not None and dash.monitor_widget is not None
 
-print("\n=== 2) 仪表盘控件 ===")
-print("proof toggle:", mw.proof_toggle.isCheckable(), "| cleanup btns:",
-      mw.cleanup_ignore_btn.text() and mw.cleanup_log_btn.text() and mw.cleanup_all_btn.text())
+print("\n=== 2) 智能纠错页控件 ===")
+print("proof switch:", dash.proof_switch.isCheckable(), "| cleanup btns:",
+      dash.cleanup_ignore_btn.text() and dash.cleanup_log_btn.text()
+      and dash.cleanup_all_btn.text())
 
 print("\n=== 3) 插件管理：禁用/启用/排序 ===")
 pm = kernel.plugins

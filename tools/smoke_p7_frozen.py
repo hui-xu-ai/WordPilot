@@ -56,10 +56,15 @@ if toc.is_file():
     for pid in ("proofread", "navigator", "image_toolbox", "clipboard", "reference"):
         check(f"plugins.{pid}.plugin" in toc_text, f"模块 plugins.{pid}.plugin 已收集")
     check("plugins.proofread.pet_window" in toc_text, "模块 plugins.proofread.pet_window 已收集")
-    # P8：主窗口新增的三个 app 层模块（由 main_window 静态 import，理论上自动收集，此处兜底断言）
-    for mod in ("app.title_bar", "app.switch", "app.settings_page"):
-        check(mod in toc_text, f"模块 {mod} 已收集（P8 无边框标题栏 / 开关 / 设置页）")
+    # P8：主窗口新增的 app 层模块（由 main_window 静态 import，理论上自动收集，此处兜底断言）
+    for mod in ("app.title_bar", "app.settings_page"):
+        check(mod in toc_text, f"模块 {mod} 已收集（P8 无边框标题栏 / 设置页）")
     check("app.settings_dialog" not in toc_text, "模块 app.settings_dialog 已不再打包（P8 删除）")
+    check("app.switch" not in toc_text, "模块 app.switch 已下沉到 core.widgets（P9 解耦）")
+    # P9：智能纠错页下沉到 proofread 插件，Switch / MonitorPanel 归入内核控件库
+    for mod in ("core.widgets.switch", "core.widgets.monitor_panel",
+                "plugins.proofread.dashboard_page"):
+        check(mod in toc_text, f"模块 {mod} 已收集（P9 解耦）")
 
 print("\n=== 2) 皮肤包引用完整性 ===")
 for skin_dir in sorted((INTERNAL / "assets" / "skins").glob("*")):
@@ -116,9 +121,17 @@ zh_file = INTERNAL / "assets" / "i18n" / "zh_CN.json"
 check(zh_file.is_file(), "zh_CN.json 随包")
 if zh_file.is_file():
     zh = json.loads(zh_file.read_text(encoding="utf-8"))
-    check(zh.get("app.nav.dashboard") == "智能纠错", f"app.nav.dashboard=智能纠错（实际 {zh.get('app.nav.dashboard')}）")
-    for key in ("app.titlebar.minimize", "app.titlebar.maximize", "app.titlebar.close", "plugins.title", "settings.saved_hint"):
+    check(zh.get("app.proof.group") == "智能纠错状态",
+          f"app.proof.group=智能纠错状态（实际 {zh.get('app.proof.group')}）")
+    for key in ("app.titlebar.minimize", "app.titlebar.maximize", "app.titlebar.close",
+                "settings.saved_hint"):
         check(key in zh, f"zh_CN 含 {key}")
+    # P9：智能纠错页词条随插件语言包分发
+    proof_zh = INTERNAL / "plugins" / "proofread" / "i18n" / "zh_CN.json"
+    check(proof_zh.is_file(), "proofread 语言包随包")
+    if proof_zh.is_file():
+        pz = json.loads(proof_zh.read_text(encoding="utf-8"))
+        check(pz.get("nav.page") == "智能纠错", f"proofread.nav.page（实际 {pz.get('nav.page')}）")
 
 clip_manifest = INTERNAL / "plugins" / "clipboard" / "plugin.json"
 check(clip_manifest.is_file(), "clipboard 插件清单随包")

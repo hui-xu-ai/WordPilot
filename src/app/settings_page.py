@@ -66,11 +66,7 @@ class SettingsPage(QWidget):
         main_layout.setContentsMargins(24, 20, 24, 16)
         main_layout.setSpacing(14)
 
-        # 页头
-        self.title_label = QLabel()
-        self.title_label.setObjectName("pageTitle")
-        main_layout.addWidget(self.title_label)
-
+        # 不放页头标题：左侧子导航与侧边栏已经说明当前位置
         body = QHBoxLayout()
         body.setSpacing(16)
 
@@ -296,7 +292,6 @@ class SettingsPage(QWidget):
     # ---------------- 多语言（热切换） ----------------
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
         """语言切换后刷新本页的全部可见文案。"""
-        self.title_label.setText(self.tr("settings.title"))
         for index, key in enumerate(_NAV_KEYS):
             item = self.nav_list.item(index)
             if item is not None:

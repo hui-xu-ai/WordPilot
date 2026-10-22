@@ -1,7 +1,11 @@
 # tools/smoke_p8.py
-"""P8 冒烟：无边框标题栏 / 设置页 / 侧边栏拖动排序 / 幽灵窗口回归 / 翻译改写按钮排。
+"""P8/P9 冒烟：无边框标题栏 / 设置内置页 / 智能纠错解耦 /
+侧边栏拖动排序 / 幽灵窗口回归 / 翻译改写按钮排 / SpinBox 步进箭头。
 
 离屏运行：.venv/Scripts/python.exe tools/smoke_p8.py
+
+注意：脚本用「快照 + 收尾恢复」保护本机 plugins 配置，
+避免冒烟运行污染用户真实的插件启停与排序。
 """
 import os
 import sys
@@ -10,22 +14,41 @@ sys.path.insert(0, "src")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QCursor
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFrame
 
 app = QApplication([])
 
-from core.kernel import Kernel
 from app.main_window import MainWindow
+from core.kernel import Kernel
 
 kernel = Kernel()
 kernel.boot()
+
+# plugins 配置快照：脚本结束时原样恢复，避免污染用户真实启停与排序
+_plugins_snapshot = kernel.config.get("plugins", {})
+# 冒烟基线：临时清掉 disabled/order，让默认插件（含 proofread）全部加载，
+# 否则本机若关着核心插件就测不到「智能纠错」页。
+_baseline = dict(_plugins_snapshot)
+_baseline.pop("disabled", None)
+_baseline.pop("order", None)
+kernel.config.set("plugins", _baseline)
+
 mw = MainWindow(kernel)
 kernel.attach_ui(mw.ui)
 kernel.plugins.load_all()
 mw.bind_plugins()
 mw.show()
 app.processEvents()
+
+
+def _clear_order() -> None:
+    """只清侧边栏顺序，保留用户的插件启停状态。"""
+    cfg = dict(kernel.config.get("plugins", {}) or {})
+    cfg.pop("order", None)
+    kernel.config.set("plugins", cfg)
+
 
 print("=== 1) 无边框窗口 + 自绘标题栏 ===")
 flags = int(mw.windowFlags())
@@ -43,7 +66,9 @@ print("最大化/还原切换 OK")
 print("\n=== 2) 设置成为内置页 + 导航底部结构 ===")
 pages = list(mw.nav._pages.keys())
 print("nav pages:", pages)
-assert "dashboard" in pages and "plugins" in pages and "settings" in pages
+assert "plugin:proofread" in pages, "智能纠错应由 proofread 插件注册，而非外壳内置"
+assert "plugins" in pages and "settings" in pages
+assert pages[0] == "plugin:proofread", "智能纠错应排在导航最前"
 # 底部槽位顺序：置顶(action) -> 插件管理(page) -> 设置(page)
 bottom_widgets = [mw.nav._bottom_layout.itemAt(i).widget()
                   for i in range(mw.nav._bottom_layout.count())]
@@ -58,13 +83,19 @@ mw._on_page_requested("settings")
 assert mw.stack.currentWidget() is settings
 print("设置页 4 个分区，可直达")
 
-print("\n=== 3) 智能纠错页（仪表盘改名） ===")
-print("页标题:", mw.dashboard_title.text())
-assert mw.dashboard_title.text() == mw.tr("app.nav.dashboard")
-assert "纠错" in mw.dashboard_title.text() or "Proofread" in mw.dashboard_title.text()
+print("\n=== 3) 智能纠错页：由插件提供、无重复页头 ===")
+print("factories:", [(p, built) for p, (f, built) in mw._plugin_factories.items()])
+print("built widgets:", list(mw._page_widgets.keys()))
+dash = mw._page_widgets.get("plugin:proofread")
+assert dash is not None, "proofread 插件应注册智能纠错页"
+assert not hasattr(dash, "dashboard_title"), "页面内不应再有与侧边栏重复的大标题"
+assert dash.proof_switch is not None and dash.monitor_widget is not None
+assert dash.status_text.text(), "状态文字应已填充"
+print("状态:", dash.status_text.text(), "| 卡片:", dash.status_card_title.text())
+proof_cap = kernel.capabilities.get("proofread")
+assert dash.proof_switch.isChecked() == proof_cap.is_enabled(), "开关应与插件状态一致"
 
 print("\n=== 4) 导航无分隔线 ===")
-from PySide6.QtWidgets import QFrame
 dividers = [mw.nav._items_layout.itemAt(i).widget()
             for i in range(mw.nav._items_layout.count())]
 dividers = [w for w in dividers if isinstance(w, QFrame)]
@@ -75,7 +106,7 @@ print("\n=== 5) 侧边栏拖动排序（QTest 真实鼠标事件） ===")
 draggable = mw.nav._drag
 print("可拖动条目:", list(draggable.values()))
 assert len(draggable) >= 3, "插件条目应可拖动"
-kernel.config.set("plugins", {})   # 清空旧顺序，从默认序开始
+_clear_order()
 mw.build_extension_menus()
 app.processEvents()
 buttons = mw.nav._draggable_widgets()
@@ -87,7 +118,6 @@ QTest.mousePress(first, Qt.LeftButton, pos=first.rect().center())
 app.processEvents()
 target = second.mapTo(mw.nav, second.rect().center())
 target_global = mw.nav.mapToGlobal(target)
-from PySide6.QtGui import QCursor
 QCursor.setPos(target_global + target_global.__class__(0, 24))
 QTest.mouseMove(first, first.mapFromGlobal(QCursor.pos()))
 app.processEvents()
@@ -127,7 +157,7 @@ assert texts == [clip.tr("load"), clip.tr("copy"), clip.tr("translate"),
                  clip.tr("rewrite"), clip.tr("correct")], "按钮顺序应为：读取剪贴板、复制结果、翻译、改写、纠错"
 assert not hasattr(clip, "btn_insert")
 
-print("\n=== 8) 插件管理卡片 ===")
+print("\n=== 8) 插件管理卡片 + 禁用联动 ===")
 panel = mw._page_widgets["plugins"]
 panel.rebuild()
 app.processEvents()
@@ -136,10 +166,31 @@ assert len(panel._cards) >= 5
 # 搜索过滤
 panel.search_edit.setText("导航")
 panel._apply_filter()
-visible = [c for c, _n, _d in panel._cards if c.isVisible() or not panel.search_edit.text()]
 panel.search_edit.clear()
 print("搜索过滤 OK")
 
-# 配置复位
-kernel.config.set("plugins", {})
+# 禁用 proofread -> 侧边栏「智能纠错」应随之消失
+kernel.plugins.set_enabled("proofread", False)
+app.processEvents()
+pages_off = list(mw.nav._pages.keys())
+print("禁用 proofread 后 nav pages:", pages_off)
+assert "plugin:proofread" not in pages_off, "禁用插件后侧边栏入口应消失"
+# 重新启用 -> 入口回来
+kernel.plugins.set_enabled("proofread", True)
+app.processEvents()
+pages_on = list(mw.nav._pages.keys())
+print("重新启用后 nav pages:", pages_on)
+assert "plugin:proofread" in pages_on, "重新启用后侧边栏入口应恢复"
+
+print("\n=== 9) SpinBox 步进箭头可见 ===")
+theme = kernel.services.get("theme")
+if theme is not None:
+    style = theme.render()
+    print("含 spin-up.svg:", "spin-up.svg" in style,
+          "| 含 spin-down.svg:", "spin-down.svg" in style)
+    assert "spin-up.svg" in style and "spin-down.svg" in style, \
+        "SpinBox 箭头必须引用图标文件，否则被全局样式吃掉后看不见"
+
+# 配置复位：恢复运行前的 plugins 配置
+kernel.config.set("plugins", _plugins_snapshot)
 print("\nALL OK")

@@ -45,7 +45,7 @@ print("保存后 config.skin:", k.config.get("skin"), "| 广播后桌宠尺寸:"
 # 语言切换（真实流程里由主窗口拉起；这里直接调用页面的重翻译方法）
 k.set_language("en_US")
 page.retranslateUi()
-print("[EN] 设置页标题:", page.title_label.text(), "| 皮肤标签:", page.label_skin.text())
+print("[EN] 皮肤标签:", page.label_skin.text())
 print("[EN] 桌宠 tooltip:", pet.toolTip())
 k.set_language("zh_CN")
 page.retranslateUi()

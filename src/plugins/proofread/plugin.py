@@ -1,5 +1,5 @@
 # plugins/proofread/plugin.py
-"""实时校对插件。
+"""智能纠错插件。（原名「实时校对」，P9 与侧边栏「智能纠错」统一）
 
 原本散落在 main_window 里的这部分逻辑全部收归本插件：
 - 后台监听 Word 光标，自动校对当前句子（WordMonitor）；
@@ -37,12 +37,13 @@ if TYPE_CHECKING:
 
 
 class ProofreadPlugin(PluginBase):
-    """实时校对：监听 Word 光标并给出修改建议。"""
+    """智能纠错：监听 Word 光标并给出修改建议。"""
 
     def __init__(self) -> None:
         super().__init__()
         self.monitor: WordMonitor | None = None
         self.floating_btn: PetWindow | None = None     # 字段名保留，外壳与其它插件按它取用
+        self._dashboard_page = None                    # 智能纠错页（外壳惰性构造后回填）
         self._enabled = True
         self._state = "idle"
 
@@ -76,11 +77,19 @@ class ProofreadPlugin(PluginBase):
             hotkeys.register("toggle_monitor", "ctrl+shift+e", self.toggle, owner="proofread")
             hotkeys.register("proof_cursor", "ctrl+shift+z", self.proof_cursor, owner="proofread")
 
-        # API Key 变更后刷新内部引用；语言/主题切换后刷新界面
+        # 「智能纠错」主页面 + 托盘直达：随插件启停自动上轨/消失（P9 解耦）
+        ctx.ui.add_page("nav.page", self._build_dashboard_page,
+                        order=10, icon="dashboard", plugin_id="proofread")
+        ctx.ui.add_tray_action("nav.monitor", self._open_dashboard_page,
+                               order=50, plugin_id="proofread")
+
+        # API Key 变更后刷新内部引用；语言/主题切换后刷新界面；
+        # 设置保存后按新配置重新计算桌宠可见性
         self.subscribe("ai.client_changed", self._on_api_changed)
         self.subscribe("i18n.language_changed", self._on_language_changed)
         self.subscribe("theme.changed", self._on_theme_changed)
         self.subscribe("skin.changed", self._on_skin_changed)
+        self.subscribe("settings.saved", self._on_settings_saved)
         ctx.register_capability("proofread", self)
         ctx.logger.info(self.tr("log.activated"))
 
@@ -124,6 +133,18 @@ class ProofreadPlugin(PluginBase):
             pet.show()
         return pet
 
+    def _build_dashboard_page(self):
+        """智能纠错页工厂：外壳首次切到该页时惰性构造，控件由外壳缓存。"""
+        from plugins.proofread.dashboard_page import DashboardPage
+        self._dashboard_page = DashboardPage(self)
+        return self._dashboard_page
+
+    def _open_dashboard_page(self) -> None:
+        """托盘「API 监控」-> 抬出主窗口并切到智能纠错页。"""
+        main_window = self.ctx.ui.main_window() if self.ctx is not None else None
+        if main_window is not None:
+            main_window.show_page("plugin:proofread")
+
     def _open_settings(self) -> None:
         """桌宠右键菜单 -> 设置：走外壳已注册的设置入口。"""
         main_window = self.ctx.ui.main_window() if self.ctx is not None else None
@@ -165,6 +186,8 @@ class ProofreadPlugin(PluginBase):
             except Exception:
                 self._log_exception(self.tr("log.close_pet_failed"))
             self.floating_btn = None
+        # 智能纠错页由外壳在 plugins.changed 后回收销毁，这里只清引用
+        self._dashboard_page = None
         super().deactivate()
 
     def _log_exception(self, message: str) -> None:
@@ -351,16 +374,23 @@ class ProofreadPlugin(PluginBase):
 
     def _on_theme_changed(self, _event, _theme=None) -> None:
         """主题换了：状态色随令牌变，桌宠与气泡都要重绘。"""
-        if self.floating_btn is None or self.ctx is None:
+        if self.ctx is None:
             return
-        self.floating_btn.set_services(theme=self.ctx.get_service("theme"),
-                                       skins=self.ctx.get_service("skins"))
+        if self.floating_btn is not None:
+            self.floating_btn.set_services(theme=self.ctx.get_service("theme"),
+                                           skins=self.ctx.get_service("skins"))
+        if self._dashboard_page is not None:
+            self._dashboard_page.refresh_theme()
 
     def _on_skin_changed(self, _event, _skin=None) -> None:
         """换了皮肤包：桌宠按新分部件重绘。"""
         if self.floating_btn is None or self.ctx is None:
             return
         self.floating_btn.set_services(skins=self.ctx.get_service("skins"))
+
+    def _on_settings_saved(self, _event, _payload=None) -> None:
+        """设置保存后：例如「显示悬浮按钮」被勾选/取消，桌宠要跟着显隐。"""
+        self.refresh_visibility()
 
     def _on_proofing_started(self) -> None:
         self.set_state("busy")

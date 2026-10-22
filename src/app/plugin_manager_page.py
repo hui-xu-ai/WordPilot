@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (QFileDialog, QGridLayout, QHBoxLayout, QLabel,
                                QScrollArea, QVBoxLayout, QWidget)
 
 from app import icon_factory
-from app.switch import Switch
 from core.plugin_manager import PluginState
+from core.widgets import Switch
 
 CARD_MIN_WIDTH = 300
 CARD_HEIGHT = 124
@@ -39,31 +39,22 @@ class PluginManagerPage(QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
 
-        # 页头：标题 + 副标题；右侧搜索框 + 安装按钮
-        header = QHBoxLayout()
-        header.setSpacing(10)
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-        self.title_label = QLabel()
-        self.title_label.setObjectName("pageTitle")
-        title_col.addWidget(self.title_label)
-        self.hint_label = QLabel()
-        self.hint_label.setObjectName("pageSubtitle")
-        self.hint_label.setWordWrap(True)
-        title_col.addWidget(self.hint_label)
-        header.addLayout(title_col, 1)
-
+        # 工具行：搜索框 + 安装按钮
+        # （页面不再放标题：侧边栏已经表明当前在哪一页，重复一遍纯属浪费空间）
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(10)
         self.search_edit = QLineEdit()
         self.search_edit.setClearButtonEnabled(True)
-        self.search_edit.setFixedWidth(220)
+        self.search_edit.setFixedWidth(240)
         self.search_edit.textChanged.connect(self._apply_filter)
-        header.addWidget(self.search_edit, 0, Qt.AlignTop)
+        toolbar.addWidget(self.search_edit)
+        toolbar.addStretch(1)
 
         self.install_btn = QPushButton()
         self.install_btn.setProperty("accent", True)
         self.install_btn.clicked.connect(self.install_plugin)
-        header.addWidget(self.install_btn, 0, Qt.AlignTop)
-        layout.addLayout(header)
+        toolbar.addWidget(self.install_btn)
+        layout.addLayout(toolbar)
 
         # 卡片网格（可滚动，插件多了也不撑破窗口）
         self.scroll = QScrollArea()
@@ -96,8 +87,6 @@ class PluginManagerPage(QWidget):
         return self.i18n.tr(key, **params)
 
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
-        self.title_label.setText(self.tr("plugins.title"))
-        self.hint_label.setText(self.tr("plugins.hint"))
         self.search_edit.setPlaceholderText(self.tr("plugins.search_placeholder"))
         self.install_btn.setText(self.tr("plugins.install"))
         self.rebuild()

@@ -1,6 +1,10 @@
 {
-  "plugin.name": "Live Proofreading",
+  "plugin.name": "Smart Proofreading",
   "plugin.description": "Watch the sentence at the cursor and proofread it automatically when finished",
+  "nav.page": "Smart Proofreading",
+  "nav.monitor": "API Monitor",
+  "dashboard.pet_hint": "The desk pet's color mirrors the proofreading state (green = clean / red = issues / amber = proofing / gray = off).",
+  "dashboard.toggle_tip": "Enable / pause smart proofreading",
   "bubble.accept": "✔ Accept",
   "bubble.ignore": "✘ Ignore",
   "bubble.perfect": "✔ Perfect, keep going",

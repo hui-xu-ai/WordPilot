@@ -82,7 +82,6 @@ class ImageReshaperWidget(QWidget):
         return self._i18n.tr(f"{PLUGIN_ID}.{key}", **params)
 
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
-        self.title_label.setText(self.tr("widget.title"))
         self.width_group.setTitle(self.tr("group.width"))
         self.height_group.setTitle(self.tr("group.height"))
         self.bg_group.setTitle(self.tr("group.background"))
@@ -126,10 +125,7 @@ class ImageReshaperWidget(QWidget):
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(12)
 
-        self.title_label = QLabel(self.tr("widget.title"))
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.title_label.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        main_layout.addWidget(self.title_label)
+        # 不放页面大标题：它是插件页，侧边栏已标注当前页
 
         # ----- 宽度设置 -----
         self.width_group = QGroupBox(self.tr("group.width"))

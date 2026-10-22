@@ -125,6 +125,20 @@ QSpinBox::down-button:hover,
 QDoubleSpinBox::down-button:hover {
     background-color: @color.bg.hover;
 }
+/* 关键点：一旦给 QSpinBox 加了全局样式，Qt 就不再绘制系统箭头，
+   这里必须显式指定箭头图标，否则步进按钮会变成一片空白 */
+QSpinBox::up-arrow,
+QDoubleSpinBox::up-arrow {
+    image: url("@path.icons/spin-up.svg");
+    width: 10px;
+    height: 6px;
+}
+QSpinBox::down-arrow,
+QDoubleSpinBox::down-arrow {
+    image: url("@path.icons/spin-down.svg");
+    width: 10px;
+    height: 6px;
+}
 QLineEdit:read-only,
 QTextEdit:read-only,
 QPlainTextEdit:read-only {
@@ -347,31 +361,6 @@ QLabel {
     background-color: transparent;
 }
 
-/* ---------- 主界面骨架：顶部工具栏 + 左侧图标导航轨 ---------- */
-QToolBar#mainToolBar {
-    background-color: @color.bg.card;
-    border: none;
-    border-bottom: 1px solid @color.border;
-    spacing: @spacing.sm px;
-    padding: @spacing.xs px @spacing.md px;
-}
-/* 校对状态开关：药丸形，颜色即状态 */
-QToolButton#proofToggle {
-    border: 1px solid @color.border;
-    border-radius: 13 px;
-    padding: 4 px 14 px;
-    font-weight: bold;
-    color: @color.text.primary;
-    background-color: @color.bg.subtle;
-}
-QToolButton#proofToggle[state="ok"] {
-    color: @color.state.ok;
-    border-color: @color.state.ok;
-}
-QToolButton#proofToggle[state="off"] {
-    color: @color.state.off;
-    border-color: @color.border.strong;
-}
 /* 工具栏图标按钮（置顶 / 清理） */
 QToolButton#toolbarBtn {
     background-color: transparent;
@@ -388,9 +377,9 @@ QToolButton#toolbarBtn:checked {
     border-color: @color.accent;
 }
 
-/* 图标导航轨 */
+/* 图标导航轨（Codex 风格：侧栏与标题栏同色浅灰，与白色内容区形成分区） */
 QWidget#navRail {
-    background-color: @color.bg.card;
+    background-color: @color.bg.rail;
     border: none;
     border-right: 1px solid @color.border;
 }
@@ -398,10 +387,9 @@ QToolButton#navButton,
 QToolButton#navAction {
     background-color: transparent;
     border: none;
-    border-left: 3 px solid transparent;
-    border-radius: @radius.sm px;
+    border-radius: @radius.md px;
     padding: 9 px 8 px;
-    margin: 0 px 4 px;
+    margin: 1 px 6 px;
     color: @color.text.secondary;
     font-size: @font.size px;
     text-align: left;
@@ -411,9 +399,8 @@ QToolButton#navAction:hover {
     background-color: @color.bg.hover;
 }
 QToolButton#navButton:checked {
-    background-color: @color.bg.hover;
-    border-left: 3 px solid @color.accent;
-    color: @color.accent;
+    background-color: @color.bg.selected;
+    color: @color.text.primary;
     font-weight: bold;
 }
 QFrame#navDivider {
@@ -440,7 +427,7 @@ QLabel#pluginName {
 
 /* ---------- 自绘标题栏（无边框窗口） ---------- */
 QWidget#titleBar {
-    background-color: @color.bg.card;
+    background-color: @color.bg.rail;
     border-bottom: 1px solid @color.border;
 }
 QLabel#titleBarTitle {
@@ -476,10 +463,25 @@ QLabel#cardTitle {
     font-weight: bold;
     color: @color.text.primary;
 }
-/* 页面内的通栏卡片（取代 QGroupBox 的边框标题样式） */
+/* 页面内的通栏卡片（取代 QGroupBox 的边框标题样式）。
+   卡片底色比内容区略深一点，靠色差完成「浅色分区」 */
 QWidget#contentCard {
     padding: @spacing.md px;
 }
+
+/* 智能纠错页：校对状态指示灯（圆点 + 文字，不再用大号标题表达状态） */
+QLabel#proofStatusDot {
+    font-size: 12 px;
+    background-color: transparent;
+}
+QLabel#proofStatusDot[state="ok"] { color: @color.state.ok; }
+QLabel#proofStatusDot[state="off"] { color: @color.state.off; }
+QLabel#proofStatusText {
+    font-size: 14 px;
+    font-weight: bold;
+}
+QLabel#proofStatusText[state="ok"] { color: @color.state.ok; }
+QLabel#proofStatusText[state="off"] { color: @color.state.off; }
 
 /* ---------- 设置页：左侧子导航 ---------- */
 QListWidget#settingsNav {
