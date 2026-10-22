@@ -15,6 +15,10 @@ build/
 dist/
 *.manifest
 
+# ===== 后装插件（运行时写入，第三方代码不入版本库） =====
+plugins_user/
+src/plugins_user/
+
 # ===== IDE =====
 .idea/
 .vscode/
