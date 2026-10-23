@@ -3,7 +3,7 @@
 > 由 `proj wiki index` 生成（内容确定性，可重复跑）｜条目：13
 
 ## .
-- [SmartProof 工作区（pydev 预设）](AGENTS.md) — 1802 B
+- [SmartProof 工作区（pydev 预设）](AGENTS.md) — 2172 B
 - [SmartProof · Word 智能伴侣](README.md) — 6066 B
 
 ## docs
@@ -17,4 +17,4 @@
 - [2026-10-16](docs/archive/workbuddy-memory/2026-10-16.md)（archive） — 5280 B
 - [2026-10-17](docs/archive/workbuddy-memory/2026-10-17.md)（archive） — 5109 B
 - [2026-10-22](docs/archive/workbuddy-memory/2026-10-22.md)（archive） — 9999 B
-- [SmartProof 标准与门索引](docs/standards/INDEX.md) — 1715 B
+- [SmartProof 标准与门索引](docs/standards/INDEX.md) — 1884 B
