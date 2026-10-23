@@ -1,16 +1,16 @@
 """proj panel 的 HTML/JS 模板（与 panel.py 分离，控制单文件行数）。"""
 
 PAGE = r"""<!doctype html>
-<html lang="zh"><head><meta charset="utf-8"><title>pydev 架构图谱</title>
+<html lang="zh"><head><meta charset="utf-8"><meta name="color-scheme" content="dark"><title>pydev 架构图谱</title>
 <style>
- *{box-sizing:border-box} body{font:14px/1.5 system-ui,Segoe UI,sans-serif;margin:0;background:#0b0e14;color:#e6edf3;height:100vh;overflow:hidden}
+ *{box-sizing:border-box} html,body{background:#0b0e14} body{font:14px/1.5 system-ui,Segoe UI,sans-serif;margin:0;color:#e6edf3;height:100vh;overflow:hidden}
  header{padding:9px 14px;background:#11161f;border-bottom:1px solid #263041;display:flex;gap:12px;align-items:center}
  header b{font-size:15px} .muted{color:#8b949e;font-size:12px} .stat{margin-left:auto;font-size:12px;color:#9aa4b2}
  main{display:grid;grid-template-columns:minmax(0,1fr) 400px;height:calc(100vh - 45px)}
  #left{display:flex;flex-direction:column;min-width:0}
  #bar{display:flex;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid #1c2430;flex-wrap:wrap}
  #wrap{position:relative;flex:1;min-height:0;background:#0b0e14}
- canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;background:#0b0e14}
  canvas.drag{cursor:grabbing}
  #right{border-left:1px solid #263041;background:#0e131b;overflow:auto;min-width:0;padding:10px 12px}
  #right section{margin-bottom:16px;min-width:0}
@@ -251,7 +251,7 @@ function labelFree(b,self){
 function drawLabel(f,P,r,on){
   const raw=labelBy==='desc'&&f.desc?f.desc:base(f.path);
   const lines=wrapLabel(raw,labelBy==='desc'?16:15,labelBy==='desc'?3:2);
-  const fs=8, lh=9.6;
+  const fs=view.k>1? 9/view.k : 8, lh=fs*1.2;
   ctx.font=fs+'px system-ui';
   const boxes=labelBoxes(P,r,lines,lh);
   const free=boxes.find(b=>labelFree(b,f.path));
