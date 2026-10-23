@@ -7,14 +7,21 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
+import subprocess
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import arch, packs, scanner
+
+PANEL_VERSION = "1.5"
+_STARTED = time.strftime("%Y-%m-%d %H:%M:%S")
 
 PAGE = r"""<!doctype html>
 <html lang="zh"><head><meta charset="utf-8"><title>pydev 架构图谱</title>
@@ -43,7 +50,7 @@ PAGE = r"""<!doctype html>
  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
  #zoom{min-width:46px;text-align:center}
 </style></head><body>
-<header><b>pydev 架构图谱</b><span class="muted" id="root"></span><span class="stat" id="stat"></span></header>
+<header><b>pydev 架构图谱</b><span class="muted" id="ver"></span><span class="muted" id="root"></span><span class="stat" id="stat"></span></header>
 <main>
  <div id="left">
   <div id="bar">
@@ -53,6 +60,8 @@ PAGE = r"""<!doctype html>
    <button onclick="zoomBy(0.85)">−</button><span class="muted" id="zoom">100%</span><button onclick="zoomBy(1.18)">+</button>
    <button onclick="fit()">适配</button>
    <button onclick="collapseAll()">折叠全部</button><button onclick="expandAll()">展开全部</button>
+   <button onclick="showImpact()">变更影响</button>
+   <label class="muted"><input type="checkbox" id="auto" checked> 自动刷新</label>
    <span id="chips"></span><span id="pickbar"></span><span class="muted" id="hint"></span>
   </div>
   <div id="wrap"><canvas id="cv"></canvas></div>
@@ -60,7 +69,7 @@ PAGE = r"""<!doctype html>
  <div id="right">
   <section><h3>选中</h3><div id="sel">（点节点，双击模块折叠/展开）</div>
    <p><button onclick="gen()">生成约束提示词</button> <button onclick="copyC()">复制</button> <button onclick="writeScope()">写入 scope.md</button></p>
-   <div class="muted" id="wrote"></div><p><button id="focusBtn" onclick="toggleFocus()" style="display:none">只看它的邻居</button></p></section>
+   <div class="muted" id="wrote"></div><div class="muted" id="impact"></div><p><button id="focusBtn" onclick="toggleFocus()" style="display:none">只看它的邻居</button></p></section>
   <section><h3>约束提示词</h3><pre id="constraint">（选文件或模块后生成）</pre></section>
   <section><h3>违规（模块对 / 公开入口）</h3><table id="viol"></table></section>
   <section><h3>问题（scan）</h3><table id="issues"></table></section>
@@ -72,6 +81,7 @@ const PALETTE=['#58a6ff','#3fb950','#d29922','#bc8cff','#39c5cf','#f778ba','#e3b
 let A=null, mods=[], files=[], edges=[], centers=new Map(), pos=new Map(), radii=new Map();
 let hidden=new Set(), collapsed=new Set(), sel=null, hover=null, crossOnly=true, violOnly=false, search='';
 let focusMod=null, focusSet=null, hoverEdge=null, edgeGeom=[], pick=new Set();
+let impact=null, fp=null;
 let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
 const cv=$('cv'), ctx=cv.getContext('2d');
 function base(p){ const s=p.split('/'); return s[s.length-1]; }
@@ -170,6 +180,8 @@ function draw(){
   mods.forEach(m=>{ if(!visMod(m)||!collapsed.has(m.id)) return; const c=centers.get(m.id), r=collapseR(m);
     ctx.beginPath(); ctx.arc(c.x,c.y,r,0,Math.PI*2); ctx.fillStyle=color(m.id)+'66'; ctx.fill(); ctx.strokeStyle=color(m.id); ctx.lineWidth=1.5; ctx.stroke();
     ctx.fillStyle='#e6edf3'; ctx.font='11px system-ui'; ctx.textAlign='center'; ctx.fillText(m.id,c.x,c.y+4); ctx.textAlign='left'; });
+  if(impact && impact.modules){ impact.modules.forEach(id=>{ const c=centers.get(id); if(!c) return; const r=(collapsed.has(id)?collapseR(mods.find(m=>m.id===id)):radii.get(id))||30;
+    ctx.beginPath(); ctx.arc(c.x,c.y,r+6,0,Math.PI*2); ctx.strokeStyle='#f0b72f'; ctx.lineWidth=2; ctx.setLineDash([6,4]); ctx.stroke(); ctx.setLineDash([]); }); }
   // 文件节点
   const rank=[...files].sort((x,y)=>y.indeg-x.indeg); const top=new Set(rank.slice(0,14).map(f=>f.path));
   files.forEach(f=>{ if(collapsed.has(f.module)) return; const m=mods.find(x=>x.id===f.module); if(!m||!visMod(m)) return;
@@ -270,7 +282,8 @@ function rows(el,data,cols){ el.innerHTML='<tr>'+cols.map(c=>'<th>'+c+'</th>').j
   data.map(r=>'<tr>'+cols.map(c=>'<td class="'+(r._level||'')+'" title="'+(r[c]??'')+'">'+(r[c]??'')+'</td>').join('')+'</tr>').join(''); }
 async function boot(){
   const s=await api('/api/scan'); $('root').textContent=s.root;
-  A=await api('/api/arch'); mods=A.modules; files=A.files; edges=A.file_edges;
+  A=await api('/api/arch'); mods=A.modules; files=A.files; edges=A.file_edges; fp=A.fingerprint;
+  $('ver').textContent='v'+(A.panel_version||'');
   $('stat').textContent=mods.length+' 模块 / '+files.length+' 文件 / '+edges.length+' 边 / '+A.violations.length+' 违规  score '+s.score.total;
   resize(); layout(); chips();
   const qp=new URLSearchParams(location.search);
@@ -282,7 +295,16 @@ async function boot(){
     sel={kind:'module',id:fs[0]}; show(sel); draw(); }
   rows($('viol'), (A.violations||[]).map(v=>({_level:'fail',kind:v.kind||'dependency',from:v.from,to:v.to,file:v.file||'',count:v.count})), ['kind','from','to','count']);
   rows($('issues'), (s.issues||[]).map(i=>({_level:i.level==='FAIL'?'fail':'warn',level:i.level,code:i.code,path:i.path})), ['level','code','path']);
+  setInterval(poll, 2500);
 }
+async function poll(){ if(!$('auto').checked) return; try{ const r=await api('/api/arch');
+  if(r.fingerprint && r.fingerprint!==fp){ fp=r.fingerprint; A=r; mods=A.modules; files=A.files; edges=A.file_edges; layout(); chips();
+    rows($('viol'), (A.violations||[]).map(v=>({_level:'fail',kind:v.kind||'dependency',from:v.from,to:v.to,count:v.count})), ['kind','from','to','count']);
+    if(sel) show(sel); } }catch(e){} }
+async function showImpact(){ const r=await api('/api/impact');
+  if(r.error){ $('impact').textContent='影响分析失败：'+r.error; return; }
+  impact=r; draw();
+  $('impact').textContent='变更文件 '+r.changed.length+' / 模块 '+(r.modules.join(', ')||'无')+' / 上游 '+(r.upstream.join(', ')||'无')+' / 下游 '+(r.downstream.join(', ')||'无'); }
 boot();
 </script></body></html>"""
 
@@ -297,8 +319,48 @@ def _commands(root: Path) -> dict:
         return {}
 
 
+def _fingerprint(report: dict) -> str:
+    blob = json.dumps([report.get("modules"), report.get("files"), report.get("edges"),
+                       report.get("file_edges"), report.get("violations")], ensure_ascii=False, sort_keys=True)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12]
+
+
 def api_arch(root: Path) -> dict:
-    return arch.build_arch(root).to_dict()
+    data = arch.build_arch(root).to_dict()
+    data["fingerprint"] = _fingerprint(data)
+    data["panel_version"] = PANEL_VERSION
+    return data
+
+
+def api_health(root: Path) -> dict:
+    data = api_arch(root)
+    return {"panel_version": PANEL_VERSION, "pid": os.getpid(), "root": str(root),
+            "started": _STARTED, "fingerprint": data["fingerprint"],
+            "modules": len(data["modules"]), "files": len(data["files"])}
+
+
+def api_impact(root: Path, rev: str = "HEAD") -> dict:
+    try:
+        proc = subprocess.run(["git", "-C", str(root), "diff", "--name-only", rev],
+                              capture_output=True, text=True, timeout=20, check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"error": f"git 调用失败：{exc}"}
+    if proc.returncode != 0:
+        return {"error": (proc.stderr or "git diff 失败").strip()[:300]}
+    changed_all = [ln.strip().replace("\\", "/") for ln in proc.stdout.splitlines() if ln.strip()]
+    report = arch.build_arch(root)
+    mod_of = {f["path"]: f["module"] for f in report.files}
+    changed = [p for p in changed_all if p in mod_of]
+    mods = sorted({mod_of[p] for p in changed if mod_of[p]})
+    up: set[str] = set()
+    down: set[str] = set()
+    for e in report.edges:
+        if e["to"] in mods:
+            up.add(e["from"])
+        if e["from"] in mods:
+            down.add(e["to"])
+    return {"rev": rev, "changed": changed, "modules": mods,
+            "upstream": sorted(up - set(mods)), "downstream": sorted(down - set(mods))}
 
 
 def _file_constraint(root: Path, report, path: str) -> dict:
@@ -398,6 +460,10 @@ def make_handler(root: Path):
                     data = api_arch(root)
                 elif parsed.path == "/api/constraint":
                     data = api_constraint(root, (qs.get("module") or [""])[0], (qs.get("file") or [""])[0])
+                elif parsed.path == "/api/health":
+                    data = api_health(root)
+                elif parsed.path == "/api/impact":
+                    data = api_impact(root, (qs.get("rev") or ["HEAD"])[0])
                 elif parsed.path == "/api/scan":
                     data = api_scan(root)
                 elif parsed.path == "/api/packs":
