@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import signal
 import socket
 import subprocess
@@ -69,7 +70,8 @@ def _write_pid(root: Path, port: int) -> Path:
     path = _pid_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"pid": os.getpid(), "port": port, "root": str(root.resolve()),
-                                "version": PANEL_VERSION, "started": _STARTED},
+                                "version": PANEL_VERSION, "started": _STARTED,
+                                "token": os.environ.get("PANEL_TOKEN", "")},
                                ensure_ascii=False, indent=2), encoding="utf-8")
     atexit.register(lambda: path.unlink(missing_ok=True))
     return path
@@ -89,10 +91,10 @@ def api_arch(root: Path) -> dict:
 
 
 def api_health(root: Path) -> dict:
-    data = api_arch(root)
-    return {"panel_version": PANEL_VERSION, "pid": os.getpid(), "root": str(root),
-            "started": _STARTED, "fingerprint": data["fingerprint"],
-            "modules": len(data["modules"]), "files": len(data["files"])}
+    # 便宜端点：health 被 lifecycle 高频调用，不扫全图
+    return {"service": "pydev-panel", "panel_version": PANEL_VERSION, "pid": os.getpid(),
+            "root": str(root), "started": _STARTED,
+            "token": os.environ.get("PANEL_TOKEN", "")}
 
 
 def api_impact(root: Path, rev: str = "HEAD") -> dict:
@@ -316,25 +318,39 @@ def lifecycle(argv: list[str]) -> int:
 
     def do_stop() -> int:
         pf = _pid_path(root)
-        pid = None
-        if pf.is_file():
-            try:
-                pid = int(json.loads(pf.read_text(encoding="utf-8")).get("pid", 0))
-            except (OSError, ValueError):
-                pid = None
+        if not pf.is_file():
+            print("=== panel：无 PID 文件，拒绝停止（不猜进程）")
+            return 2
+        try:
+            meta = json.loads(pf.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            print("=== panel：PID 文件损坏，拒绝停止")
+            return 2
+        try:
+            pid = int(meta.get("pid", 0))
+        except (TypeError, ValueError):
+            pid = 0
         h = _health(args.port)
         if not h:
             pf.unlink(missing_ok=True)
             print("=== panel：未在运行（已清理 PID 文件）")
             return 0
-        live_pid = int(h.get("pid", 0))
-        if pid and live_pid and pid != live_pid:
-            print(f"=== panel：PID 文件 {pid} 与 health {live_pid} 不一致，拒绝停止")
+        try:
+            live_pid = int(h.get("pid", 0))
+        except (TypeError, ValueError):
+            live_pid = 0
+        checks = {
+            "pid": pid > 0 and live_pid == pid,
+            "root": str(h.get("root", "")).strip().lower() == str(root).strip().lower(),
+            "port": int(meta.get("port", 0)) == args.port,
+            "token": bool(meta.get("token")) and meta.get("token") == h.get("token"),
+            "service": h.get("service") == "pydev-panel",
+        }
+        bad = [k for k, ok in checks.items() if not ok]
+        if bad:
+            print(f"=== panel：归属校验失败（{', '.join(bad)}），拒绝停止")
             return 2
-        target = live_pid or pid
-        if not target:
-            print("=== panel：health 无 pid，拒绝停止")
-            return 2
+        target = pid
         try:
             os.kill(target, signal.SIGTERM)
         except OSError as exc:
@@ -367,6 +383,9 @@ def lifecycle(argv: list[str]) -> int:
         if h:
             print(f"  运行中：v{h.get('panel_version')} pid={h.get('pid')} 启动={h.get('started')}")
             print(f"  URL：{url}")
+            if str(h.get("root", "")).strip().lower() != str(root).strip().lower():
+                print(f"  [WARN] 该端口服务的是另一个项目：root={h.get('root')}")
+                return 1
             if h.get("panel_version") != PANEL_VERSION:
                 print(f"  [WARN] 版本不一致（代码 v{PANEL_VERSION}，进程 v{h.get('panel_version')}）⇒ restart")
                 return 1
@@ -380,6 +399,9 @@ def lifecycle(argv: list[str]) -> int:
     # start
     h = _health(args.port)
     if h:
+        if str(h.get("root", "")).strip().lower() != str(root).strip().lower():
+            print(f"=== panel：端口 {args.port} 已被另一个项目占用（root={h.get('root')}），拒绝复用")
+            return 2
         if h.get("panel_version") == PANEL_VERSION:
             print(f"=== panel 已在运行：{url}（v{PANEL_VERSION}）")
             if args.open:
@@ -403,7 +425,7 @@ def lifecycle(argv: list[str]) -> int:
         code = ("import sys; from proj_core.panel import main; "
                 f"sys.exit(main([r'{root}', '--port', '{args.port}']))")
         cmd = [sys.executable, "-c", code]
-    env = dict(os.environ, PANEL_WRITE_PID="1")
+    env = dict(os.environ, PANEL_WRITE_PID="1", PANEL_TOKEN=secrets.token_hex(8))
     flags = 0
     if sys.platform == "win32":
         flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP

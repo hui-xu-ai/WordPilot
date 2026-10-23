@@ -92,6 +92,15 @@ def render_index(adrs: list[Adr]) -> str:
 
 def build_index(root: Path, adr_dir: str = "docs/adr", out: str | None = None, write: bool = True) -> dict:
     root = root.resolve()
+    adr_root = (root / adr_dir).resolve()
+    try:
+        adr_root.relative_to(root)
+        inside = True
+    except ValueError:
+        inside = False
+    if not inside:
+        return {"adr_dir": adr_dir, "index": adr_dir, "count": 0, "entries": [],
+                "problems": [f"ADR 目录越界（必须位于 root 内）：{adr_dir}"], "written": False}
     adrs = collect(root, adr_dir)
     problems = validate(adrs)
     # `--out` 允许绝对路径（可能在 root 外）；显示时不再盲目 relative_to，避免 ValueError
