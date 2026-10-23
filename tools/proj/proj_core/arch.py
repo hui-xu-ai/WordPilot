@@ -41,6 +41,8 @@ class ArchReport:
     edges: list[dict] = field(default_factory=list)
     violations: list[dict] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
+    files: list[dict] = field(default_factory=list)
+    file_edges: list[list[str]] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -128,6 +130,14 @@ def build_arch(root: Path) -> ArchReport:
         if mid:
             counts[mid] += 1
             files[mid].append(node)
+    indeg: dict[str, int] = {n: 0 for n in g.nodes}
+    outdeg: dict[str, int] = {n: 0 for n in g.nodes}
+    for a, b in g.edges:
+        outdeg[a] = outdeg.get(a, 0) + 1
+        indeg[b] = indeg.get(b, 0) + 1
+    report.files = [{"path": n, "module": _module_of(_norm(n), mods) or "",
+                     "indeg": indeg.get(n, 0), "outdeg": outdeg.get(n, 0)} for n in g.nodes]
+    report.file_edges = [[a, b] for a, b in g.edges]
     agg: dict[tuple[str, str], int] = {}
     for a, b in g.edges:
         ma, mb = _module_of(_norm(a), mods), _module_of(_norm(b), mods)
