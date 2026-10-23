@@ -63,7 +63,7 @@ def run_git(root: Path, *args: str) -> str | None:
         p = subprocess.run(
             ["git", "-C", str(root), *args],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=20, check=False,
+            timeout=20, check=False, stdin=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
         return p.stdout if p.returncode == 0 else None

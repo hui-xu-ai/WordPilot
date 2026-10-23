@@ -100,8 +100,10 @@ def api_health(root: Path) -> dict:
 
 def api_impact(root: Path, rev: str = "HEAD") -> dict:
     try:
-        proc = subprocess.run(["git", "-C", str(root), "diff", "--name-only", rev], creationflags=subprocess.CREATE_NO_WINDOW if sys.platform=="win32" else 0,
-                              capture_output=True, text=True, timeout=20, check=False)
+        proc = subprocess.run(["git", "-C", str(root), "diff", "--name-only", rev],
+                              capture_output=True, text=True, timeout=20, check=False,
+                              stdin=subprocess.DEVNULL,
+                              creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
     except (OSError, subprocess.SubprocessError) as exc:
         return {"error": f"git 调用失败：{exc}"}
     if proc.returncode != 0:
@@ -407,6 +409,9 @@ def lifecycle(argv: list[str]) -> int:
 
     lock_path = root / ".dsh" / "panel.lock"
     lock_fd = _acquire_lock(lock_path)
+    if lock_fd is None:
+        print("=== panel：另一个进程正在启动（锁被占用），拒绝启动")
+        return 2
     try:
         return _start_impl(root, args, do_stop)
     finally:
@@ -430,11 +435,12 @@ def _acquire_lock(path: Path) -> int | None:
 
 
 def _release_lock(fd: int | None, path: Path) -> None:
-    if fd is not None:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+    if fd is None:
+        return  # 不是自己拿到的锁，绝不删除
+    try:
+        os.close(fd)
+    except OSError:
+        pass
     path.unlink(missing_ok=True)
 
 

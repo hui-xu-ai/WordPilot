@@ -307,9 +307,11 @@ def _iter_messages(buf) -> Any:
         stripped = line.strip()
         if not stripped:
             continue
-        if b":" in stripped and not stripped.startswith(b"{"):
+        _hd = stripped.lower()
+        if _hd.startswith((b"content-length:", b"content-type:")):
             # 头部块：可能是 Content-Length 或其它头，循环到空行
             length: int | None = None
+            bad = False
             first = stripped
             while True:
                 low = first.lower()
@@ -318,13 +320,13 @@ def _iter_messages(buf) -> Any:
                         length = int(first.split(b":", 1)[1].strip())
                     except ValueError:
                         yield None, "invalid Content-Length"
-                        length = -1
+                        bad = True
                         break
                 nxt = buf.readline()
                 if not nxt or not nxt.strip():
                     break
                 first = nxt.strip()
-            if length == -1:
+            if bad:
                 continue
             if length is None:
                 yield None, "missing Content-Length"

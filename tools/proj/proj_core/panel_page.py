@@ -235,10 +235,10 @@ function wrapLabel(txt,max,maxLines){
 function labelBoxes(P,r,lines,lh){
   const ws=lines.map(l=>ctx.measureText(l).width), wm=Math.max(...ws), h=lines.length*lh+2;
   return [
-    {x:P.x-wm/2, y:P.y-r-3-h, w:wm, h:h},
-    {x:P.x+r+3, y:P.y-h/2, w:wm, h:h},
-    {x:P.x-wm/2, y:P.y+r+3, w:wm, h:h},
-    {x:P.x-r-3-wm, y:P.y-h/2, w:wm, h:h},
+    {x:P.x-wm/2, y:P.y-r-1.5-h, w:wm, h:h},
+    {x:P.x+r+1.5, y:P.y-h/2, w:wm, h:h},
+    {x:P.x-wm/2, y:P.y+r+1.5, w:wm, h:h},
+    {x:P.x-r-1.5-wm, y:P.y-h/2, w:wm, h:h},
   ];
 }
 function labelFree(b,self){
@@ -251,7 +251,7 @@ function labelFree(b,self){
 function drawLabel(f,P,r,on){
   const raw=labelBy==='desc'&&f.desc?f.desc:base(f.path);
   const lines=wrapLabel(raw,labelBy==='desc'?16:15,labelBy==='desc'?3:2);
-  const fs=10/view.k, lh=fs*1.25;
+  const fs=12/view.k, lh=fs*1.25;
   ctx.font=fs+'px system-ui';
   const boxes=labelBoxes(P,r,lines,lh);
   const free=boxes.find(b=>labelFree(b,f.path));
