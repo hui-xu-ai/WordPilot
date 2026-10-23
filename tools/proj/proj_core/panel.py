@@ -396,6 +396,41 @@ def lifecycle(argv: list[str]) -> int:
     if args.action == "restart":
         do_stop()
 
+    lock_path = root / ".dsh" / "panel.lock"
+    lock_fd = _acquire_lock(lock_path)
+    try:
+        return _start_impl(root, args, do_stop)
+    finally:
+        _release_lock(lock_fd, lock_path)
+
+
+def _acquire_lock(path: Path) -> int | None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    for _ in range(40):
+        try:
+            return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                if time.time() - path.stat().st_mtime > 30:
+                    path.unlink(missing_ok=True)
+                    continue
+            except OSError:
+                pass
+            time.sleep(0.15)
+    return None
+
+
+def _release_lock(fd: int | None, path: Path) -> None:
+    if fd is not None:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    path.unlink(missing_ok=True)
+
+
+def _start_impl(root: Path, args, stop_fn) -> int:
+    url = f"http://127.0.0.1:{args.port}/"
     # start
     h = _health(args.port)
     if h:
@@ -411,7 +446,7 @@ def lifecycle(argv: list[str]) -> int:
             print(f"=== panel 版本陈旧：进程 v{h.get('panel_version')} / 代码 v{PANEL_VERSION}")
             print("  加 --force 自动重启，或先 proj panel stop")
             return 1
-        do_stop()
+        stop_fn()
     if _port_in_use(args.port):
         print(f"=== panel：端口 {args.port} 已被其他进程占用（不是本面板的 /api/health）")
         print(f"  查看占用：netstat -ano | findstr :{args.port}")
@@ -430,7 +465,8 @@ def lifecycle(argv: list[str]) -> int:
     if sys.platform == "win32":
         flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
     subprocess.Popen(cmd, cwd=str(root), env=env, creationflags=flags,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL,
                      start_new_session=sys.platform != "win32")
     for _ in range(60):
         if _health(args.port):

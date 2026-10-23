@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -112,7 +113,10 @@ def build_index(root: Path, adr_dir: str = "docs/adr", out: str | None = None, w
         display = str(out_path)
     if adrs and write:
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(render_index(adrs), encoding="utf-8")
+        # 原子替换：目标若是硬链接/别名，写临时文件再 replace，不修改共享 inode
+        tmp = out_path.with_name(out_path.name + f".tmp-{os.urandom(4).hex()}")
+        tmp.write_text(render_index(adrs), encoding="utf-8")
+        os.replace(tmp, out_path)
     return {
         "adr_dir": adr_dir,
         "index": display,

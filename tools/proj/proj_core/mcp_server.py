@@ -26,6 +26,7 @@ from . import adr, context, graph, packs, pushcheck, scanner, wiki
 SERVER_INFO = {"name": "pydev-proj", "version": "0.4.0"}
 PROTOCOL_VERSION = "2024-11-05"
 MAX_TEXT = 40_000
+MAX_FRAME = 4 * 1024 * 1024
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -58,7 +59,7 @@ TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "root": {"type": "string"},
-                "query": {"type": "string"},
+                "query": {"type": "string", "minLength": 1},
                 "limit": {"type": "integer"},
             },
             "required": ["query"],
@@ -143,6 +144,7 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 _TOOL_NAMES = {t["name"] for t in TOOLS}
+_LIFECYCLE_LOCK = threading.Lock()
 _ENUMS = {"proj_push_check": {"mode": {"staged", "last", "range", "push"}}}
 
 
@@ -157,15 +159,19 @@ def _panel_cmd(action: str, args: dict[str, Any]) -> dict:
     if args.get("open"):
         cmd.append("--open")
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", timeout=90, check=False)
+                          errors="replace", timeout=90, check=False,
+                          stdin=subprocess.DEVNULL)
     out = ((proc.stdout or "") + (proc.stderr or "")).strip()
     return {"ok": proc.returncode == 0, "action": action, "port": port,
             "output": out[-4000:], "url": f"http://127.0.0.1:{port}/"}
 
 
 def call_tool(name: str, args: dict[str, Any]) -> Any:
-    if name in {"panel_start", "panel_stop", "panel_status"}:
-        return _panel_cmd(name.split("_", 1)[1], args)
+    if name in {"panel_start", "panel_stop"}:
+        with _LIFECYCLE_LOCK:
+            return _panel_cmd(name.split("_", 1)[1], args)
+    if name == "panel_status":
+        return _panel_cmd("status", args)
     root = _root(args)
     if name == "proj_scan":
         return scanner.scan(root).to_dict()
@@ -260,7 +266,12 @@ def handle(msg: Any) -> dict | None:
         name = params.get("name")
         if not isinstance(name, str) or name not in _TOOL_NAMES:
             return _err(mid, -32602, f"未知工具：{name}")
-        args = params.get("arguments") or {}
+        if "arguments" not in params:
+            args: Any = {}
+        else:
+            args = params.get("arguments")
+            if not isinstance(args, dict):
+                return _err(mid, -32602, "arguments 必须是对象")
         verr = validate_args(name, args)
         if verr:
             return _err(mid, -32602, verr)
@@ -283,17 +294,31 @@ def _iter_messages(buf) -> Any:
         stripped = line.strip()
         if not stripped:
             continue
-        if stripped.lower().startswith(b"content-length:"):
-            # 已读掉第一行头，重新构造读取（把首行长度解析进来）
-            try:
-                length = int(stripped.split(b":", 1)[1].strip())
-            except ValueError:
-                yield None, "invalid Content-Length"
-                continue
+        if b":" in stripped and not stripped.startswith(b"{"):
+            # 头部块：可能是 Content-Length 或其它头，循环到空行
+            length: int | None = None
+            first = stripped
             while True:
-                extra = buf.readline()
-                if not extra or not extra.strip():
+                low = first.lower()
+                if low.startswith(b"content-length:"):
+                    try:
+                        length = int(first.split(b":", 1)[1].strip())
+                    except ValueError:
+                        yield None, "invalid Content-Length"
+                        length = -1
+                        break
+                nxt = buf.readline()
+                if not nxt or not nxt.strip():
                     break
+                first = nxt.strip()
+            if length == -1:
+                continue
+            if length is None:
+                yield None, "missing Content-Length"
+                continue
+            if length < 1 or length > MAX_FRAME:
+                yield None, f"invalid Content-Length: {length}"
+                continue
             body = buf.read(length)
             yield (body, None) if len(body) == length else (None, "short body")
             continue
