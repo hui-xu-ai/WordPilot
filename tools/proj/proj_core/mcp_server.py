@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from . import adr, context, graph, packs, pushcheck, scanner, wiki
+from . import imports as imp
 
 SERVER_INFO = {"name": "pydev-proj", "version": "0.4.0"}
 PROTOCOL_VERSION = "2024-11-05"
@@ -133,6 +134,15 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "proj_unused_imports",
+        "description": "列出 Python 文件中导入了但未使用的名字（AST 分析，跳过 noqa/__future__/import *）。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"root": {"type": "string"}},
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "proj_pack_list",
         "description": "列出可用领域包与技能。",
         "inputSchema": {
@@ -190,6 +200,8 @@ def call_tool(name: str, args: dict[str, Any]) -> Any:
         if args.get("focus"):
             data["focus"] = graph.focus(g, args["focus"], int(args.get("depth", 1)))
         return data
+    if name == "proj_unused_imports":
+        return imp.find_unused(root).to_dict()
     if name == "proj_adr_index":
         return adr.build_index(root, args.get("dir", "docs/adr"))
     if name == "proj_pack_list":

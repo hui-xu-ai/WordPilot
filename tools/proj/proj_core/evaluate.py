@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from .graph import build_graph
+from .imports import find_unused
 from .packs import DEFAULT_PACKS_DIR, list_packs
 from .scanner import scan
 from .taskcheck import check_tasks
@@ -101,6 +102,13 @@ def run_eval(root: Path, preset_dir: Path | None = None) -> EvalReport:
     tests_dir = root / "tests"
     test_files = list(tests_dir.glob("test_*.py")) if tests_dir.is_dir() else []
     add("测试", "PASS" if test_files else "WARN", f"{len(test_files)} 个测试文件" if test_files else "无 tests/test_*.py")
+
+    imports_report = find_unused(root)
+    if imports_report.unused:
+        add("未使用 import", "WARN",
+            f"{len(imports_report.unused)} 处（{imports_report.files_with_unused} 个文件）")
+    else:
+        add("未使用 import", "PASS", "未发现")
 
     task_report = check_tasks(root)
     if task_report.tasks:

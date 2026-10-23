@@ -54,10 +54,10 @@ python tools\proj\mcp_server.py [--list-tools]
 | `impact` | 给定文件或符号的引用面（grep 级，按文件计数 + 样例行） | 仅 `--json` |
 | `graph` | 模块依赖图（Python `ast` + JS/TS 正则）：入度 Top、**循环检测**、`--focus` 上下游、未解析引用 | 仅 `--json` |
 | `adr index` | ADR 索引与校验：编号唯一连续 + 状态/日期/背景/决策/后果/备选齐全，产出 `docs/adr/INDEX.md` | 写 `INDEX.md` |
-| `eval` | 一键收口自检：布局/隐私/体积/垃圾/忽略/依赖循环/Wiki 新鲜/测试/技能预算/领域包 | 仅 `--json` |
+| `imports` | AST 找未使用 import（跳过 `__future__`/`noqa`/`import *`），`--strict` 有发现即 exit 1 | 只读 |\n| `eval` | 一键收口自检：布局/隐私/体积/垃圾/忽略/依赖循环/Wiki 新鲜/测试/技能预算/领域包 | 仅 `--json` |
 | `panel` | 本地只读架构面板（`http://127.0.0.1:8787/`）：**模块级架构图**（声明模型 vs 实际依赖、违规红虚线）＋ **约束提示词生成**（允许改/不得改/必须回归） | 只读 |
 | `arch init` / `arch check` | 模块级架构监管：`init` 生成 `.dsh/architecture.toml`（模块/路径/允许依赖），`check` 对比实际 import 报**违规**（exit 1） | `init` 写模型；`check` 只读 |
-| `mcp_server.py` | 官方 `dsh-mcp-client`（stdio）暴露 10 个工具：`proj_scan`/`proj_push_check`/`proj_wiki_search`/`proj_context`/`proj_graph`/`proj_adr_index`/`proj_pack_list` + `panel_start`/`panel_stop`/`panel_status`（生命周期） | 只读（push_check 只读检查） |
+| `mcp_server.py` | 官方 `dsh-mcp-client`（stdio）暴露 11 个工具：`proj_scan`/`proj_push_check`/`proj_wiki_search`/`proj_context`/`proj_graph`/`proj_adr_index`/`proj_pack_list` + `panel_start`/`panel_stop`/`panel_status`（生命周期）+ `proj_unused_imports`（未使用 import） | 只读（push_check 只读检查） |
 
 ## 约定
 

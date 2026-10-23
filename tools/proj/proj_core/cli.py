@@ -31,6 +31,7 @@ from .dups import find_duplicate_symbols, find_duplicates, impact, print_duplica
 from .evaluate import print_eval, run_eval
 from .evaluate import write_json as write_eval_json
 from .graph import build_graph, focus, print_focus, print_graph
+from .imports import find_unused, print_imports
 from .packs import DEFAULT_PACKS_DIR, get_pack, install_pack, list_packs, print_pack, print_packs, uninstall_pack
 from .panel import serve as panel_serve
 from .profile import detect, print_profile, write_profile
@@ -220,6 +221,14 @@ def cmd_task(args) -> int:
     return 0 if not report.problems else 1
 
 
+def cmd_imports(args) -> int:
+    report = find_unused(Path(args.root))
+    print_imports(report)
+    if args.json_out:
+        write_eval_json(args.json_out, report.to_dict())
+    return 1 if (args.strict and report.unused) else 0
+
+
 def cmd_arch(args) -> int:
     if args.arch_cmd == "init":
         print_init(init_model(Path(args.root), force=args.force))
@@ -385,6 +394,11 @@ def main(argv: list[str] | None = None) -> int:
     p_arch_check = arch_sub.add_parser("check")
     p_arch_check.add_argument("root", nargs="?", default=".")
     p_arch_check.add_argument("--json", dest="json_out")
+    p_imports = sub.add_parser("imports")
+    p_imports.add_argument("root", nargs="?", default=".")
+    p_imports.add_argument("--json", dest="json_out")
+    p_imports.add_argument("--strict", action="store_true")
+
     p_arch_ctx = arch_sub.add_parser("context")
     p_arch_ctx.add_argument("root", nargs="?", default=".")
     p_arch_map = arch_sub.add_parser("map")
@@ -431,6 +445,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_task(args)
     if args.cmd == "arch":
         return cmd_arch(args)
+    if args.cmd == "imports":
+        return cmd_imports(args)
     ap.print_help()
     return 2
 

@@ -64,6 +64,7 @@ PAGE = r"""<!doctype html>
     <div id="iso" style="margin-top:6px;cursor:pointer;text-decoration:underline"></div><div id="isoList" style="display:none;max-height:150px;overflow:auto;border-top:1px solid #1c2430;margin-top:4px;padding-top:4px"></div>
    </div></section>
   <section><h3>屎山监测（文件行数）</h3><div id="size" style="font-size:12px;line-height:1.7"></div></section>
+  <section><h3>未使用 import</h3><div id="unused" style="font-size:12px;line-height:1.7"></div></section>
   <section><h3>违规（模块对 / 公开入口）</h3><table id="viol"></table></section>
   <section><h3>问题（scan）</h3><table id="issues"></table></section>
  </div>
@@ -264,7 +265,7 @@ cv.addEventListener('pointermove',(ev)=>{ if(drag){ moved=true; view.x=ev.client
     const tip=$('tip');
     if(h && h.kind==='file'){ const f=files.find(x=>x.path===h.id);
       tip.style.display='block'; tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY+12)+'px';
-      tip.textContent=f.path+'\n模块 '+f.module+' · 入度 '+f.indeg+' / 出度 '+f.outdeg+(f.desc?'\n'+f.desc:''); }
+      const un=(window.__unused&&window.__unused[f.path])||[]; tip.textContent=f.path+'\n模块 '+f.module+' · 入度 '+f.indeg+' / 出度 '+f.outdeg+(un.length?'\n未使用 import：'+un.map(x=>x.name).join(', '):'')+(f.desc?'\n'+f.desc:''); }
     else if(h && h.kind==='module'){ const m=mods.find(x=>x.id===h.id);
       tip.style.display='block'; tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY+12)+'px';
       tip.textContent='模块 '+m.id+' · '+m.files+' 文件\n允许依赖 '+(m.allowed.join(', ')||'（无）')+(m.description?'\n'+m.description:''); }
@@ -335,6 +336,11 @@ async function boot(){
   $('size').innerHTML='职责覆盖：<b>'+(A.coverage.with_desc)+'/'+(A.coverage.files)+'</b>（'+A.coverage.pct+'%%）<br>'+
     '&gt;'+W+' 行：<b>'+big.length+'</b> 个 · &gt;'+F+' 行：<b style="color:#f85149">'+huge.length+'</b> 个<br>'+
     big.slice(0,8).map(f=>'<div class="tag" onclick="pickFile(this.dataset.p)" data-p="'+f.path+'">'+f.lines+' 行 · '+base(f.path)+'</div>').join('');
+  const u=await api('/api/imports'); window.__unused={};
+  (u.unused||[]).forEach(x=>{ (window.__unused[x.file]=window.__unused[x.file]||[]).push(x); });
+  const uf=Object.keys(window.__unused).length;
+  $('unused').innerHTML='共 <b>'+u.unused.length+'</b> 处 / '+uf+' 个文件' +
+    (u.unused.length?'<br>'+u.unused.slice(0,8).map(x=>'<div class="tag" onclick="pickFile(this.dataset.p)" data-p="'+x.file+'">'+x.name+' · '+base(x.file)+':'+x.line+'</div>').join(''):'');
   window.__iso=files.filter(f=>f.indeg===0&&f.outdeg===0);
   $('iso').textContent='孤立文件：'+window.__iso.length+'（无任何 import 关系；点此列出）';
   $('iso').onclick=function(){ const el=$('isoList');

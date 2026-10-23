@@ -25,6 +25,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import arch, packs, scanner
+from . import imports as imp
 
 PANEL_VERSION = "1.5"
 _STARTED = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -189,6 +190,12 @@ def api_constraint(root: Path, module: str = "", file: str = "") -> dict:
     return {"module": module, "markdown": md, "markdown_lines": len(md.splitlines())}
 
 
+def api_imports(root: Path) -> dict:
+    data = imp.find_unused(root).to_dict()
+    data["unused"] = data["unused"][:200]
+    return data
+
+
 def api_scan(root: Path) -> dict:
     return scanner.scan(root).to_dict()
 
@@ -220,6 +227,8 @@ def make_handler(root: Path):
                     data = api_constraint(root, (qs.get("module") or [""])[0], (qs.get("file") or [""])[0])
                 elif parsed.path == "/api/health":
                     data = api_health(root)
+                elif parsed.path == "/api/imports":
+                    data = api_imports(root)
                 elif parsed.path == "/api/impact":
                     data = api_impact(root, (qs.get("rev") or ["HEAD"])[0])
                 elif parsed.path == "/api/scan":
