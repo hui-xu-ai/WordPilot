@@ -55,7 +55,7 @@ PAGE = r"""<!doctype html>
  <div id="left">
   <div id="bar">
    <input id="q" placeholder="搜索文件" size="16">
-   <label class="muted"><input type="checkbox" id="cross" checked> 跨模块边</label>
+   <label class="muted"><input type="checkbox" id="cross" checked> 只看跨模块</label>
    <label class="muted"><input type="checkbox" id="violonly"> 只看违规</label>
    <button onclick="zoomBy(0.85)">−</button><span class="muted" id="zoom">100%</span><button onclick="zoomBy(1.18)">+</button>
    <button onclick="fit()">适配</button>
@@ -173,9 +173,16 @@ function draw(){
         const badRect=circles.some(C=>Math.hypot(lx+tw/2-C.x,ly-C.y)<C.r+4) || labelRects.some(R=>lx<R.x+R.w&&lx+tw>R.x&&ly-9<R.y+R.h&&ly+3>R.y);
         if(!badRect){ ctx.fillStyle=hot?'#58a6ff':(bad?'#f85149':'#8b949e'); ctx.fillText(txt,lx,ly); labelRects.push({x:lx,y:ly-9,w:tw,h:12}); break; } } } });
   if(!crossOnly){ edges.forEach(([a,b])=>{ const fa=files.find(f=>f.path===a), fb=files.find(f=>f.path===b); if(!fa||!fb||fa.module!==fb.module) return;
-    if(!visMod(mods.find(m=>m.id===fa.module))||!visMod(mods.find(m=>m.id===fb.module))) return;
+    const mfa=mods.find(m=>m.id===fa.module), mfb=mods.find(m=>m.id===fb.module); if(!mfa||!mfb||!visMod(mfa)||!visMod(mfb)) return;
     const P=nodePos(fa), Q=nodePos(fb); if(!P||!Q) return;
-    ctx.strokeStyle='rgba(110,118,129,0.16)'; ctx.lineWidth=0.6/view.k; ctx.beginPath(); ctx.moveTo(P.x,P.y); ctx.lineTo(Q.x,Q.y); ctx.stroke(); }); }
+    ctx.strokeStyle=color(fa.module)+'66'; ctx.lineWidth=1.1/view.k; ctx.beginPath(); ctx.moveTo(P.x,P.y); ctx.lineTo(Q.x,Q.y); ctx.stroke(); }); }
+  const focusFile = (sel && sel.kind==='file') ? sel.id : hover;
+  if(focusFile){ edges.forEach(([a,b])=>{ if(a!==focusFile && b!==focusFile) return;
+    const fa=files.find(f=>f.path===a), fb=files.find(f=>f.path===b); if(!fa||!fb) return;
+    if(collapsed.has(fa.module)||collapsed.has(fb.module)) return;
+    const P=pos.get(a), Q=pos.get(b); if(!P||!Q) return;
+    ctx.strokeStyle='#f0b72f'; ctx.lineWidth=1.8/view.k;
+    ctx.beginPath(); ctx.moveTo(P.x,P.y); ctx.lineTo(Q.x,Q.y); ctx.stroke(); }); }
   // 折叠模块：整块显示
   mods.forEach(m=>{ if(!visMod(m)||!collapsed.has(m.id)) return; const c=centers.get(m.id), r=collapseR(m);
     ctx.beginPath(); ctx.arc(c.x,c.y,r,0,Math.PI*2); ctx.fillStyle=color(m.id)+'66'; ctx.fill(); ctx.strokeStyle=color(m.id); ctx.lineWidth=1.5; ctx.stroke();
@@ -287,6 +294,7 @@ async function boot(){
   $('stat').textContent=mods.length+' 模块 / '+files.length+' 文件 / '+edges.length+' 边 / '+A.violations.length+' 违规  score '+s.score.total;
   resize(); layout(); chips();
   const qp=new URLSearchParams(location.search);
+  if(qp.get('intra')==='1'){ crossOnly=false; $('cross').checked=false; }
   const only=(qp.get('only')||'').split(',').map(x=>x.trim()).filter(Boolean).filter(x=>mods.some(m=>m.id===x));
   if(only.length){ focusSet=new Set(only); sel={kind:'module',id:only[0]}; show(sel); draw(); }
   const fs=(qp.get('focus')||'').split(',').map(x=>x.trim()).filter(Boolean).filter(x=>mods.some(m=>m.id===x));
