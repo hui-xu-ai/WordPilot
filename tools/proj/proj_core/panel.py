@@ -99,7 +99,7 @@ function moduleOffsets(){
   radii=new Map();
   mods.forEach(m=>{ const c=centers.get(m.id); let r=26;
     files.filter(f=>f.module===m.id).forEach(f=>{ const P=pos.get(f.path); if(P) r=Math.max(r, Math.hypot(P.x-c.x,P.y-c.y)+18); });
-    radii.set(m.id, r); });
+    radii.set(m.id, Math.min(r,170)); });
 }
 
 function separateCenters(){
