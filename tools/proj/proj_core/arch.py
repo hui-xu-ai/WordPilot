@@ -145,26 +145,40 @@ def build_arch(root: Path) -> ArchReport:
             continue
         agg[(ma, mb)] = agg.get((ma, mb), 0) + 1
     allowed = {m.id: set(m.allowed) | ({m.parent} if m.parent else set()) for m in mods}
+    public = {m.id: m.public for m in mods}
     report.modules = [{"id": m.id, "paths": m.paths, "files": counts.get(m.id, 0),
                        "file_list": sorted(files.get(m.id, []))[:200],
-                       "allowed": sorted(allowed[m.id]), "status": m.status,
-                       "description": m.description} for m in mods]
+                       "allowed": sorted(allowed[m.id]), "public": public[m.id],
+                       "status": m.status, "description": m.description} for m in mods]
     for (a, b), n in sorted(agg.items()):
         report.edges.append({"from": a, "to": b, "count": n})
         if declared and b not in allowed[a]:
-            report.violations.append({"from": a, "to": b, "count": n,
+            report.violations.append({"kind": "dependency", "from": a, "to": b, "count": n,
                                       "reason": f"{a} 未声明允许依赖 {b}"})
+    # 公开入口：模块声明了 public 时，跨模块 import 的目标文件必须落在 public 内
+    if declared:
+        for a, b in g.edges:
+            ma, mb = _module_of(_norm(a), mods), _module_of(_norm(b), mods)
+            if not ma or not mb or ma == mb or not public.get(mb):
+                continue
+            target = _norm(b)
+            if not any(target == p or target.startswith(p.rstrip("/") + "/") for p in public[mb]):
+                report.violations.append({"kind": "public", "from": ma, "to": mb, "count": 1,
+                                          "file": target,
+                                          "reason": f"{target} 不在 {mb} 的公开入口内"})
     return report
 
 
 def render_model(mods: list[Module], title: str) -> str:
-    lines = ["# 由 proj arch init 生成；请人工收紧 allowed（只留真正允许的依赖）", "",
+    lines = ["# 由 proj arch init 生成；请人工收紧 allowed（只留真正允许的依赖）",
+             "# public 为空 = 不限制跨模块 import；填了则只允许 import 这些路径", "",
              "[project]", f'title = "{title}"', 'python_roots = ["src"]', ""]
     for m in mods:
         lines.append("[[modules]]")
         lines.append(f'id = "{m.id}"')
         lines.append("paths = [" + ", ".join(f'"{p}"' for p in m.paths) + "]")
         lines.append("allowed = [" + ", ".join(f'"{a}"' for a in m.allowed) + "]")
+        lines.append("public = [" + ", ".join(f'"{p}"' for p in m.public) + "]")
         lines.append(f'status = "{m.status}"')
         lines.append("")
     return "\n".join(lines)
@@ -202,7 +216,10 @@ def print_arch(report: ArchReport) -> None:
     if report.violations:
         print(f"  [FAIL] 违规 {len(report.violations)} 条：")
         for v in report.violations:
-            print(f"    {v['from']} -> {v['to']}  x{v['count']}")
+            if v.get("kind") == "public":
+                print(f"    [public] {v['from']} -> {v.get('file', v['to'])}（{v['reason']}）")
+            else:
+                print(f"    [dep]    {v['from']} -> {v['to']}  x{v['count']}")
     if report.problems:
         for p in report.problems:
             print(f"  [WARN] {p}")

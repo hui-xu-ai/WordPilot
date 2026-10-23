@@ -1,4 +1,5 @@
 # 由 proj arch init 生成；请人工收紧 allowed（只留真正允许的依赖）
+# public 为空 = 不限制跨模块 import；填了则只允许 import 这些路径
 
 [project]
 title = "SmartProof"
@@ -8,22 +9,26 @@ python_roots = ["src"]
 id = "app"
 paths = ["src/app"]
 allowed = ["core", "infra"]
+public = []
 status = "implemented"
 
 [[modules]]
 id = "core"
 paths = ["src/core"]
 allowed = ["infra"]
+public = []
 status = "implemented"
 
 [[modules]]
 id = "infra"
 paths = ["src/infra"]
 allowed = []
+public = []
 status = "implemented"
 
 [[modules]]
 id = "plugins"
 paths = ["src/plugins"]
 allowed = ["core", "infra"]
+public = []
 status = "implemented"

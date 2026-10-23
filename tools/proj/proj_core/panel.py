@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -55,7 +56,7 @@ PAGE = r"""<!doctype html>
  </div>
  <div id="right">
   <section><h3>选中</h3><div id="sel">（点节点或模块圆）</div>
-   <p><button onclick="gen()">生成约束提示词</button> <button onclick="copyC()">复制</button></p></section>
+   <p><button onclick="gen()">生成约束提示词</button> <button onclick="copyC()">复制</button> <button onclick="writeScope()">写入 scope.md</button></p><div class="muted" id="wrote"></div></section>
   <section><h3>约束提示词</h3><pre id="constraint">（选文件或模块后生成）</pre></section>
   <section><h3>违规（模块对）</h3><table id="viol"></table></section>
   <section><h3>问题（scan）</h3><table id="issues"></table></section>
@@ -94,7 +95,9 @@ function layout(){
   fit();
 }
 
-function moduleRadius(mid){ const c=centers.get(mid); if(!c) return 24; let r=24; files.filter(f=>f.module===mid).forEach(f=>{ const P=pos.get(f.path); if(P) r=Math.max(r, Math.hypot(P.x-c.x,P.y-c.y)+16); }); return Math.min(r,150); }
+function moduleRadius(mid){ const c=centers.get(mid); if(!c) return 24; let r=24; files.filter(f=>f.module===mid).forEach(f=>{ const P=pos.get(f.path); if(P) r=Math.max(r, Math.hypot(P.x-c.x,P.y-c.y)+16); });
+  let cap=1e9; mods.forEach(o=>{ if(o.id===mid) return; const c2=centers.get(o.id); if(c2) cap=Math.min(cap, Math.hypot(c.x-c2.x,c.y-c2.y)*0.46); });
+  return Math.max(22, Math.min(r,150,cap)); }
 
 function draw(){
   if(!ctx) return; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); ctx.fillStyle='#0b0e14'; ctx.fillRect(0,0,W,H);
@@ -114,7 +117,7 @@ function draw(){
     const bad=isViol(ma,mb); if(violOnly && !bad) return; const c1=centers.get(ma), c2=centers.get(mb);
     ctx.strokeStyle=bad?'#f85149':color(ma)+'66'; ctx.lineWidth=Math.max(1,(1+Math.log2(1+n))*0.9); ctx.setLineDash(bad?[5,4]:[]);
     const mx=(c1.x+c2.x)/2, my=(c1.y+c2.y)/2-40; ctx.beginPath(); ctx.moveTo(c1.x,c1.y); ctx.quadraticCurveTo(mx,my,c2.x,c2.y); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle=bad?'#f85149':'#8b949e'; ctx.font='10px system-ui'; ctx.fillText('x'+n, mx, my-3); });
+    let ly=my-3, ok=false; for(const dy of [0,-14,14,-28,28]){ ly=my-3+dy; ok=!files.some(f=>{ const P=pos.get(f.path); return P && Math.hypot(P.x-mx,P.y-ly)<15; }); if(ok) break; } if(ok){ ctx.fillStyle=bad?'#f85149':'#8b949e'; ctx.font='10px system-ui'; ctx.fillText('x'+n, mx, ly); } });
   if(!crossOnly){ edges.forEach(([a,b])=>{ const fa=files.find(f=>f.path===a), fb=files.find(f=>f.path===b); if(!fa||!fb||!fa.module||!fb.module||fa.module!==fb.module) return;
     if(!vis(fa)||!vis(fb)) return; const P=pos.get(a), Q=pos.get(b); if(!P||!Q) return;
     ctx.strokeStyle='rgba(110,118,129,0.18)'; ctx.lineWidth=0.6/view.k; ctx.beginPath(); ctx.moveTo(P.x,P.y); ctx.lineTo(Q.x,Q.y); ctx.stroke(); }); }
@@ -155,6 +158,7 @@ function show(h){
 async function gen(){ if(!sel) return; const q=sel.kind==='module'?('module='+encodeURIComponent(sel.id)):('file='+encodeURIComponent(sel.id));
   const c=await api('/api/constraint?'+q); $('constraint').textContent=c.markdown||c.error||''; }
 function copyC(){ const t=$('constraint').textContent; if(navigator.clipboard) navigator.clipboard.writeText(t); }
+function writeScope(){ if(!sel) return; fetch('/api/scope',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:sel.kind,id:sel.id})}).then(r=>r.json()).then(d=>{ $('wrote').textContent=d.path?('已写入 '+d.path):('失败：'+(d.error||'')); }); }
 function fit(){ if(!files.length || !centers.size) return; let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
   files.forEach(f=>{ const P=pos.get(f.path); if(!P) return; x0=Math.min(x0,P.x); y0=Math.min(y0,P.y); x1=Math.max(x1,P.x); y1=Math.max(y1,P.y); });
   mods.forEach(m=>{ const c=centers.get(m.id), r=moduleRadius(m.id); x0=Math.min(x0,c.x-r); y0=Math.min(y0,c.y-r); x1=Math.max(x1,c.x+r); y1=Math.max(y1,c.y+r); });
@@ -303,6 +307,34 @@ def make_handler(root: Path):
             except Exception as exc:  # noqa: BLE001
                 self._send(json.dumps({"error": str(exc)}, ensure_ascii=False).encode("utf-8"))
                 return
+            self._send(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+
+        def do_POST(self) -> None:
+            parsed = urlparse(self.path)
+            if parsed.path != "/api/scope":
+                self.send_error(404, "not found")
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                payload = json.loads(self.rfile.read(length) or b"{}")
+                kind = payload.get("kind", "")
+                ident = payload.get("id", "")
+                task = re.sub(r"[^A-Za-z0-9_.-]", "", str(payload.get("task") or "current")) or "current"
+                if kind == "module":
+                    md = api_constraint(root, module=ident).get("markdown", "")
+                elif kind == "file":
+                    md = api_constraint(root, file=ident).get("markdown", "")
+                else:
+                    raise ValueError("kind 必须是 module 或 file")
+                if not md:
+                    raise ValueError("未生成约束文本")
+                path = root / "work" / "tasks" / task / "scope.md"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(md, encoding="utf-8")
+                data = {"path": str(path.relative_to(root)).replace("\\", "/"),
+                        "bytes": len(md.encode("utf-8"))}
+            except Exception as exc:  # noqa: BLE001
+                data = {"error": str(exc)}
             self._send(json.dumps(data, ensure_ascii=False).encode("utf-8"))
 
         def log_message(self, fmt: str, *args) -> None:
