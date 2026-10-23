@@ -32,6 +32,8 @@
 .venv\Scripts\python.exe -m pytest -q                   # 离线单测（tests/，无需桌面）
 .venv\Scripts\python.exe tools\smoke_p8.py              # GUI 冒烟（需桌面）
 .venv\Scripts\python.exe -m PyInstaller --noconfirm SmartProof.spec   # 打包
+python tools\proj\proj.py arch check .                  # 模块架构违规（模型 .dsh/architecture.toml）
+python tools\proj\proj.py panel . --port 8787           # 架构面板（浏览器开 127.0.0.1:8787）
 ```
 
 ## 预设维护

@@ -1,0 +1,29 @@
+# 由 proj arch init 生成；请人工收紧 allowed（只留真正允许的依赖）
+
+[project]
+title = "SmartProof"
+python_roots = ["src"]
+
+[[modules]]
+id = "app"
+paths = ["src/app"]
+allowed = ["core", "infra"]
+status = "implemented"
+
+[[modules]]
+id = "core"
+paths = ["src/core"]
+allowed = ["infra"]
+status = "implemented"
+
+[[modules]]
+id = "infra"
+paths = ["src/infra"]
+allowed = []
+status = "implemented"
+
+[[modules]]
+id = "plugins"
+paths = ["src/plugins"]
+allowed = ["core", "infra"]
+status = "implemented"

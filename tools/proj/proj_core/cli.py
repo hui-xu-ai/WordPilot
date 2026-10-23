@@ -24,6 +24,7 @@ from . import __version__
 from .acceptance import check_report, init_report, print_accept
 from .adr import build_index as build_adr_index
 from .adr import print_adr
+from .arch import build_arch, init_model, print_arch, print_init
 from .common import IGNORE_EXPECT
 from .context import build_context, print_context
 from .dups import find_duplicate_symbols, find_duplicates, impact, print_duplicates, print_impact, print_symbols
@@ -219,6 +220,17 @@ def cmd_task(args) -> int:
     return 0 if not report.problems else 1
 
 
+def cmd_arch(args) -> int:
+    if args.arch_cmd == "init":
+        print_init(init_model(Path(args.root), force=args.force))
+        return 0
+    report = build_arch(Path(args.root))
+    print_arch(report)
+    if args.json_out:
+        write_eval_json(args.json_out, report.to_dict())
+    return 1 if report.violations else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -344,6 +356,15 @@ def main(argv: list[str] | None = None) -> int:
     p_task_check.add_argument("root", nargs="?", default=".")
     p_task_check.add_argument("--json", dest="json_out")
 
+    p_arch = sub.add_parser("arch")
+    arch_sub = p_arch.add_subparsers(dest="arch_cmd", required=True)
+    p_arch_init = arch_sub.add_parser("init")
+    p_arch_init.add_argument("root", nargs="?", default=".")
+    p_arch_init.add_argument("--force", action="store_true")
+    p_arch_check = arch_sub.add_parser("check")
+    p_arch_check.add_argument("root", nargs="?", default=".")
+    p_arch_check.add_argument("--json", dest="json_out")
+
     args = ap.parse_args(argv)
     if args.cmd == "pack":
         return cmd_pack(args)
@@ -382,6 +403,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_accept(args)
     if args.cmd == "task":
         return cmd_task(args)
+    if args.cmd == "arch":
+        return cmd_arch(args)
     ap.print_help()
     return 2
 

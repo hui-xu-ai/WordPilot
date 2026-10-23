@@ -1,8 +1,10 @@
-"""proj panel —— 本地只读可视化面板（stdlib http.server，读 scan/graph/packs/wiki）。
+"""proj panel —— 本地只读架构面板（模块级监管，stdlib http.server）。
 
-设计口径：面板只读、只绑 127.0.0.1、与 DSH 版本解耦（浏览器直接开，不经宿主）。
-除概览外提供**架构图 + 约束提示词生成**：点节点 → 生成「允许改 / 不得改 / 必须回归」的任务约束，
-方便用户把 AI 的改动面框住（复制后贴进任务或写进 work/tasks/<id>/scope.md）。
+设计参考：Codex project-architecture 的 model.toml + 违规检查（只借原则）。
+- `/api/arch`：模块、实际依赖、违规（声明模型来自 `.dsh/architecture.toml`）；
+- `/api/constraint?module=<id>`：生成「允许改 / 不得改 / 必须回归」约束提示词；
+- `/api/scan` `/api/packs`：概览。
+只绑 127.0.0.1、只读、无第三方依赖。
 用法：python tools/proj/panel.py [root] [--port 8787] [--host 127.0.0.1]
 """
 from __future__ import annotations
@@ -13,170 +15,168 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import graph, packs, scanner, wiki
+from . import arch, packs, scanner
 
-PAGE = """<!doctype html>
+PAGE = r"""<!doctype html>
 <html lang="zh"><head><meta charset="utf-8"><title>pydev 架构面板</title>
 <style>
- body{font:14px/1.6 system-ui,Segoe UI,sans-serif;margin:0;background:#0f1115;color:#e6e6e6}
- header{padding:12px 20px;background:#171a21;border-bottom:1px solid #262b36;display:flex;gap:14px;align-items:center}
- header b{font-size:16px} .score{margin-left:auto;color:#7ee787}
- main{padding:16px 20px;display:grid;grid-template-columns:1fr 380px;gap:18px}
- section{margin-bottom:22px} h2{font-size:14px;color:#9aa4b2;border-bottom:1px solid #262b36;padding-bottom:6px;margin:0 0 10px}
- table{border-collapse:collapse;width:100%} td,th{padding:4px 8px;border-bottom:1px solid #1d2129;text-align:left;font-size:13px}
- .fail{color:#ff7b72}.warn{color:#d29922}.ok{color:#7ee787}
- input,button,textarea{background:#171a21;color:#e6e6e6;border:1px solid #30363d;border-radius:6px;padding:6px 10px;font:inherit}
+ *{box-sizing:border-box} body{font:14px/1.55 system-ui,Segoe UI,sans-serif;margin:0;background:#0d1117;color:#e6edf3;height:100vh;overflow:hidden}
+ header{padding:10px 16px;background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:14px;align-items:center}
+ header b{font-size:15px} .muted{color:#8b949e;font-size:12px} .score{margin-left:auto;color:#3fb950;font-size:12px}
+ main{display:grid;grid-template-columns:minmax(0,1fr) 420px;height:calc(100vh - 47px)}
+ #left{display:flex;flex-direction:column;min-width:0}
+ #bar{display:flex;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid #21262d;flex-wrap:wrap}
+ #wrap{position:relative;flex:1;min-height:0;background:#0b0e14}
+ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+ canvas.drag{cursor:grabbing}
+ #right{border-left:1px solid #30363d;background:#0f141b;overflow:auto;min-width:0;padding:12px 14px}
+ #right section{margin-bottom:18px;min-width:0}
+ #right h3{font-size:13px;color:#8b949e;margin:0 0 8px;border-bottom:1px solid #21262d;padding-bottom:4px}
+ #sel{font-size:12px;line-height:1.6;word-break:break-all}
+ #files{font-size:12px;max-height:220px;overflow:auto;margin:0;padding-left:18px;word-break:break-all}
+ #constraint{background:#0b0e14;border:1px solid #21262d;border-radius:6px;padding:10px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow:auto;margin:0}
+ input,button{background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:5px 9px;font:inherit;font-size:12px}
  button{cursor:pointer} button:hover{border-color:#58a6ff}
- pre{background:#12151b;padding:10px;border-radius:6px;overflow:auto;max-height:300px;font-size:12px;white-space:pre-wrap}
- #cv{background:#0b0d11;border:1px solid #262b36;border-radius:8px;width:100%;height:520px;display:block}
- #hint{color:#8b949e;font-size:12px}
- .chip{display:inline-block;background:#1f6feb33;border:1px solid #1f6feb;border-radius:10px;padding:1px 8px;margin:2px;font-size:12px;cursor:pointer}
- .chip.deny{background:#f8514933;border-color:#f85149}
+ table{border-collapse:collapse;width:100%;font-size:12px} td,th{padding:3px 6px;border-bottom:1px solid #1d2129;text-align:left}
+ .fail{color:#f85149}.warn{color:#d29922}.ok{color:#3fb950}
 </style></head><body>
-<header><b>pydev 架构面板</b><span id="root"></span><span class="score" id="score"></span></header>
+<header><b>pydev 架构面板</b><span class="muted" id="root"></span><span class="muted" id="model"></span><span class="score" id="score"></span></header>
 <main>
- <div>
-  <section><h2>架构图（点击节点 → 生成约束）</h2>
-   <canvas id="cv" width="900" height="520"></canvas>
-   <p id="hint">节点=源文件；连线=import 方向。点节点后右侧生成「允许改 / 不得改 / 必须回归」。</p>
-  </section>
-  <section><h2>问题清单（scan）</h2><table id="issues"></table></section>
-  <section><h2>Wiki 检索</h2><p><input id="q" placeholder="关键词"><button onclick="search()">搜索</button></p><pre id="wiki"></pre></section>
+ <div id="left">
+  <div id="bar"><span class="muted" id="stat"></span><button onclick="fit()">适配</button><span class="muted">滚轮缩放 / 拖空白平移 / 点模块看详情</span></div>
+  <div id="wrap"><canvas id="cv"></canvas></div>
  </div>
- <div>
-  <section><h2>当前选择</h2><div id="sel">（未选）</div>
-   <p><button onclick="gen()">生成约束提示词</button> <button onclick="copyC()">复制</button></p>
-  </section>
-  <section><h2>约束提示词</h2><pre id="constraint">（点节点后生成）</pre></section>
-  <section><h2>领域包</h2><table id="packs"></table></section>
+ <div id="right">
+  <section><h3>当前模块</h3><div id="sel">（点模块）</div><p><button onclick="gen()">生成约束提示词</button> <button onclick="copyC()">复制</button></p></section>
+  <section><h3>模块内文件</h3><ol id="files"></ol></section>
+  <section><h3>约束提示词</h3><pre id="constraint">（选模块后生成）</pre></section>
+  <section><h3>违规</h3><table id="viol"></table></section>
+  <section><h3>问题清单（scan）</h3><table id="issues"></table></section>
  </div>
 </main>
 <script>
-const api = async (p) => (await fetch(p)).json();
-const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
-let G = null, layout = {}, sel = null;
-const W = 900, H = 520, PAD = 40, NODE_W = 130, NODE_H = 22;
-function rows(el, data, cols){ el.innerHTML = '<tr>' + cols.map(c=>'<th>'+c+'</th>').join('') + '</tr>' +
-  data.map(r=>'<tr>' + cols.map(c=>'<td class="'+(r._level||'')+'">'+(r[c]??'')+'</td>').join('') + '</tr>').join(''); }
-function short(p){ return p.length > 26 ? '…' + p.slice(-25) : p; }
-function computeLayout(){
-  const nodes = G.node_list.map(n=>n.path), idx = new Map(nodes.map((p,i)=>[p,i]));
-  const indeg = new Map(nodes.map(p=>[p,0])); const out = new Map(nodes.map(p=>[p,[]]));
-  G.edge_list.forEach(([a,b])=>{ if(!idx.has(a)||!idx.has(b)) return; indeg.set(b, (indeg.get(b)||0)+1); out.get(a).push(b); });
-  const depth = new Map(nodes.map(p=>[p,0]));
-  // 最长路径分层（迭代 N 轮，天然容忍环）
-  for (let k=0;k<nodes.length;k++){
-    for (const [a,b] of G.edge_list){ if(!idx.has(a)||!idx.has(b)) continue; depth.set(b, Math.max(depth.get(b), depth.get(a)+1)); }
-  }
-  const layers = new Map(); nodes.forEach(p=>{ const d=depth.get(p); (layers.get(d)||layers.set(d,[]).get(d)).push(p); });
-  const maxD = Math.max(0, ...layers.keys()); const colW = (W - PAD*2) / (maxD + 1);
-  layout = {};
-  for (const [d, list] of layers){ const rowH = (H - PAD*2) / Math.max(1, list.length);
-    list.forEach((p,i)=>{ layout[p] = { x: PAD + d*colW + 10, y: PAD + i*rowH + rowH/2 - NODE_H/2 }; }); }
-  return { nodes, idx, indeg };
+const $=(id)=>document.getElementById(id); const api=async(p)=>(await fetch(p)).json();
+let A=null, mods=[], edges=[], sel=null, pos=new Map();
+let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
+const cv=$('cv'), ctx=cv.getContext('2d'); const BW=180, BH=58;
+function resize(){ const r=cv.getBoundingClientRect(); dpr=window.devicePixelRatio||1; W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; draw(); }
+new ResizeObserver(resize).observe($('wrap'));
+function layout(){
+  mods=A.modules; edges=A.edges; pos=new Map();
+  const n=mods.length, cols=Math.max(1,Math.ceil(Math.sqrt(n))), rows=Math.ceil(n/cols);
+  const gx=W?(W-80)/cols:220, gy=H?(H-80)/rows:150;
+  mods.forEach((m,i)=>{ const c=i%cols, r=Math.floor(i/cols); pos.set(m.id,{x:40+c*gx+10, y:40+r*gy+10}); });
+  $('stat').textContent=mods.length+' 模块 / '+edges.length+' 条模块依赖 / '+A.violations.length+' 条违规';
+  fit();
 }
 function draw(){
-  ctx.clearRect(0,0,W,H); if(!G) return;
-  const { nodes, idx, indeg } = computeLayout();
-  ctx.strokeStyle = '#262b36'; ctx.lineWidth = 1;
-  for (const [a,b] of G.edge_list){ const A=layout[a], B=layout[b]; if(!A||!B) continue;
-    ctx.beginPath(); ctx.moveTo(A.x+NODE_W, A.y+NODE_H/2); ctx.bezierCurveTo((A.x+NODE_W+B.x)/2, A.y+NODE_H/2, (A.x+NODE_W+B.x)/2, B.y+NODE_H/2, B.x, B.y+NODE_H/2); ctx.stroke(); }
-  for (const p of nodes){ const L=layout[p]; if(!L) continue; const isSel = p===sel;
-    ctx.fillStyle = isSel ? '#1f6feb' : (indeg.get(p)===0 ? '#238636' : '#21262d');
-    ctx.strokeStyle = isSel ? '#58a6ff' : '#30363d'; roundRect(ctx, L.x, L.y, NODE_W, NODE_H, 5); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#e6e6e6'; ctx.font = '11px system-ui'; ctx.fillText(short(p), L.x+6, L.y+15); }
+  if(!ctx) return; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); ctx.fillStyle='#0b0e14'; ctx.fillRect(0,0,W,H);
+  if(!A) return; ctx.save(); ctx.translate(view.x,view.y); ctx.scale(view.k,view.k);
+  const viol=new Set(A.violations.map(v=>v.from+'>'+v.to));
+  edges.forEach(e=>{ const a=pos.get(e.from), b=pos.get(e.to); if(!a||!b) return;
+    const bad=viol.has(e.from+'>'+e.to); const hot=sel&&(e.from===sel||e.to===sel);
+    ctx.strokeStyle=bad?'#f85149':(hot?'#58a6ff':'rgba(110,118,129,0.5)'); ctx.lineWidth=Math.max(1,2/view.k);
+    ctx.setLineDash(bad?[6,4]:[]); ctx.beginPath();
+    const x1=a.x+BW/2, y1=a.y+BH/2, x2=b.x+BW/2, y2=b.y+BH/2;
+    ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
+    if(view.k>0.5){ ctx.fillStyle=bad?'#f85149':'#8b949e'; ctx.font='11px system-ui';
+      ctx.fillText('x'+e.count, (x1+x2)/2+4, (y1+y2)/2-4); } });
+  mods.forEach(m=>{ const P=pos.get(m.id); if(!P) return; const on=m.id===sel;
+    ctx.fillStyle=on?'#1f6feb':(m.status==='implemented'?'#21262d':'#2d2a1a');
+    ctx.strokeStyle=on?'#58a6ff':(m.status==='implemented'?'#30363d':'#d29922');
+    roundRect(ctx,P.x,P.y,BW,BH,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#e6edf3'; ctx.font='13px system-ui'; ctx.fillText(m.id, P.x+10, P.y+22);
+    ctx.fillStyle='#8b949e'; ctx.font='11px system-ui'; ctx.fillText(m.files+' files', P.x+10, P.y+40); });
+  ctx.restore();
 }
 function roundRect(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
-cv.addEventListener('click', async (e)=>{
-  const r = cv.getBoundingClientRect(), sx = cv.width / r.width, sy = cv.height / r.height;
-  const x = (e.clientX - r.left) * sx, y = (e.clientY - r.top) * sy;
-  for (const [p,L] of Object.entries(layout)){ if (x>=L.x && x<=L.x+NODE_W && y>=L.y && y<=L.y+NODE_H){ sel = p; break; } }
-  if (!sel) return; draw();
-  const m = await api('/api/module?path=' + encodeURIComponent(sel));
-  document.getElementById('sel').innerHTML = '<b>'+sel+'</b><br>下游(它依赖)：'+(m.out||[]).join(', ')+'<br>上游(依赖它)：'+(m.inn||[]).join(', ');
-});
-async function gen(){
-  if(!sel){ return; }
-  const c = await api('/api/constraint?focus=' + encodeURIComponent(sel));
-  document.getElementById('constraint').textContent = c.markdown || c.error || '';
-}
-function copyC(){ const t=document.getElementById('constraint').textContent; navigator.clipboard && navigator.clipboard.writeText(t); }
+function toWorld(ev){ const r=cv.getBoundingClientRect(); return {x:(ev.clientX-r.left-view.x)/view.k, y:(ev.clientY-r.top-view.y)/view.k}; }
+function hit(w){ for(const m of mods){ const P=pos.get(m.id); if(P&&w.x>=P.x&&w.x<=P.x+BW&&w.y>=P.y&&w.y<=P.y+BH) return m.id; } return null; }
+cv.addEventListener('wheel',(ev)=>{ ev.preventDefault(); const r=cv.getBoundingClientRect(); const mx=ev.clientX-r.left,my=ev.clientY-r.top;
+  const k2=Math.min(4,Math.max(0.15,view.k*(ev.deltaY<0?1.12:0.89))), f=k2/view.k; view.x=mx-(mx-view.x)*f; view.y=my-(my-view.y)*f; view.k=k2; draw(); },{passive:false});
+cv.addEventListener('pointerdown',(ev)=>{ const w=toWorld(ev), p=hit(w); moved=false; cv.setPointerCapture(ev.pointerId);
+  drag=p?{kind:'node',id:p,ox:w.x,oy:w.y}:{kind:'pan',sx:ev.clientX-view.x,sy:ev.clientY-view.y}; cv.classList.add('drag'); });
+cv.addEventListener('pointermove',(ev)=>{ if(!drag) return; moved=true;
+  if(drag.kind==='pan'){ view.x=ev.clientX-drag.sx; view.y=ev.clientY-drag.sy; }
+  else { const w=toWorld(ev), P=pos.get(drag.id); if(P){ P.x+=w.x-drag.ox; P.y+=w.y-drag.oy; drag.ox=w.x; drag.oy=w.y; } }
+  draw(); });
+cv.addEventListener('pointerup',()=>{ const was=drag; drag=null; cv.classList.remove('drag'); if(was&&was.kind==='node'&&!moved) select(was.id); });
+async function select(id){ sel=id; draw(); const m=mods.find(x=>x.id===id);
+  $('sel').innerHTML='<b>'+m.id+'</b> <span class="muted">('+m.status+')</span><br>'+ (m.description||'') +
+    '<br><span class="muted">路径</span> '+m.paths.join(', ')+'<br><span class="muted">允许依赖</span> '+(m.allowed.join(', ')||'（无）');
+  $('files').innerHTML=(m.file_list||[]).map(f=>'<li>'+f+'</li>').join('')||'<li>（无）</li>'; }
+async function gen(){ if(!sel) return; const c=await api('/api/constraint?module='+encodeURIComponent(sel)); $('constraint').textContent=c.markdown||c.error||''; }
+function copyC(){ const t=$('constraint').textContent; if(navigator.clipboard) navigator.clipboard.writeText(t); }
+function fit(){ if(!mods.length) return; let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  mods.forEach(m=>{ const P=pos.get(m.id); if(!P) return; x0=Math.min(x0,P.x); y0=Math.min(y0,P.y); x1=Math.max(x1,P.x+BW); y1=Math.max(y1,P.y+BH); });
+  const pad=40, k=Math.min((W-pad*2)/(x1-x0+1),(H-pad*2)/(y1-y0+1),1.5); view.k=Math.max(0.15,k);
+  view.x=pad-x0*view.k; view.y=pad-y0*view.k; draw(); }
+function rows(el,data,cols){ el.innerHTML='<tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr>'+
+  data.map(r=>'<tr>'+cols.map(c=>'<td class="'+(r._level||'')+'" title="'+(r[c]??'')+'">'+(r[c]??'')+'</td>').join('')+'</tr>').join(''); }
 async function boot(){
-  const s = await api('/api/scan');
-  document.getElementById('root').textContent = s.root;
-  document.getElementById('score').textContent = 'score ' + s.score.total + '/100  privacy ' + s.score.privacy + '  size ' + s.score.size;
-  rows(document.getElementById('issues'), (s.issues||[]).map(i=>({_level:i.level==='FAIL'?'fail':'warn',level:i.level,code:i.code,path:i.path,detail:i.detail})), ['level','code','path','detail']);
-  G = await api('/api/graph'); draw();
-  const p = await api('/api/packs');
-  rows(document.getElementById('packs'), p.packs.map(x=>({name:x.name,skills:x.skills.length})), ['name','skills']);
+  const s=await api('/api/scan'); $('root').textContent=s.root;
+  $('score').textContent='score '+s.score.total+'/100  privacy '+s.score.privacy;
+  A=await api('/api/arch'); $('model').textContent=A.declared?'模型：已声明':'模型：未声明（推导）';
+  resize(); layout();
+  rows($('viol'), (A.violations||[]).map(v=>({_level:'fail',from:v.from,to:v.to,count:v.count,reason:v.reason})), ['from','to','count']);
+  rows($('issues'), (s.issues||[]).map(i=>({_level:i.level==='FAIL'?'fail':'warn',level:i.level,code:i.code,path:i.path})), ['level','code','path']);
 }
-async function search(){ const q=document.getElementById('q').value; const r=await api('/api/wiki?q='+encodeURIComponent(q));
-  document.getElementById('wiki').textContent = r.results.map(x=>'['+x.score+'] '+x.title+' — '+x.path).join('\\n') || '(无命中)'; }
 boot();
 </script></body></html>
 """
+
+
+def _commands(root: Path) -> dict:
+    prof = root / ".dsh" / "project-profile.json"
+    if not prof.is_file():
+        return {}
+    try:
+        return json.loads(prof.read_text(encoding="utf-8")).get("commands", {})
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def api_arch(root: Path) -> dict:
+    return arch.build_arch(root).to_dict()
+
+
+def api_constraint(root: Path, module: str) -> dict:
+    report = arch.build_arch(root)
+    target = next((m for m in report.modules if m["id"] == module), None)
+    if target is None:
+        return {"error": f"未知模块：{module}"}
+    others = [m["id"] for m in report.modules if m["id"] != module]
+    verify = _commands(root).get("test") or "python -m pytest -q"
+    md = "\n".join([
+        "# 任务约束（proj panel · 模块级）",
+        "",
+        f"## 允许改动（模块 `{module}`）",
+        *[f"- `{p}`" for p in target["paths"]],
+        "",
+        "## 不得改动（其他模块）",
+        *[f"- `{o}`" for o in others],
+        "",
+        "## 架构边界（允许依赖）",
+        *([f"- `{a}`" for a in target["allowed"]] or ["- （无；本模块不得依赖其他模块）"]),
+        "",
+        "## 必须回归",
+        f"- `{verify}`",
+        "- `python tools\\proj\\proj.py arch check .` 违规 0",
+        "- `python tools\\proj\\proj.py scan .` 无新增 FAIL",
+        "",
+        "## 判定",
+        "- 改动只出现在「允许改动」路径内；跨模块改动先改 `.dsh/architecture.toml` 并说明。",
+        "- 回归输出贴进 `work/verify/<run>/RESULT.md`。",
+    ])
+    return {"module": module, "markdown": md, "markdown_lines": len(md.splitlines())}
 
 
 def api_scan(root: Path) -> dict:
     return scanner.scan(root).to_dict()
 
 
-def api_graph(root: Path) -> dict:
-    g = graph.build_graph(root)
-    data = g.to_dict()
-    data["node_list"] = [{"path": p, "indegree": sum(1 for _, d in g.edges if d == p),
-                          "outdegree": sum(1 for s, _ in g.edges if s == p)} for p in g.nodes]
-    data["edge_list"] = [list(e) for e in g.edges]
-    return data
-
-
-def api_module(root: Path, path: str) -> dict:
-    g = graph.build_graph(root)
-    return {"path": path,
-            "out": [b for a, b in g.edges if a == path],
-            "inn": [a for a, b in g.edges if b == path]}
-
-
-def api_constraint(root: Path, focus: str) -> dict:
-    g = graph.build_graph(root)
-    prof_path = root / ".dsh" / "project-profile.json"
-    commands: dict = {}
-    if prof_path.is_file():
-        try:
-            commands = json.loads(prof_path.read_text(encoding="utf-8")).get("commands", {})
-        except (OSError, json.JSONDecodeError):
-            commands = {}
-    outs = [b for a, b in g.edges if a == focus]
-    ins = [a for a, b in g.edges if b == focus]
-    verify = commands.get("test") or commands.get("run") or "python -m pytest -q"
-    md = "\n".join([
-        "# 任务约束（proj panel 生成）",
-        "",
-        f"## 允许改动\n- `{focus}`（只改它；不顺手重构相邻文件）",
-        "",
-        "## 不得改动（公共接口 / 上游依赖）",
-        *([f"- `{p}`" for p in sorted(set(ins))] or ["- （无上游）"]),
-        "",
-        "## 需要同步检查（下游）",
-        *([f"- `{p}`" for p in sorted(set(outs))] or ["- （无下游）"]),
-        "",
-        "## 必须回归",
-        f"- `{verify}`",
-        "- `python tools\\proj\\proj.py scan .` 无新增 FAIL",
-        "",
-        "## 判定",
-        "- 改动只出现在「允许改动」里；越界即回退并说明理由。",
-        "- 回归命令输出原样贴进 `work/verify/<run>/RESULT.md`。",
-    ])
-    return {"focus": focus, "markdown": md, "markdown_lines": len(md.splitlines())}
-
-
 def api_packs(root: Path) -> dict:
     return {"packs": [p.to_dict() for p in packs.list_packs(Path(packs.DEFAULT_PACKS_DIR))]}
-
-
-def api_wiki(root: Path, query: str) -> dict:
-    return {"query": query, "results": wiki.search(root, query, 20)}
 
 
 def make_handler(root: Path):
@@ -196,22 +196,18 @@ def make_handler(root: Path):
                 self._send(PAGE.encode("utf-8"), "text/html; charset=utf-8")
                 return
             try:
-                if parsed.path == "/api/scan":
-                    data = api_scan(root)
-                elif parsed.path == "/api/graph":
-                    data = api_graph(root)
-                elif parsed.path == "/api/module":
-                    data = api_module(root, (qs.get("path") or [""])[0])
+                if parsed.path == "/api/arch":
+                    data = api_arch(root)
                 elif parsed.path == "/api/constraint":
-                    data = api_constraint(root, (qs.get("focus") or [""])[0])
+                    data = api_constraint(root, (qs.get("module") or [""])[0])
+                elif parsed.path == "/api/scan":
+                    data = api_scan(root)
                 elif parsed.path == "/api/packs":
                     data = api_packs(root)
-                elif parsed.path == "/api/wiki":
-                    data = api_wiki(root, (qs.get("q") or [""])[0])
                 else:
                     self.send_error(404, "not found")
                     return
-            except Exception as exc:  # noqa: BLE001 - 面板需要把错误显示出来
+            except Exception as exc:  # noqa: BLE001
                 self._send(json.dumps({"error": str(exc)}, ensure_ascii=False).encode("utf-8"))
                 return
             self._send(json.dumps(data, ensure_ascii=False).encode("utf-8"))
