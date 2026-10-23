@@ -14,7 +14,7 @@
 - **平台**：Windows + 本机 Microsoft Word（pywin32 COM）；**PySide6 6.11.1**；Python **3.14.5**。
 - **入口**：`src/main.py`；`src/` 是 import 根（`from core...` / `from app...` 可直接用）。
 - **打包**：PyInstaller + `SmartProof.spec`，产物 `dist/SmartProof`（`dist/`、`build/` 已忽略）。
-- **测试**：暂无 pytest 套件；现有 `tools/smoke_*.py` / `tools/diag_*.py` 冒烟（GUI 需桌面会话）。
+- **测试**：离线单测在 `tests/`（pytest，`pythonpath=src`，无需桌面）；GUI 交互仍用 `tools/smoke_*.py` / `tools/diag_*.py` 冒烟（需桌面会话）。
 - **隐私**：`src/config/` 下 `.key`、`MWindow_config.json`、`api_calls.log`、`*.db`、`Image.docx` 严禁入库；`local/`、`.dsh-memory/`、`work/` 已忽略。
 - **历史**：workbuddy 记忆已归档 `docs/archive/workbuddy-memory/`。
 
@@ -29,6 +29,7 @@
 
 ```powershell
 .venv\Scripts\python.exe src\main.py                    # 运行
+.venv\Scripts\python.exe -m pytest -q                   # 离线单测（tests/，无需桌面）
 .venv\Scripts\python.exe tools\smoke_p8.py              # GUI 冒烟（需桌面）
 .venv\Scripts\python.exe -m PyInstaller --noconfirm SmartProof.spec   # 打包
 ```

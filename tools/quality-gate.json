@@ -34,7 +34,7 @@
   },
   "commands": [
     { "name": "ruff", "cmd": "ruff check . --output-format concise", "when": "pyproject.toml", "severity": "fail" },
-    { "name": "pytest", "cmd": "pytest -q --maxfail=1 --basetemp=work/pytest-tmp -p no:cacheprovider", "when": "tests", "severity": "fail", "optional": true }
+    { "name": "pytest", "cmd": ".venv\\Scripts\\python.exe -m pytest -q --maxfail=1 --basetemp=work/pytest-tmp -p no:cacheprovider", "when": "tests", "severity": "fail", "optional": true }
   ],
   "git": { "dirtyFileWarn": 25, "requireTagWhenClean": false }
 }

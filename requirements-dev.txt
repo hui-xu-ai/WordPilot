@@ -1,0 +1,3 @@
+# 开发/测试依赖（运行依赖见 requirements.txt）
+# 装法：.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+pytest==9.1.1
