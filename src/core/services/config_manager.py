@@ -1,3 +1,4 @@
+"""配置管理：读写 MWindow_config.json、Fernet 加密保存 api_key、提供 get/set。"""
 # config_manager.py
 import json
 import sys

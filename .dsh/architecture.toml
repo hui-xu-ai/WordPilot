@@ -1,5 +1,6 @@
-# 由 proj arch init 生成；请人工收紧 allowed（只留真正允许的依赖）
+# SmartProof 模块架构模型（事实源：本文件 + 各文件头 docstring）
 # public 为空 = 不限制跨模块 import；填了则只允许 import 这些路径
+# entrypoints = 该模块的入口/公开面（供 AI 与面板展示）
 
 [project]
 title = "SmartProof"
@@ -10,25 +11,33 @@ id = "app"
 paths = ["src/app"]
 allowed = ["core", "infra"]
 public = []
+entrypoints = ["src/app/main_window.py"]
 status = "implemented"
+description = "应用外壳：无边框窗口、导航轨、标题栏、设置页与页面装配；不含业务逻辑。"
 
 [[modules]]
 id = "core"
 paths = ["src/core"]
 allowed = ["infra"]
 public = []
+entrypoints = ["src/core/kernel.py", "src/core/sdk/context.py"]
 status = "implemented"
+description = "微内核与内核服务：事件总线、插件生命周期、配置/主题/语言/Word 桥等。"
 
 [[modules]]
 id = "infra"
 paths = ["src/infra"]
 allowed = []
 public = []
+entrypoints = ["src/infra/memory_trimmer.py"]
 status = "implemented"
+description = "与业务无关的通用基础设施（日志裁剪等）。"
 
 [[modules]]
 id = "plugins"
 paths = ["src/plugins"]
 allowed = ["core", "infra"]
 public = []
+entrypoints = ["src/plugins/proofread/plugin.py"]
 status = "implemented"
+description = "功能插件：智能纠错、题录导航、图片工具、翻译改写等，按插件启停。"

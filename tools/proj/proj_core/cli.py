@@ -24,7 +24,7 @@ from . import __version__
 from .acceptance import check_report, init_report, print_accept
 from .adr import build_index as build_adr_index
 from .adr import print_adr
-from .arch import build_arch, init_model, print_arch, print_init
+from .arch import arch_context, build_arch, init_model, print_arch, print_init, render_code_map
 from .common import IGNORE_EXPECT
 from .context import build_context, print_context
 from .dups import find_duplicate_symbols, find_duplicates, impact, print_duplicates, print_impact, print_symbols
@@ -224,8 +224,23 @@ def cmd_arch(args) -> int:
     if args.arch_cmd == "init":
         print_init(init_model(Path(args.root), force=args.force))
         return 0
+    if args.arch_cmd == "context":
+        data = arch_context(Path(args.root))
+        print(data["text"])
+        print(f"\\n（{data['lines']} 行，约 {data['tokens_est']} tokens）")
+        return 0
+    if args.arch_cmd == "map":
+        report = build_arch(Path(args.root))
+        out = Path(args.out) if args.out else Path(args.root) / "docs" / "architecture" / "CODE_MAP.md"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_code_map(report, Path(args.root).name), encoding="utf-8")
+        print(f"=== proj arch map：已写入 {out}")
+        print(f"  模块 {len(report.modules)} / 文件 {len(report.files)} / 缺职责 {len(report.warnings)}")
+        return 0
     report = build_arch(Path(args.root))
     print_arch(report)
+    if report.warnings:
+        print(f"  [WARN] 缺职责头 {len(report.warnings)} 个（跑 arch map 查看）")
     if args.json_out:
         write_eval_json(args.json_out, report.to_dict())
     return 1 if report.violations else 0
@@ -237,6 +252,12 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.reconfigure(encoding="utf-8")
     except (AttributeError, OSError, ValueError) as exc:
         sys.stderr.write(f"proj: stdout reconfigure skipped: {exc}\n")
+
+    raw_args = argv if argv is not None else sys.argv[1:]
+    if raw_args and raw_args[0] == "panel" and len(raw_args) > 1 and raw_args[1] in {"start", "stop", "status", "restart"}:
+        from .panel import lifecycle
+
+        return lifecycle(raw_args[1:])
 
     ap = argparse.ArgumentParser(prog="proj")
     ap.add_argument("--version", action="version", version=f"proj-core {__version__}")
@@ -364,6 +385,11 @@ def main(argv: list[str] | None = None) -> int:
     p_arch_check = arch_sub.add_parser("check")
     p_arch_check.add_argument("root", nargs="?", default=".")
     p_arch_check.add_argument("--json", dest="json_out")
+    p_arch_ctx = arch_sub.add_parser("context")
+    p_arch_ctx.add_argument("root", nargs="?", default=".")
+    p_arch_map = arch_sub.add_parser("map")
+    p_arch_map.add_argument("root", nargs="?", default=".")
+    p_arch_map.add_argument("--out")
 
     args = ap.parse_args(argv)
     if args.cmd == "pack":

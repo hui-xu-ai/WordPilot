@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root": "D:\\Python\\Project\\SmartProof",
-  "count": 13,
+  "count": 14,
   "entries": [
     {
       "path": "AGENTS.md",
@@ -71,6 +71,23 @@
       "tags": [],
       "bytes": 13324,
       "mtime": "2026-10-22T09:33:12.394584+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/architecture/CODE_MAP.md",
+      "title": "SmartProof · 代码地图（CODE_MAP）",
+      "headings": [
+        "SmartProof · 代码地图（CODE_MAP）",
+        "app（8 文件）",
+        "core（26 文件）",
+        "infra（3 文件）",
+        "plugins（17 文件）"
+      ],
+      "tags": [
+        "architecture"
+      ],
+      "bytes": 6113,
+      "mtime": "2026-10-23T09:24:41.443463+00:00",
       "archive": false
     },
     {

@@ -7,13 +7,18 @@
 """
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import os
 import re
+import signal
+import socket
 import subprocess
 import sys
 import time
+import urllib.request
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -34,6 +39,40 @@ def _commands(root: Path) -> dict:
         return json.loads(prof.read_text(encoding="utf-8")).get("commands", {})
     except (OSError, json.JSONDecodeError):
         return {}
+
+
+PID_REL = ".dsh/panel.pid"
+
+
+def _pid_path(root: Path) -> Path:
+    return root.resolve() / PID_REL
+
+
+def _port_in_use(port: int) -> bool:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.35)
+    try:
+        return sock.connect_ex(("127.0.0.1", port)) == 0
+    finally:
+        sock.close()
+
+
+def _health(port: int, timeout: float = 3.0) -> dict | None:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _write_pid(root: Path, port: int) -> Path:
+    path = _pid_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"pid": os.getpid(), "port": port, "root": str(root.resolve()),
+                                "version": PANEL_VERSION, "started": _STARTED},
+                               ensure_ascii=False, indent=2), encoding="utf-8")
+    atexit.register(lambda: path.unlink(missing_ok=True))
+    return path
 
 
 def _fingerprint(report: dict) -> str:
@@ -228,6 +267,8 @@ def make_handler(root: Path):
 
 
 def serve(root: Path, host: str = "127.0.0.1", port: int = 8787) -> None:
+    if os.environ.get("PANEL_WRITE_PID") == "1":
+        _write_pid(root, port)
     httpd = ThreadingHTTPServer((host, port), make_handler(root.resolve()))
     print(f"=== proj panel: http://{host}:{port}/  (root={root.resolve()})")
     try:
@@ -256,6 +297,130 @@ def main(argv: list[str] | None = None) -> int:
     if rest:
         root = Path(rest[0])
     serve(root, host, port)
+    return 0
+
+
+def lifecycle(argv: list[str]) -> int:
+    """panel start|stop|status|restart 子命令。"""
+    import argparse
+
+    ap = argparse.ArgumentParser(prog="proj panel")
+    ap.add_argument("action", choices=["start", "stop", "status", "restart"])
+    ap.add_argument("root", nargs="?", default=".")
+    ap.add_argument("--port", type=int, default=8787)
+    ap.add_argument("--open", action="store_true")
+    ap.add_argument("--force", action="store_true")
+    args = ap.parse_args(argv)
+    root = Path(args.root).resolve()
+    url = f"http://127.0.0.1:{args.port}/"
+
+    def do_stop() -> int:
+        pf = _pid_path(root)
+        pid = None
+        if pf.is_file():
+            try:
+                pid = int(json.loads(pf.read_text(encoding="utf-8")).get("pid", 0))
+            except (OSError, ValueError):
+                pid = None
+        h = _health(args.port)
+        if not h:
+            pf.unlink(missing_ok=True)
+            print("=== panel：未在运行（已清理 PID 文件）")
+            return 0
+        live_pid = int(h.get("pid", 0))
+        if pid and live_pid and pid != live_pid:
+            print(f"=== panel：PID 文件 {pid} 与 health {live_pid} 不一致，拒绝停止")
+            return 2
+        target = live_pid or pid
+        if not target:
+            print("=== panel：health 无 pid，拒绝停止")
+            return 2
+        try:
+            os.kill(target, signal.SIGTERM)
+        except OSError as exc:
+            print(f"=== panel：停止失败 {exc}")
+            return 2
+        for _ in range(30):
+            if not _health(args.port, timeout=0.4):
+                break
+            time.sleep(0.1)
+        pf.unlink(missing_ok=True)
+        for _ in range(20):
+            if not _port_in_use(args.port):
+                break
+            time.sleep(0.1)
+        if _port_in_use(args.port):
+            print(f"=== panel：已终止 pid={target}，但端口 {args.port} 仍被其他进程监听")
+            print(f"  查看：netstat -ano | findstr :{args.port}")
+            return 1
+        print(f"=== panel：已停止 pid={target}")
+        return 0
+
+    if args.action == "stop":
+        return do_stop()
+
+    if args.action == "status":
+        pf = _pid_path(root)
+        h = _health(args.port)
+        print(f"=== panel status（root={root}）")
+        print(f"  pid 文件：{pf if pf.is_file() else '（无）'}")
+        if h:
+            print(f"  运行中：v{h.get('panel_version')} pid={h.get('pid')} 启动={h.get('started')}")
+            print(f"  URL：{url}")
+            if h.get("panel_version") != PANEL_VERSION:
+                print(f"  [WARN] 版本不一致（代码 v{PANEL_VERSION}，进程 v{h.get('panel_version')}）⇒ restart")
+                return 1
+        else:
+            print("  未运行")
+        return 0
+
+    if args.action == "restart":
+        do_stop()
+
+    # start
+    h = _health(args.port)
+    if h:
+        if h.get("panel_version") == PANEL_VERSION:
+            print(f"=== panel 已在运行：{url}（v{PANEL_VERSION}）")
+            if args.open:
+                webbrowser.open(url)
+            return 0
+        if not args.force:
+            print(f"=== panel 版本陈旧：进程 v{h.get('panel_version')} / 代码 v{PANEL_VERSION}")
+            print("  加 --force 自动重启，或先 proj panel stop")
+            return 1
+        do_stop()
+    if _port_in_use(args.port):
+        print(f"=== panel：端口 {args.port} 已被其他进程占用（不是本面板的 /api/health）")
+        print(f"  查看占用：netstat -ano | findstr :{args.port}")
+        print("  换个端口：proj panel start . --port 8788")
+        return 2
+    proj_dir = Path(__file__).resolve().parents[1]
+    script = proj_dir / "proj.py"
+    if script.is_file():
+        cmd = [sys.executable, str(script), "panel", str(root), "--port", str(args.port)]
+    else:  # 安装为包时的兜底
+        code = ("import sys; from proj_core.panel import main; "
+                f"sys.exit(main([r'{root}', '--port', '{args.port}']))")
+        cmd = [sys.executable, "-c", code]
+    env = dict(os.environ, PANEL_WRITE_PID="1")
+    flags = 0
+    if sys.platform == "win32":
+        flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    subprocess.Popen(cmd, cwd=str(root), env=env, creationflags=flags,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=sys.platform != "win32")
+    for _ in range(60):
+        if _health(args.port):
+            break
+        time.sleep(0.15)
+    h = _health(args.port)
+    if not h:
+        print("=== panel：启动失败（端口被占或依赖缺失）")
+        return 2
+    print(f"=== panel 已启动：{url}（v{h.get('panel_version')} pid={h.get('pid')}）")
+    if args.open:
+        webbrowser.open(url)
     return 0
 
 

@@ -257,10 +257,10 @@ cv.addEventListener('pointermove',(ev)=>{ if(drag){ moved=true; view.x=ev.client
     const tip=$('tip');
     if(h && h.kind==='file'){ const f=files.find(x=>x.path===h.id);
       tip.style.display='block'; tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY+12)+'px';
-      tip.textContent=f.path+'\n模块 '+f.module+' · 入度 '+f.indeg+' / 出度 '+f.outdeg; }
+      tip.textContent=f.path+'\n模块 '+f.module+' · 入度 '+f.indeg+' / 出度 '+f.outdeg+(f.desc?'\n'+f.desc:''); }
     else if(h && h.kind==='module'){ const m=mods.find(x=>x.id===h.id);
       tip.style.display='block'; tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY+12)+'px';
-      tip.textContent='模块 '+m.id+' · '+m.files+' 文件\n允许依赖 '+(m.allowed.join(', ')||'（无）'); }
+      tip.textContent='模块 '+m.id+' · '+m.files+' 文件\n允许依赖 '+(m.allowed.join(', ')||'（无）')+(m.description?'\n'+m.description:''); }
     else tip.style.display='none';
     if(ekey){ const g=edgeGeom.find(g=>g.key===ekey); $('hint').textContent=ekey.replace('>',' → '); }
     else if($('hint').textContent) $('hint').textContent='';

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -19,6 +20,26 @@ except ModuleNotFoundError:  # pragma: no cover
     tomllib = None  # type: ignore[assignment]
 
 MODEL_REL = ".dsh/architecture.toml"
+DOC_LIMIT = 160
+_EXEMPT_DOC = ("__init__.py",)
+
+
+def file_doc(path: Path) -> str:
+    """取文件头 docstring 第一段（或 `# 职责:` 注释），截断到 DOC_LIMIT。"""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")[:3000]
+    except OSError:
+        return ""
+    m = re.search(r'("""|\'\'\')(.*?)\1', text, re.DOTALL)
+    body = m.group(2) if m else ""
+    if not body:
+        for line in text.splitlines()[:20]:
+            if line.lstrip().startswith("# 职责"):
+                body = line.split("：", 1)[-1].split(":", 1)[-1]
+                break
+    body = body.strip().split("\n\n")[0].strip()
+    body = re.sub(r"\s+", " ", body)
+    return body[:DOC_LIMIT]
 
 
 @dataclass
@@ -28,6 +49,7 @@ class Module:
     allowed: list[str] = field(default_factory=list)
     public: list[str] = field(default_factory=list)
     parent: str | None = None
+    entrypoints: list[str] = field(default_factory=list)
     status: str = "implemented"
     description: str = ""
 
@@ -43,6 +65,7 @@ class ArchReport:
     problems: list[str] = field(default_factory=list)
     files: list[dict] = field(default_factory=list)
     file_edges: list[list[str]] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -75,6 +98,7 @@ def load_model(root: Path) -> tuple[list[Module], list[str]]:
             allowed=[str(a) for a in item.get("allowed", [])],
             public=[_norm(p) for p in item.get("public", [])],
             parent=item.get("parent"),
+            entrypoints=[_norm(p) for p in item.get("entrypoints", [])],
             status=str(item.get("status", "implemented")),
             description=str(item.get("description", "")),
         ))
@@ -136,7 +160,8 @@ def build_arch(root: Path) -> ArchReport:
         outdeg[a] = outdeg.get(a, 0) + 1
         indeg[b] = indeg.get(b, 0) + 1
     report.files = [{"path": n, "module": _module_of(_norm(n), mods) or "",
-                     "indeg": indeg.get(n, 0), "outdeg": outdeg.get(n, 0)} for n in g.nodes]
+                     "indeg": indeg.get(n, 0), "outdeg": outdeg.get(n, 0),
+                     "desc": file_doc(root / n)} for n in g.nodes]
     report.file_edges = [[a, b] for a, b in g.edges]
     agg: dict[tuple[str, str], int] = {}
     for a, b in g.edges:
@@ -149,6 +174,7 @@ def build_arch(root: Path) -> ArchReport:
     report.modules = [{"id": m.id, "paths": m.paths, "files": counts.get(m.id, 0),
                        "file_list": sorted(files.get(m.id, []))[:200],
                        "allowed": sorted(allowed[m.id]), "public": public[m.id],
+                       "entrypoints": m.entrypoints,
                        "status": m.status, "description": m.description} for m in mods]
     for (a, b), n in sorted(agg.items()):
         report.edges.append({"from": a, "to": b, "count": n})
@@ -166,6 +192,10 @@ def build_arch(root: Path) -> ArchReport:
                 report.violations.append({"kind": "public", "from": ma, "to": mb, "count": 1,
                                           "file": target,
                                           "reason": f"{target} 不在 {mb} 的公开入口内"})
+    report.warnings = [f"缺职责头：{f['path']}" for f in report.files
+                       if f["module"] and not f["desc"]
+                       and not f["path"].endswith(_EXEMPT_DOC)
+                       and "/tests/" not in f["path"]]
     return report
 
 
@@ -179,6 +209,7 @@ def render_model(mods: list[Module], title: str) -> str:
         lines.append("paths = [" + ", ".join(f'"{p}"' for p in m.paths) + "]")
         lines.append("allowed = [" + ", ".join(f'"{a}"' for a in m.allowed) + "]")
         lines.append("public = [" + ", ".join(f'"{p}"' for p in m.public) + "]")
+        lines.append("entrypoints = [" + ", ".join(f'"{p}"' for p in m.entrypoints) + "]")
         lines.append(f'status = "{m.status}"')
         lines.append("")
     return "\n".join(lines)
@@ -235,3 +266,47 @@ def print_init(data: dict) -> None:
 
 def write_json(path: str, data: dict) -> None:
     Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def arch_context(root: Path) -> dict:
+    """有界摘要（给 AI 读）：模块/职责/入口/允许依赖/实际边/违规/缺职责。"""
+    report = build_arch(root)
+    lines = ["# 架构摘要（proj arch context）", ""]
+    lines.append("## 模块")
+    for m in report.modules:
+        lines.append(f"- **{m['id']}**（{m['files']} 文件）{m['description'] or '（未写职责）'}")
+        entry = m["public"] or m.get("entrypoints") or []
+        lines.append(f"  入口：{', '.join(entry) or '未声明'}；允许依赖：{', '.join(m['allowed']) or '无'}")
+    lines.append("")
+    lines.append("## 实际跨模块依赖")
+    for e in report.edges:
+        lines.append(f"- {e['from']} -> {e['to']} ×{e['count']}")
+    if report.violations:
+        lines.append("")
+        lines.append(f"## 违规 {len(report.violations)} 条")
+        for v in report.violations[:20]:
+            lines.append(f"- [{v.get('kind', 'dependency')}] {v['from']} -> {v.get('file', v['to'])}")
+    if report.warnings:
+        lines.append("")
+        lines.append(f"## 待补职责头 {len(report.warnings)} 个")
+        for w in report.warnings[:20]:
+            lines.append(f"- {w}")
+    text = "\n".join(lines)
+    return {"text": text, "lines": len(lines), "tokens_est": len(text) // 4}
+
+
+def render_code_map(report, title: str) -> str:
+    out = [f"# {title} · 代码地图（CODE_MAP）", "",
+           "> 由 `proj arch map` 从**文件头 docstring**生成；改职责请改文件头，不要改本文件。", ""]
+    for m in report.modules:
+        out.append(f"## {m['id']}（{m['files']} 文件）")
+        out.append(m["description"] or "（未写模块职责）")
+        out.append("")
+        out.append("| 文件 | 职责 |")
+        out.append("|---|---|")
+        for f in report.files:
+            if f["module"] != m["id"]:
+                continue
+            out.append(f"| `{f['path']}` | {f['desc'] or '（未写）'} |")
+        out.append("")
+    return "\n".join(out)
