@@ -76,6 +76,7 @@ const PALETTE=['#58a6ff','#3fb950','#d29922','#bc8cff','#39c5cf','#f778ba','#e3b
 let A=null, mods=[], files=[], edges=[], centers=new Map(), pos=new Map(), radii=new Map();
 let hidden=new Set(), collapsed=new Set(), sel=null, hover=null, crossOnly=true, violOnly=false, search='';
 let focusMod=null, focusSet=null, hoverEdge=null, edgeGeom=[], pick=new Set();
+let labelRects=[];
 let impact=null, fp=null, edgeMode='agg', snapId=null, colorBy='module', labelBy='file';
 let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
 const cv=$('cv'), ctx=cv.getContext('2d');
@@ -129,7 +130,15 @@ function separateCenters(){
   }
 }
 
-function layout(){ moduleOffsets(); separateCenters(); fit(); }
+function layout(){ moduleOffsets(); separateCenters(); stretchToCanvas(); fit(); }
+
+function stretchToCanvas(){
+  const cx=W/2, cy=H/2;
+  const sx=Math.max(1, (W/H)/1.25);
+  if(sx<=1.01) return;
+  files.forEach(f=>{ const P=pos.get(f.path); if(P) P.x=cx+(P.x-cx)*sx; });
+  centers.forEach(c=>{ c.x=cx+(c.x-cx)*sx; });
+}
 
 function nodePos(f){ if(collapsed.has(f.module)) return centers.get(f.module); return pos.get(f.path); }
 function moduleLabelPos(m){ const c=centers.get(m.id), r=collapsed.has(m.id)?collapseR(m):radii.get(m.id); return {x:c.x, y:c.y-r-8}; }
@@ -138,7 +147,7 @@ function collapseR(m){ return Math.max(26, Math.min(58, 6*Math.sqrt(m.files))); 
 function draw(){
   if(!ctx) return; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); ctx.fillStyle='#0b0e14'; ctx.fillRect(0,0,W,H);
   if(!A || !centers.size) return; ctx.save(); ctx.translate(view.x,view.y); ctx.scale(view.k,view.k);
-  const labelRects=[]; const circles=[];
+  labelRects.length=0; const circles=[];
   const visMod=m=>!hidden.has(m.id) && (!focusSet || focusSet.has(m.id)) && (!violOnly || depViolAny(m.id) || pubViol(m.id));
   const depViolAny=mid=>A.violations.some(v=>(v.kind||'dependency')==='dependency'&&(v.from===mid||v.to===mid));
   // 光晕
@@ -207,20 +216,7 @@ function draw(){
     const P=pos.get(f.path); if(!P) return; const r=nodeR(f); const on=sel&&sel.kind==='file'&&sel.id===f.path;
     ctx.beginPath(); ctx.arc(P.x,P.y,r,0,Math.PI*2); ctx.fillStyle=fileColor(f); ctx.globalAlpha=on?1:.9; ctx.fill(); ctx.globalAlpha=1;
     if(on){ ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); }
-    if(labelBy!=='none' && view.k>0.25){
-      const raw=labelBy==='desc'&&f.desc?f.desc:base(f.path);
-      const lines=wrapLabel(raw,labelBy==='desc'?16:15,labelBy==='desc'?3:2);
-      const fs=8, lh=9.6, pad=2;
-      ctx.font=fs+'px system-ui';
-      const widths=lines.map(l=>ctx.measureText(l).width), wmax=Math.max(...widths), totalH=lines.length*lh;
-      const bx=P.x-wmax/2-pad, by=P.y-r-totalH-4;
-      const hitNode=files.some(g=>{ if(g===f) return false; const Q=pos.get(g.path);
-        return Q && Math.abs(Q.x-P.x)<wmax/2+4 && Math.abs(Q.y-(by+totalH/2))<totalH/2+8; });
-      const hitRect=labelRects.some(R=>bx<R.x+R.w&&bx+wmax+pad*2>R.x&&by<R.y+R.h&&by+totalH+pad>R.y);
-      if(!hitNode&&!hitRect){ labelRects.push({x:bx,y:by,w:wmax+pad*2,h:totalH+pad});
-        ctx.fillStyle=on?'#fff':'#c9d1d9'; ctx.globalAlpha=view.k>0.8?0.92:0.78;
-        lines.forEach((ln,i)=>ctx.fillText(ln,P.x-widths[i]/2,by+i*lh+fs-1));
-        ctx.globalAlpha=1; } }
+    if(labelBy!=='none' && view.k>0.2) drawLabel(f,P,r,on);
     });
   if(snapId){ const P=pos.get(snapId), f=files.find(x=>x.path===snapId);
     if(P&&f){ ctx.strokeStyle='#58a6ff'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
@@ -234,6 +230,37 @@ function wrapLabel(txt,max,maxLines){
     out.push(txt.slice(i,i+max)+(i+max<txt.length&&out.length===maxLines-1?'…':''));
   }
   return out.length?out:[txt];
+}
+
+function labelBoxes(P,r,lines,lh){
+  const ws=lines.map(l=>ctx.measureText(l).width), wm=Math.max(...ws), h=lines.length*lh+2;
+  return [
+    {x:P.x-wm/2, y:P.y-r-6-h, w:wm, h:h},
+    {x:P.x+r+6, y:P.y-h/2, w:wm, h:h},
+    {x:P.x-wm/2, y:P.y+r+6, w:wm, h:h},
+    {x:P.x-r-6-wm, y:P.y-h/2, w:wm, h:h},
+  ];
+}
+function labelFree(b,self){
+  for(const g of files){ if(g.path===self) continue; const Q=pos.get(g.path); if(!Q) continue;
+    const gr=nodeR(g);
+    if(b.x-3 < Q.x+gr && b.x+b.w+3 > Q.x-gr && b.y-2 < Q.y+gr+6 && b.y+b.h+2 > Q.y-gr-6) return false; }
+  for(const R of labelRects){ if(b.x<R.x+R.w+2 && b.x+b.w+2>R.x && b.y<R.y+R.h+1 && b.y+b.h+1>R.y) return false; }
+  return true;
+}
+function drawLabel(f,P,r,on){
+  const raw=labelBy==='desc'&&f.desc?f.desc:base(f.path);
+  const lines=wrapLabel(raw,labelBy==='desc'?16:15,labelBy==='desc'?3:2);
+  const fs=8, lh=9.6;
+  ctx.font=fs+'px system-ui';
+  const boxes=labelBoxes(P,r,lines,lh);
+  const free=boxes.find(b=>labelFree(b,f.path));
+  const box=free||boxes[0];
+  if(free) labelRects.push({x:box.x,y:box.y,w:box.w,h:box.h});
+  ctx.fillStyle=on?'#fff':'#c9d1d9';
+  ctx.globalAlpha=on?1:(free?0.9:0.5);
+  lines.forEach((ln,i)=>ctx.fillText(ln, box.x+(box.w-ctx.measureText(ln).width)/2, box.y+i*lh+fs-1));
+  ctx.globalAlpha=1;
 }
 
 function nearestEdge(w){
@@ -319,7 +346,7 @@ function fit(){ if(!files.length||!centers.size) return; let x0=1e9,y0=1e9,x1=-1
     x0=Math.min(x0,c.x-r); y0=Math.min(y0,c.y-r); x1=Math.max(x1,c.x+r); y1=Math.max(y1,c.y+r); });
   files.forEach(f=>{ const m=mods.find(x=>x.id===f.module); if(!m||!modVisible(m)) return;
     const P=pos.get(f.path); if(!P) return; x0=Math.min(x0,P.x); y0=Math.min(y0,P.y); x1=Math.max(x1,P.x); y1=Math.max(y1,P.y); });
-  const pad=36, k=Math.min((W-pad*2)/(x1-x0+1),(H-pad*2)/(y1-y0+1),1.8); view.k=Math.max(0.12,k);
+  const pad=18, k=Math.min((W-pad*2)/(x1-x0+1),(H-pad*2)/(y1-y0+1),2.6); view.k=Math.max(0.12,k);
   view.x=(W-(x1-x0)*view.k)/2-x0*view.k; view.y=(H-(y1-y0)*view.k)/2-y0*view.k; upZoom(); draw(); }
 $('cross').onchange=(e)=>{ crossOnly=e.target.checked; draw(); };
 $('emode').onchange=(e)=>{ edgeMode=e.target.value; draw(); };
