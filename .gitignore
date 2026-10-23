@@ -70,3 +70,13 @@ src/编译指令.txt
 .key
 secrets.*
 .env
+
+# ===== pydev 布局（2026-10-23）=====
+local/
+.dsh-memory/
+.pytest_cache/
+node_modules/
+tests/fixtures/*.tmp
+work/verify/
+# 旧 agent 目录（已归档到 docs/archive/workbuddy-memory/）
+.workbuddy/

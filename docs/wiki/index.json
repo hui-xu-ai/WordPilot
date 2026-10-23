@@ -1,0 +1,258 @@
+{
+  "schema": 1,
+  "root": "D:\\Python\\Project\\SmartProof",
+  "count": 13,
+  "entries": [
+    {
+      "path": "AGENTS.md",
+      "title": "SmartProof 工作区（pydev 预设）",
+      "headings": [
+        "SmartProof 工作区（pydev 预设）",
+        "会话开始",
+        "事实",
+        "红线",
+        "常用命令",
+        "预设维护"
+      ],
+      "tags": [],
+      "bytes": 1802,
+      "mtime": "2026-10-23T03:11:55.035376+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/adr/001-onboarding-layout.md",
+      "title": "ADR-001 采用 pydev 项目布局与记忆分离",
+      "headings": [
+        "ADR-001 采用 pydev 项目布局与记忆分离",
+        "背景",
+        "备选",
+        "备选 A：维持现状（work/ 混放一切）",
+        "备选 B：采用 pydev 布局（选中）",
+        "决策",
+        "后果"
+      ],
+      "tags": [
+        "adr"
+      ],
+      "bytes": 1956,
+      "mtime": "2026-10-23T03:11:55.074434+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/adr/INDEX.md",
+      "title": "ADR 索引",
+      "headings": [
+        "ADR 索引"
+      ],
+      "tags": [
+        "adr"
+      ],
+      "bytes": 345,
+      "mtime": "2026-10-23T03:13:16.550204+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "title": "架构说明 · ARCHITECTURE",
+      "headings": [
+        "架构说明 · ARCHITECTURE",
+        "1. 总体结构",
+        "2. 模块职责",
+        "3. 线程与 COM 模型",
+        "4. 智能纠错数据流",
+        "5. 已知性能问题：题录刷新慢 & 干扰 Word",
+        "6. 已知正确性 / 一致性问题",
+        "已解决（P2 / P3）",
+        "仍待处理",
+        "已在重构批中解决（追加）",
+        "7. 配置与数据落盘位置",
+        "8. GUI 重设计要点（P1~P5 已落地）"
+      ],
+      "tags": [],
+      "bytes": 13324,
+      "mtime": "2026-10-22T09:33:12.394584+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/archive/workbuddy-memory/2026-10-16.md",
+      "title": "2026-10-16",
+      "headings": [
+        "2026-10-16",
+        "SmartProof 架构重构 P1（已完成并提交 a6a8000）",
+        "P2 服务下沉（已完成，提交 2d02dc2 + b408bd3）",
+        "P3 插件化（已完成，提交 4e8ec3e）",
+        "P4 收口（已完成，提交 6d4ae4c）",
+        "遗留待办（后续单独确认）"
+      ],
+      "tags": [
+        "archive"
+      ],
+      "bytes": 5280,
+      "mtime": "2026-10-16T16:18:04.915451+00:00",
+      "archive": true
+    },
+    {
+      "path": "docs/archive/workbuddy-memory/2026-10-17.md",
+      "title": "2026-10-17",
+      "headings": [
+        "2026-10-17",
+        "遗留修复批（已完成，提交 9d1e72d）",
+        "剩余可选收紧项（用户尚未派单）",
+        "GUI 重设计 P3~P5（已完成，提交 2ee6876 / 9043d79 / eebd682）",
+        "GUI 改良 P6（已完成，提交 6ad6063）—— 用户批评第一版\"丑陋/混乱\"后重做"
+      ],
+      "tags": [
+        "archive"
+      ],
+      "bytes": 5109,
+      "mtime": "2026-10-17T10:19:50.029936+00:00",
+      "archive": true
+    },
+    {
+      "path": "docs/archive/workbuddy-memory/2026-10-22.md",
+      "title": "2026-10-22",
+      "headings": [
+        "2026-10-22",
+        "GUI 改良 P7（提交见 git log）—— 用户第二轮反馈驱动",
+        "2026-10-22",
+        "GUI 改良 P7 —— 用户第二轮反馈驱动",
+        "P7 打包收尾（提交 7ef0e53）",
+        "GUI 改良 P8（提交 5eb7a88）—— 用户第三轮反馈驱动，10 项",
+        "P8 打包收尾 —— 两个坑",
+        "GUI 改良 P9 —— 用户第四轮反馈驱动（6 项）"
+      ],
+      "tags": [
+        "archive"
+      ],
+      "bytes": 9999,
+      "mtime": "2026-10-22T09:51:36.134996+00:00",
+      "archive": true
+    },
+    {
+      "path": "docs/BUILD.md",
+      "title": "打包与运行 · BUILD",
+      "headings": [
+        "打包与运行 · BUILD",
+        "环境准备",
+        "建议使用独立虚拟环境打包，避免污染开发环境",
+        "生成 Word COM 类型库（修复智能提示/常量报错）",
+        "打包",
+        "标准打包（使用项目根目录的 SmartProof.spec）",
+        "若 UPX 未加入 PATH，指定 UPX 目录以压缩体积",
+        "spec 要点（SmartProof.spec）",
+        "运行前置条件",
+        "分发注意"
+      ],
+      "tags": [],
+      "bytes": 2209,
+      "mtime": "2026-10-13T17:25:10.232653+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/DEVELOPMENT.md",
+      "title": "开发与更新规范 · DEVELOPMENT",
+      "headings": [
+        "开发与更新规范 · DEVELOPMENT",
+        "1. 隐私红线（最高优先级）",
+        "2. 代码规范",
+        "3. 目录约定",
+        "4. Git 工作流（GitHub 规范）",
+        "5. 版本与发布规范",
+        "6. 更新（升级）机制建议",
+        "7. 测试规范",
+        "8. 待办 / 技术债（Backlog）"
+      ],
+      "tags": [],
+      "bytes": 5516,
+      "mtime": "2026-10-16T16:09:38.791683+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/PLUGIN_GUIDE.md",
+      "title": "插件开发指南 · PLUGIN GUIDE",
+      "headings": [
+        "插件开发指南 · PLUGIN GUIDE",
+        "1. 三步新建插件",
+        "第 1 步：建包",
+        "第 2 步：写 `plugin.json`",
+        "第 3 步：写入口类",
+        "2. PluginContext 可用接口",
+        "内核服务一览",
+        "3. UI 贡献点",
+        "label 一律传 i18n key（如 \"tool_label\"），不是写死的中文；",
+        "语言包放 plugins/<id>/i18n/<lang>.json，内核加载插件时自动注册命名空间。",
+        "多语言约定",
+        "4. 事件总线",
+        "5. 启停与升级",
+        "6. 打包注意",
+        "7. 现成范例"
+      ],
+      "tags": [],
+      "bytes": 8696,
+      "mtime": "2026-10-22T04:42:47.668687+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "title": "路线图 · ROADMAP",
+      "headings": [
+        "路线图 · ROADMAP",
+        "指导原则（做任何功能前先过一遍）",
+        "已决定不做（用户否决）",
+        "P0（投入小、直接改善日常体感）",
+        "P0-1 题录/引用改为离线读取",
+        "P0-2 有错/无错/无反应 三态可区分",
+        "P0-3 快捷键验证与补全",
+        "P1（价值高、工作量中等）",
+        "P1-1 参考文献\"身份笔记\"",
+        "P1-2 题注按章节分组（UI）",
+        "P1-3 多模型可切换",
+        "P2（收口/打磨）",
+        "P2-1 安全收口",
+        "P2-2 GUI 美化",
+        "工程收口（贯穿）",
+        "建议顺序"
+      ],
+      "tags": [],
+      "bytes": 4427,
+      "mtime": "2026-10-13T18:35:23.077514+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/standards/INDEX.md",
+      "title": "SmartProof 标准与门索引",
+      "headings": [
+        "SmartProof 标准与门索引",
+        "一、项目红线（STD-SP）",
+        "二、门产物约定（本项目）"
+      ],
+      "tags": [
+        "standards"
+      ],
+      "bytes": 1711,
+      "mtime": "2026-10-23T03:13:09.096243+00:00",
+      "archive": false
+    },
+    {
+      "path": "README.md",
+      "title": "SmartProof · Word 智能伴侣",
+      "headings": [
+        "SmartProof · Word 智能伴侣",
+        "功能特性",
+        "快速开始",
+        "1. 创建并激活虚拟环境",
+        "2. 安装依赖",
+        "3. 准备配置（首次运行也会自动生成，但建议用模板）",
+        "然后编辑 MWindow_config.json，填入你自己的 DeepSeek api_key",
+        "4. 运行",
+        "隐私与数据安全（重要）",
+        "项目结构（分层 + 微内核 + 插件化）",
+        "许可"
+      ],
+      "tags": [],
+      "bytes": 6066,
+      "mtime": "2026-10-22T09:32:58.408748+00:00",
+      "archive": false
+    }
+  ]
+}

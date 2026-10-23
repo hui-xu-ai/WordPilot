@@ -1,0 +1,35 @@
+{
+  "root": "D:\\Python\\Project\\SmartProof",
+  "stack": [
+    "python",
+    "pyside6",
+    "pywin32-com"
+  ],
+  "commands": {
+    "run": ".venv\\Scripts\\python.exe src\\main.py",
+    "test": ".venv\\Scripts\\python.exe tools\\smoke_p8.py",
+    "smoke_frozen": ".venv\\Scripts\\python.exe tools\\smoke_p7_frozen.py",
+    "build": ".venv\\Scripts\\python.exe -m PyInstaller --noconfirm SmartProof.spec",
+    "lint": "python -m ruff check src tools"
+  },
+  "conventions": {
+    "commits": "conventional",
+    "branch": "trunk",
+    "api": "none"
+  },
+  "gates": [
+    "G0",
+    "G1",
+    "G2",
+    "G3",
+    "G4",
+    "G5",
+    "G6"
+  ],
+  "notes": "无 pytest 套件；GUI 冒烟需桌面会话；ruff 未在 requirements 中（可选装）",
+  "verified_at": "2026-10-23T03:13:16.111652+00:00",
+  "evidence": {
+    "commit": "00d39ea",
+    "configHash": null
+  }
+}

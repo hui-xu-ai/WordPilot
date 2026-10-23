@@ -1,0 +1,135 @@
+{
+  "captions": [
+    {
+      "type": "figure",
+      "number": "1",
+      "text": "图1 系统总体架构",
+      "page_est": 1,
+      "para": 3,
+      "chapter": "第一章 绪论",
+      "section": "1.1 研究背景"
+    },
+    {
+      "type": "figure",
+      "number": "2",
+      "text": "图2 数据流示意",
+      "page_est": 1,
+      "para": 4,
+      "chapter": "第一章 绪论",
+      "section": "1.1 研究背景"
+    },
+    {
+      "type": "table",
+      "number": "1",
+      "text": "表1 实验参数设置",
+      "page_est": 2,
+      "para": 7,
+      "chapter": "第一章 绪论",
+      "section": "1.2 研究意义"
+    },
+    {
+      "type": "figure",
+      "number": "3",
+      "text": "图3 网络拓扑",
+      "page_est": 3,
+      "para": 10,
+      "chapter": "第二章 相关技术",
+      "section": ""
+    }
+  ],
+  "groups": [
+    {
+      "chapter": "第一章 绪论",
+      "total": 3,
+      "sections": [
+        {
+          "section": "1.1 研究背景",
+          "captions": [
+            {
+              "type": "figure",
+              "number": "1",
+              "text": "图1 系统总体架构",
+              "page_est": 1
+            },
+            {
+              "type": "figure",
+              "number": "2",
+              "text": "图2 数据流示意",
+              "page_est": 1
+            }
+          ]
+        },
+        {
+          "section": "1.2 研究意义",
+          "captions": [
+            {
+              "type": "table",
+              "number": "1",
+              "text": "表1 实验参数设置",
+              "page_est": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "chapter": "第二章 相关技术",
+      "total": 1,
+      "sections": [
+        {
+          "section": "",
+          "captions": [
+            {
+              "type": "figure",
+              "number": "3",
+              "text": "图3 网络拓扑",
+              "page_est": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "citations": [
+    {
+      "source": "zotero",
+      "displayed": "[1]",
+      "identity": [
+        "ABC123XY"
+      ],
+      "title": "深度学习研究综述",
+      "page_est": 2,
+      "para": 8,
+      "chapter": "第一章 绪论",
+      "raw": null
+    },
+    {
+      "source": "endnote",
+      "displayed": "[2]",
+      "identity": [
+        "2"
+      ],
+      "title": "神经网络方法研究",
+      "page_est": 3,
+      "para": 11,
+      "chapter": "第二章 相关技术",
+      "raw": null
+    }
+  ],
+  "bibliographies": [
+    {
+      "result_len": 66,
+      "preview": "[1] 张三. 深度学习研究综述[J]. 计算机学报, 2020.\n[2] 李四. 神经网络方法研究[J]. 软件学报, 2021.",
+      "para": 12
+    }
+  ],
+  "field_kind_count": {
+    "caption": 4,
+    "citation_zotero": 1,
+    "citation_endnote": 1,
+    "bibliography": 1
+  },
+  "paragraphs": 12,
+  "pages_est": 4,
+  "elapsed_ms": 2.2
+}
