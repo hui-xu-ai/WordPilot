@@ -13,7 +13,7 @@ import os
 import subprocess
 import sys
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit,
     QPushButton, QLabel, QTextEdit, QSpinBox, QStackedWidget, QWidget,
@@ -34,6 +34,30 @@ _NAV_KEYS = ("settings.tab.api", "settings.tab.prompt",
              "settings.tab.ui", "settings.tab.appearance")
 
 
+class _ConnectionTester(QThread):
+    """在后台线程里测 API 连通性。
+
+    历史实现在 GUI 线程同步 ``requests.post(timeout=30)``：点一次「测试连接」
+    最长冻结界面 30 秒，Windows 会把窗口标成「未响应」，且"测试中"提示根本来不及重绘。
+    """
+
+    done = Signal(bool, str)      # (是否成功, 失败原因)
+
+    def __init__(self, api_key: str, model: str, parent=None) -> None:
+        super().__init__(parent)
+        self._api_key = api_key
+        self._model = model
+
+    def run(self) -> None:        # noqa: D401 - QThread 入口
+        try:
+            client = DeepSeekClient({"api_key": self._api_key, "model": self._model})
+            ok = bool(client.test_connection())
+            reason = "" if ok else (getattr(client, "last_error", "") or "")
+        except Exception as exc:  # noqa: BLE001  后台线程里任何异常都必须回传，不能吞
+            ok, reason = False, str(exc)
+        self.done.emit(ok, reason)
+
+
 class SettingsPage(QWidget):
     saved = Signal()
 
@@ -43,6 +67,7 @@ class SettingsPage(QWidget):
         self.theme = theme
         self.i18n = i18n
         self.skins = skins
+        self._tester: _ConnectionTester | None = None
 
         self.init_ui()
         self.load_settings()
@@ -222,6 +247,8 @@ class SettingsPage(QWidget):
         form = QFormLayout()
         form.setSpacing(10)
         self.opacity_slider = QSlider(Qt.Horizontal)
+        # 不设区间时 QSlider 默认 0–99：100% 不可达，且已存的 1.0 会被 clamp 成 99 再写回 0.99
+        self.opacity_slider.setRange(20, 100)
         self.label_opacity = QLabel()
         form.addRow(self.label_opacity, self.opacity_slider)
         self.font_size_spin = QSpinBox()
@@ -367,7 +394,8 @@ class SettingsPage(QWidget):
         )
         self.show_floating_btn.setChecked(self.config.get("show_floating_button", True))
         self.auto_show_check.setChecked(self.config.get("auto_show_suggestion", True))
-        self.opacity_slider.setValue(int(self.config.get("suggestion_opacity", 0.95) * 100))
+        opacity = float(self.config.get("suggestion_opacity", 0.95) or 0.95)
+        self.opacity_slider.setValue(max(20, min(100, int(round(opacity * 100)))))
         self.font_size_spin.setValue(self.config.get("suggestion_font_size", 12))
         if self.theme is not None:
             self._select_data(self.theme_combo, self.theme.current)
@@ -384,30 +412,38 @@ class SettingsPage(QWidget):
             combo.setCurrentIndex(index)
 
     def save_settings(self):
-        self.config.set_api_key(self.api_key_edit.text().strip())
-        self.config.set("model", self.model_edit.text())
-        self.config.set("temperature", self.temp_edit.value())
-        self.config.set("max_tokens", self.max_tokens_edit.value())
+        """把整页设置**一次性**落盘；写盘失败要可见，且不广播 saved。
 
-        self.config.set("proof_prompt", self.proof_prompt_edit.toPlainText())
-        self.config.set("translate_prompt", self.translate_prompt_edit.toPlainText())
-        self.config.set("rewrite_prompt", self.rewrite_prompt_edit.toPlainText())
-
-        # 动态窗口样式（配色改由主题令牌统一控制）
-        self.config.set("show_floating_button", self.show_floating_btn.isChecked())
-        self.config.set("auto_show_suggestion", self.auto_show_check.isChecked())
-        self.config.set("suggestion_opacity", self.opacity_slider.value() / 100.0)
-        self.config.set("suggestion_font_size", self.font_size_spin.value())
-
-        # 提示词语言（与界面语言解耦，由调用方决定是否重建客户端）
-        self.config.set("prompt_language", self.prompt_language_combo.currentData())
-
-        # 界面语言：保存后由主窗口拉起全局重翻译
-        self.config.set("ui_language", self.ui_language_combo.currentData())
-
+        历史实现逐项 `config.set(...)`：一次保存重写配置文件十余次，
+        中途失败会留下前后不一致的配置，异常也只冒到 stderr（打包后不可见）。
+        """
+        payload = {
+            "model": self.model_edit.text(),
+            "temperature": self.temp_edit.value(),
+            "max_tokens": self.max_tokens_edit.value(),
+            "proof_prompt": self.proof_prompt_edit.toPlainText(),
+            "translate_prompt": self.translate_prompt_edit.toPlainText(),
+            "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
+            # 动态窗口样式（配色改由主题令牌统一控制）
+            "show_floating_button": self.show_floating_btn.isChecked(),
+            "auto_show_suggestion": self.auto_show_check.isChecked(),
+            "suggestion_opacity": max(20, min(100, self.opacity_slider.value())) / 100.0,
+            "suggestion_font_size": self.font_size_spin.value(),
+            # 提示词语言（与界面语言解耦，由调用方决定是否重建客户端）
+            "prompt_language": self.prompt_language_combo.currentData(),
+            # 界面语言：保存后由主窗口拉起全局重翻译
+            "ui_language": self.ui_language_combo.currentData(),
+        }
         # 桌宠皮肤：写入配置，由主窗口调用 kernel.set_skin 广播 skin.changed
         if self.skins is not None and self.skin_combo.currentData():
-            self.config.set("skin", self.skin_combo.currentData())
+            payload["skin"] = self.skin_combo.currentData()
+
+        ok = self.config.update(payload, api_key=self.api_key_edit.text().strip())
+        if not ok:
+            reason = getattr(self.config, "last_save_error", "") or ""
+            self.save_status.setText(self.tr("settings.save_failed")
+                                     + (f"：{reason}" if reason else ""))
+            return
 
         # 主题：保存到配置并立即应用（服务会广播 theme.changed）
         if self.theme is not None:
@@ -419,6 +455,7 @@ class SettingsPage(QWidget):
         self.saved.emit()
 
     def test_connection(self):
+        """测连通性：走后台线程，界面不冻结；按钮期间禁用，结束后恢复。"""
         key = self.api_key_edit.text().strip()
         model = self.model_edit.text().strip()
         if not key:
@@ -428,11 +465,14 @@ class SettingsPage(QWidget):
 
         self.test_btn.setEnabled(False)
         self.test_status.setText(self.tr("settings.api.testing"))
-        client = DeepSeekClient({"api_key": key, "model": model})
-        try:
-            ok = client.test_connection()
-            self.test_status.setText(self.tr("settings.api.test_ok") if ok
-                                     else self.tr("settings.api.test_fail"))
-        except Exception as e:
-            self.test_status.setText(self.tr("settings.api.test_fail") + f"：{e}")
+        self._tester = _ConnectionTester(key, model, self)
+        self._tester.done.connect(self._on_test_done)
+        self._tester.finished.connect(self._tester.deleteLater)
+        self._tester.start()
+
+    def _on_test_done(self, ok: bool, reason: str) -> None:
+        text = self.tr("settings.api.test_ok") if ok else self.tr("settings.api.test_fail")
+        if not ok and reason:
+            text += f"：{reason}"
+        self.test_status.setText(text)
         self.test_btn.setEnabled(True)

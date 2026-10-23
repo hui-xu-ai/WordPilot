@@ -137,6 +137,20 @@ class ConfigManager:
         self.config[key] = value
         self.save()
 
+    def update(self, values: dict, api_key: str | None = None) -> bool:
+        """批量更新并**只落盘一次**；返回是否写盘成功（原因见 ``last_save_error``）。
+
+        设置页一次保存会改十几项：逐项 ``set()`` 等于把配置文件重写十几次，
+        中途失败就留下"一半新一半旧"的配置。
+        """
+        payload = dict(values)
+        if api_key is not None:
+            payload["api_key"] = (
+                "" if not api_key else self._cipher.encrypt(api_key.encode()).decode()
+            )
+        self.config.update(payload)
+        return self.save()
+
     def save(self) -> bool:
         """原子写配置；失败不破坏旧文件，返回是否成功（原因见 last_save_error）。"""
         fd, tmp_name = tempfile.mkstemp(dir=str(CONFIG_DIR), prefix=CONFIG_FILE.name, suffix=".tmp")

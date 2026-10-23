@@ -73,6 +73,7 @@
   "settings.appearance.open_fail_title": "Failed to open",
   "settings.btn.save": "Save",
   "settings.saved_hint": "Saved. Changes applied.",
+  "settings.save_failed": "Save failed (config not written; check disk permissions)",
   "monitor.title": "API Call Monitor",
   "monitor.last_title": "📌 Last call:",
   "monitor.history_title": "📋 Full history:",

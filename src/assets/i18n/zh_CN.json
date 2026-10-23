@@ -73,6 +73,7 @@
   "settings.appearance.open_fail_title": "打开失败",
   "settings.btn.save": "保存",
   "settings.saved_hint": "已保存，改动已生效",
+  "settings.save_failed": "保存失败（配置未写入，请检查磁盘权限）",
   "monitor.title": "API 调用监控",
   "monitor.last_title": "📌 最近一次调用记录：",
   "monitor.history_title": "📋 全部历史记录：",
