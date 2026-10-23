@@ -8,8 +8,10 @@
 2. `skill(name="pydev-protocol")`；
 3. 按需读 `docs/ARCHITECTURE.md` / `.dsh-memory/project/CODE_MAP.md`；
 4. 若 `tools\memory-gate.ps1` 存在，跑一次。
-5. **架构面板（可选，不阻塞）**：若 MCP 工具可用，先 `panel_status`；未运行则 `panel_start(root="D:\Python\Project\SmartProof", port=8787)`。MCP 不可用时回退 CLI：
-   `python tools\proj\proj.py panel status .` / `panel start . --port 8787`。跑代码改动前先看一眼面板（或 `proj arch check`）。
+5. **架构面板（可选，不阻塞）**：默认走 CLI，所有会话都可用：
+   `python tools\proj\proj.py panel status .`；未运行则 `python tools\proj\proj.py panel start . --port 8787`。
+   仅当本会话工具表里确实有 `panel_status`（即已挂 proj MCP）时才用 MCP 工具；看不到就走了 CLI，不要去找不存在的工具。
+   跑代码改动前先看一眼面板（或 `proj arch check`）。
 
 ## 事实
 
