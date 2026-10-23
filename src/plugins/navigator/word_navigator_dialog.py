@@ -99,6 +99,9 @@ class WordNavigatorDialog(QDialog):
         self.cache = CaptionCache()
         self._scanning = False
         self._scan_fingerprint = None
+        # 关闭标志：closeEvent 先置 True，所有排队中的 QTimer 回调据此立即返回
+        # （历史实现在 CoUninitialize 之后仍会跑批处理，在已释放的 COM 公寓上访问 Word）
+        self._closing = False
 
         # 保存监测
         self._save_monitor_timer = QTimer(self)
@@ -299,6 +302,8 @@ class WordNavigatorDialog(QDialog):
 
     def _auto_refresh(self):
         """Word保存后自动刷新：更新文本和页码，静默执行"""
+        if self._closing:
+            return
         if self.isVisible() and not self._scanning:
             self._refresh_captions(update_pages=True, silent=True)
 
@@ -381,6 +386,8 @@ class WordNavigatorDialog(QDialog):
 
     # ---------- 高速域扫描（利用域类型筛选）----------
     def _scan_fields_batch(self):
+        if self._closing:
+            return
         batch_size = 50
         try:
             fields = self._scan_doc.Fields
@@ -426,6 +433,8 @@ class WordNavigatorDialog(QDialog):
         QTimer.singleShot(1, self._process_seq_batch)
 
     def _process_seq_batch(self):
+        if self._closing:
+            return
         try:
             batch_size = 5
             total = len(self._scan_seq_info)
@@ -707,11 +716,32 @@ class WordNavigatorDialog(QDialog):
                 pass
 
     def closeEvent(self, event):        #  2026.05.18
-        self._stop_save_monitor()
-        self.cache.close()
+        self._teardown()
+        super().closeEvent(event)
+
+    def _teardown(self) -> None:
+        """关闭清理：**先置关闭标志**，再停监测/恢复 ScreenUpdating/关缓存/释放引用。
+
+        置标志必须最先做：排队中的 `QTimer.singleShot` 批处理回调据此立刻返回，
+        否则会在 `CoUninitialize` 之后仍去访问 Word（已释放的 COM 公寓）。
+        """
+        self._closing = True
+        try:
+            self._stop_save_monitor()
+        except Exception:
+            pass
+        try:
+            self._restore_screen_updating()
+        except Exception:
+            pass
+        try:
+            self.cache.close()
+        except Exception:
+            pass
+        self.doc = None
+        self.word = None
         if self._com_ok:
             try:
                 pythoncom.CoUninitialize()
-            except:
+            except Exception:
                 pass
-        super().closeEvent(event)

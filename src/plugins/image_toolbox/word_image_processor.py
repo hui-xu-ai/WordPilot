@@ -354,7 +354,14 @@ class WordImageProcessor:
 
     # ---------- 替换 ----------
     def _replace_shape(self, shape, is_inline, info, new_image_path, set_dimension='width'):
+        """替换图片：**先插新图、后删旧图**，整段包进一次自定义撤销记录。
+
+        历史实现先 ``shape.Delete()`` 再 ``AddPicture``：中途任一步失败，原图已经从
+        用户文档里删掉了（``process_selected`` 只把异常转成一句提示），等于真丢图。
+        包进 ``UndoRecord`` 后，失败路径可以一次撤销回到原状。
+        """
         self.word_app.ScreenUpdating = False
+        undo = None
         try:
             try:
                 self.word_app.Options.PictureCompression = False
@@ -362,28 +369,51 @@ class WordImageProcessor:
             except Exception:
                 pass
 
-            shape.Delete()
             doc = self.word_app.ActiveDocument
-            if is_inline:
-                rng = doc.Range(info['range_start'], info['range_end'])
-                new_shape = doc.InlineShapes.AddPicture(
-                    FileName=new_image_path, LinkToFile=False,
-                    SaveWithDocument=True, Range=rng)
-            else:
-                anc_range = doc.Range(info['anchor_start'], info['anchor_start'])
-                new_shape = doc.Shapes.AddPicture(
-                    FileName=new_image_path, LinkToFile=False,
-                    SaveWithDocument=True, Anchor=anc_range)
-                new_shape.Left = info['left']
-                new_shape.Top = info['top']
+            try:
+                undo = self.word_app.UndoRecord
+                undo.StartCustomRecord("SmartProof 图片处理")
+            except Exception:
+                undo = None
 
-            new_shape.LockAspectRatio = True
-            if set_dimension == 'height':
-                new_shape.Height = info['height']  # 高度和原图一样，宽度按比例
-            elif set_dimension == 'width':
-                new_shape.Width = info['width']  # 宽度和原图一样，高度按比例
-            elif set_dimension == 'auto':
-                pass  # 不设置任何尺寸，Word 会自动根据 DPI 计算
+            try:
+                if is_inline:
+                    rng = doc.Range(info['range_start'], info['range_end'])
+                    new_shape = doc.InlineShapes.AddPicture(
+                        FileName=new_image_path, LinkToFile=False,
+                        SaveWithDocument=True, Range=rng)
+                else:
+                    anc_range = doc.Range(info['anchor_start'], info['anchor_start'])
+                    new_shape = doc.Shapes.AddPicture(
+                        FileName=new_image_path, LinkToFile=False,
+                        SaveWithDocument=True, Anchor=anc_range)
+                    new_shape.Left = info['left']
+                    new_shape.Top = info['top']
+
+                new_shape.LockAspectRatio = True
+                if set_dimension == 'height':
+                    new_shape.Height = info['height']  # 高度和原图一样，宽度按比例
+                elif set_dimension == 'width':
+                    new_shape.Width = info['width']  # 宽度和原图一样，高度按比例
+                elif set_dimension == 'auto':
+                    pass  # 不设置任何尺寸，Word 会自动根据 DPI 计算
+
+                # 新图插入且尺寸设置成功之后，才删除旧图
+                shape.Delete()
+            except Exception:
+                if undo is not None:
+                    try:
+                        self.word_app.Undo()      # 回滚本次自定义记录：文档里仍是原图
+                    except Exception:
+                        pass
+                raise
+            finally:
+                if undo is not None:
+                    try:
+                        undo.EndCustomRecord()
+                    except Exception:
+                        pass
+
             self.word_app.ScreenRefresh()
         finally:
             self.word_app.ScreenUpdating = True
