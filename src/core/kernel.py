@@ -36,6 +36,7 @@ class Kernel:
         self.capabilities: dict[str, object] = {}
         self._ui = NullUiRegistry()
         self._booted = False
+        self._shutting_down = False
 
     # ---------------- 属性 ----------------
     @property
@@ -122,7 +123,14 @@ class Kernel:
         return client
 
     def shutdown(self) -> None:
-        """卸载全部插件、释放热键，广播关闭事件。"""
+        """卸载全部插件、释放热键，广播关闭事件。
+
+        幂等：``main_window.quit_app`` 与 ``main.py`` 收尾都会调它（历史上会跑三遍，
+        广播三次 kernel.shutdown、unload_all/hotkeys.clear 各跑两遍）。
+        """
+        if self._shutting_down:
+            return
+        self._shutting_down = True
         self.events.emit("kernel.shutdown", None)
         self.plugins.unload_all()
         hotkeys = self.services.get("hotkeys")

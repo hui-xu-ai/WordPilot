@@ -193,4 +193,5 @@ if theme is not None:
 
 # 配置复位：恢复运行前的 plugins 配置
 kernel.config.set("plugins", _plugins_snapshot)
+kernel.shutdown()   # 不卸载插件就退出：监控 QThread 会被销毁并 abort 进程
 print("\nALL OK")

@@ -51,4 +51,5 @@ print("\n>>> 再切回 zh_CN\n")
 kernel.set_language("zh_CN")
 app.processEvents()
 dump("after zh_CN")
+kernel.shutdown()   # 不卸载插件就退出：监控 QThread 会被销毁并 abort 进程
 print("DONE")

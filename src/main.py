@@ -7,6 +7,7 @@ import logging
 import sys
 import threading
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from __version__ import APP_NAME, __version__, AUTHOR  # noqa: F401  全局元信息唯一来源
@@ -65,6 +66,12 @@ def main():
 
     # 1) 启动内核：注册 config / ai_client / ignore / caption_cache / word_bridge / hotkeys
     kernel = Kernel().boot()
+
+    # 1.5) 热键回调编组：keyboard 库在钩子线程里回调，必须送回 Qt 主线程再执行
+    #      （否则插件回调会跨线程动 QWidget / Word COM，随机崩或 RPC 失败）
+    hotkey_service = kernel.services.get("hotkeys")
+    if hotkey_service is not None:
+        hotkey_service.set_dispatcher(lambda fn: QTimer.singleShot(0, fn))
 
     # 2) 建外壳（窗口、托盘、菜单栏骨架）
     window = MainWindow(kernel)

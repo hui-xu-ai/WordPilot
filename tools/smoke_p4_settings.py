@@ -61,4 +61,5 @@ k.set_theme("light")
 print("[light] 桌宠色:", pet.canvas.state_color().name())
 
 restore_config()
+k.shutdown()   # 不卸载插件就退出：监控 QThread 会被销毁并 abort 进程
 print("\nOK")

@@ -55,4 +55,6 @@ pass
 from core.plugin_manager import USER_PLUGINS_DIR
 shutil.rmtree(USER_PLUGINS_DIR / "hello", ignore_errors=True)
 restore_config()
+k.shutdown()
+k2.shutdown()   # 两个 Kernel 都要卸载：否则监控 QThread 在退出时被销毁并 abort 进程
 print("INSTALL OK")

@@ -54,4 +54,5 @@ k.plugins.unload("proofread")
 print("卸载后已注册窗口:", wm.ids())
 print("窗口服务里还能取到桌宠:", wm.get(PET_ID))
 
+k.shutdown()   # 不卸载插件就退出：监控 QThread 会被销毁并 abort 进程
 print("\nOK")

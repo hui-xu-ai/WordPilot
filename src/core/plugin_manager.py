@@ -18,6 +18,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import logging
+import re
 import shutil
 import sys
 import tempfile
@@ -37,6 +38,9 @@ logger = logging.getLogger(__name__)
 
 #: 用户插件目录：第三方/后装插件放在这里（内置插件在 src/plugins 或包内 plugins/）
 USER_PLUGINS_DIR = BASE_DIR / "plugins_user"
+
+#: 插件 id 必须是安全目录名：安装时会 shutil.rmtree/copytree 到 USER_PLUGINS_DIR/<id>
+_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class PluginState:
@@ -93,39 +97,65 @@ class PluginManager:
                 self._records[manifest.id] = PluginRecord(manifest=manifest)
 
     # ---------------- 依赖排序 ----------------
-    def _sort_by_deps(self, manifests: list[PluginManifest]) -> list[PluginManifest]:
+    def _sort_by_deps(self, manifests: list[PluginManifest]) -> tuple[list[PluginManifest], dict[str, str]]:
+        """拓扑排序；**坏插件只记失败，不牵连其余插件**。
+
+        返回 ``(ordered, failed)``：``failed`` 是 id -> 原因。历史实现在这里 ``raise``，
+        再被 ``load_all`` 变成 ``return []``——一个插件写错 deps 就让全部内置插件不加载。
+        """
         by_id = {m.id: m for m in manifests}
         ordered: list[PluginManifest] = []
+        failed: dict[str, str] = {}
         visiting: set[str] = set()
         visited: set[str] = set()
 
-        def visit(manifest: PluginManifest) -> None:
-            if manifest.id in visited:
+        def visit(manifest: PluginManifest, chain: list[str]) -> None:
+            if manifest.id in visited or manifest.id in failed:
                 return
             if manifest.id in visiting:
-                raise PluginError(f"插件依赖存在环: {manifest.id}")
+                for pid in chain + [manifest.id]:
+                    failed.setdefault(pid, f"插件依赖存在环: {manifest.id}")
+                return
             visiting.add(manifest.id)
+            ok = True
             for dep in manifest.deps:
                 if dep not in by_id:
-                    raise PluginError(f"插件 [{manifest.id}] 依赖的插件不存在: {dep}")
-                visit(by_id[dep])
+                    failed[manifest.id] = f"依赖的插件不存在: {dep}"
+                    ok = False
+                    break
+                visit(by_id[dep], chain + [manifest.id])
+                if dep in failed:
+                    failed[manifest.id] = f"依赖插件 [{dep}] 不可用: {failed[dep]}"
+                    ok = False
+                    break
             visiting.discard(manifest.id)
-            visited.add(manifest.id)
-            ordered.append(manifest)
+            if ok and manifest.id not in failed:
+                visited.add(manifest.id)
+                ordered.append(manifest)
 
         for manifest in manifests:
-            visit(manifest)
-        return ordered
+            visit(manifest, [])
+        return ordered, failed
 
     # ---------------- 加载 ----------------
     def load_all(self) -> list[PluginRecord]:
+        """加载全部可加载插件；依赖有问题的插件单独记 FAILED，其余照常加载。"""
         manifests = self.discover()
-        try:
-            ordered = self._sort_by_deps(manifests)
-        except PluginError as exc:
-            logger.error("插件依赖校验失败：%s", exc)
-            return []
-        return [self.load(manifest) for manifest in ordered]
+        ordered, failed = self._sort_by_deps(manifests)
+        records: list[PluginRecord] = []
+        by_id = {m.id: m for m in manifests}
+        for plugin_id, reason in failed.items():
+            manifest = by_id.get(plugin_id)
+            if manifest is None:
+                continue
+            record = self._records.setdefault(plugin_id, PluginRecord(manifest=manifest))
+            record.state = PluginState.FAILED
+            record.error = reason
+            record.instance = None
+            logger.error("插件 [%s] 依赖校验失败：%s（其余插件照常加载）", plugin_id, reason)
+            records.append(record)
+        records.extend(self.load(manifest) for manifest in ordered)
+        return records
 
     def _plugin_dir(self, manifest: PluginManifest) -> Path:
         """插件包目录（优先取清单发现时记录的真实目录，兼容用户插件）。"""
@@ -184,6 +214,7 @@ class PluginManager:
             logger.error("插件 [%s] 加载失败：%s", manifest.id, record.error)
             return record
 
+        instance = None
         try:
             module = self._import_entry_module(manifest)
             plugin_cls = getattr(module, manifest.entry_class)
@@ -194,6 +225,13 @@ class PluginManager:
             record.error = str(exc)
             record.instance = None
             logger.exception("插件 [%s] 激活失败", manifest.id)
+            # 补偿：activate 半途抛异常时，UI 条目/热键/订阅/i18n 可能已注册成功
+            if instance is not None:
+                try:
+                    instance.deactivate()
+                except Exception:
+                    logger.exception("插件 [%s] 失败补偿 deactivate 异常", manifest.id)
+            self._cleanup_partial(manifest.id)
             return record
 
         record.instance = instance
@@ -201,6 +239,26 @@ class PluginManager:
         record.error = None
         logger.info("插件已加载: %s v%s", manifest.id, manifest.version)
         return record
+
+    def _cleanup_partial(self, plugin_id: str) -> None:
+        """activate 失败后的补偿清理：把可能已注册的贡献点全部收回（best-effort）。"""
+        try:
+            self.kernel.ui.remove_plugin(plugin_id)
+        except Exception:
+            logger.exception("插件 [%s] 补偿清理 UI 失败", plugin_id)
+        hotkeys = self.kernel.services.get("hotkeys")
+        if hotkeys is not None:
+            try:
+                hotkeys.unregister_owner(plugin_id)
+                hotkeys.apply()
+            except Exception:
+                logger.exception("插件 [%s] 补偿清理热键失败", plugin_id)
+        i18n = self.kernel.services.get("i18n")
+        if i18n is not None:
+            try:
+                i18n.unregister_namespace(plugin_id)
+            except Exception:
+                logger.exception("插件 [%s] 补偿清理语言包失败", plugin_id)
 
     # ---------------- 卸载 ----------------
     def unload(self, plugin_id: str) -> None:
@@ -225,6 +283,8 @@ class PluginManager:
         hotkeys = self.kernel.services.get("hotkeys")
         if hotkeys is not None:
             hotkeys.unregister_owner(plugin_id)
+            # 解绑后必须重建绑定：否则组合键仍挂在旧句柄上（幽灵热键，且无法复用同一组合键）
+            hotkeys.apply()
         try:
             self.kernel.ui.remove_plugin(plugin_id)
         except Exception:
@@ -289,7 +349,13 @@ class PluginManager:
         else:
             self.unload(plugin_id)
             if record is not None:
+                if record.state == PluginState.FAILED:
+                    # 失败插件的错误信息不能静默丢掉：先记日志，再补偿清理残留后置为 DISABLED
+                    logger.warning("插件 [%s] 处于失败态（%s），清理残留后置为 DISABLED",
+                                   plugin_id, record.error)
+                    self._cleanup_partial(plugin_id)
                 record.state = PluginState.DISABLED
+                record.error = None
         self.kernel.events.emit("plugins.changed", plugin_id)
 
     def set_order(self, ordered_ids: list[str]) -> None:
@@ -325,7 +391,13 @@ class PluginManager:
                 raise PluginError(f"不支持的安装来源: {source}")
 
             manifest = PluginManifest.from_file(src_dir / "plugin.json")
+            # id 会被当成目录名做 rmtree/copytree：必须是安全目录名且不得越出用户插件目录
+            if not _ID_PATTERN.match(manifest.id):
+                raise PluginError(
+                    f"插件 id 非法（只允许字母/数字/下划线/连字符）: {manifest.id!r}")
             dest = USER_PLUGINS_DIR / manifest.id
+            if dest.resolve().parent != USER_PLUGINS_DIR.resolve():
+                raise PluginError(f"插件 id 会越出用户插件目录: {manifest.id!r}")
             if dest.exists():
                 shutil.rmtree(dest)   # 同 id 覆盖安装（限用户插件目录内）
             shutil.copytree(src_dir, dest)
