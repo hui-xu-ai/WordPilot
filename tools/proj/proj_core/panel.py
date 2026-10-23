@@ -80,7 +80,7 @@ PAGE = r"""<!doctype html>
     <div>粗曲线 <b>xN</b> = 两模块间 <b>N 条 import</b>（聚合通道）</div>
     <div>细线 = 模块内 import（取消「只看跨模块」才显示）</div>
     <div>黄线 = 选中/悬停文件的全部边</div>
-    <div id="iso" style="margin-top:6px"></div>
+    <div id="iso" style="margin-top:6px;cursor:pointer;text-decoration:underline"></div><div id="isoList" style="display:none;max-height:150px;overflow:auto;border-top:1px solid #1c2430;margin-top:4px;padding-top:4px"></div>
    </div></section>
   <section><h3>违规（模块对 / 公开入口）</h3><table id="viol"></table></section>
   <section><h3>问题（scan）</h3><table id="issues"></table></section>
@@ -93,7 +93,7 @@ const PALETTE=['#58a6ff','#3fb950','#d29922','#bc8cff','#39c5cf','#f778ba','#e3b
 let A=null, mods=[], files=[], edges=[], centers=new Map(), pos=new Map(), radii=new Map();
 let hidden=new Set(), collapsed=new Set(), sel=null, hover=null, crossOnly=true, violOnly=false, search='';
 let focusMod=null, focusSet=null, hoverEdge=null, edgeGeom=[], pick=new Set();
-let impact=null, fp=null, edgeMode='agg';
+let impact=null, fp=null, edgeMode='agg', snapId=null;
 let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
 const cv=$('cv'), ctx=cv.getContext('2d');
 function base(p){ const s=p.split('/'); return s[s.length-1]; }
@@ -167,6 +167,10 @@ function draw(){
     ctx.fillStyle='#0b0e14cc'; ctx.fillRect(p.x-tw/2-3,p.y-12,tw+6,15);
     ctx.fillStyle=color(m.id); ctx.textAlign='center'; ctx.fillText(txt,p.x,p.y); ctx.textAlign='left';
     labelRects.push({x:p.x-tw/2-3,y:p.y-12,w:tw+6,h:15}); });
+  // 声明的允许依赖（浅色虚线，与实际边对照）
+  mods.forEach(m=>{ (m.allowed||[]).forEach(a=>{ const c1=centers.get(m.id), c2=centers.get(a); if(!c1||!c2) return;
+    ctx.strokeStyle='rgba(139,148,158,0.22)'; ctx.lineWidth=1; ctx.setLineDash([3,5]);
+    ctx.beginPath(); ctx.moveTo(c1.x,c1.y); ctx.lineTo(c2.x,c2.y); ctx.stroke(); ctx.setLineDash([]); }); });
   // 聚合边
   const agg=new Map();
   edges.forEach(([a,b])=>{ const fa=files.find(f=>f.path===a), fb=files.find(f=>f.path===b); if(!fa||!fb||!fa.module||!fb.module||fa.module===fb.module) return;
@@ -224,6 +228,9 @@ function draw(){
       const hitCirc=files.some(g=>{ const Q=pos.get(g.path); return Q && g!==f && Math.hypot(lx+tw/2-Q.x,ly+6-Q.y)<nodeR(g)+3; });
       const hitRect=labelRects.some(R=>lx<R.x+R.w&&lx+lw>R.x&&ly<R.y+R.h&&ly+lh>R.y);
       if(!hitNode&&!hitCirc&&!hitRect){ labelRects.push({x:lx,y:ly,w:lw,h:lh}); ctx.fillStyle=on?'#fff':'#c9d1d9'; ctx.fillText(txt,lx,ly+9); } } });
+  if(snapId){ const P=pos.get(snapId), f=files.find(x=>x.path===snapId);
+    if(P&&f){ ctx.strokeStyle='#58a6ff'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.arc(P.x,P.y,nodeR(f)+7,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); } }
   ctx.restore();
 }
 
@@ -244,6 +251,12 @@ function toggleFocus(){
   fit();
 }
 function toWorld(ev){ const r=cv.getBoundingClientRect(); return {x:(ev.clientX-r.left-view.x)/view.k, y:(ev.clientY-r.top-view.y)/view.k}; }
+function snap(w){ let best=null, bd=16/view.k;
+  for(const f of files){ if(collapsed.has(f.module)||hidden.has(f.module)) continue;
+    const m=mods.find(x=>x.id===f.module); if(m && !modVisible(m)) continue;
+    const P=pos.get(f.path); if(!P) continue; const d=Math.hypot(w.x-P.x,w.y-P.y);
+    if(d<bd){ bd=d; best=f.path; } }
+  return best; }
 function hit(w){
   for(const f of files){ if(collapsed.has(f.module)||hidden.has(f.module)) continue; const P=pos.get(f.path); if(!P) continue;
     if(Math.hypot(w.x-P.x,w.y-P.y)<=nodeR(f)+3) return {kind:'file',id:f.path}; }
@@ -258,7 +271,10 @@ cv.addEventListener('wheel',(ev)=>{ ev.preventDefault(); const r=cv.getBoundingC
   const k2=Math.min(6,Math.max(0.12,view.k*(ev.deltaY<0?1.12:0.89))), g=k2/view.k; view.x=mx-(mx-view.x)*g; view.y=my-(my-view.y)*g; view.k=k2; upZoom(); draw(); },{passive:false});
 cv.addEventListener('pointerdown',(ev)=>{ moved=false; cv.setPointerCapture(ev.pointerId); drag={sx:ev.clientX-view.x, sy:ev.clientY-view.y}; cv.classList.add('drag'); });
 cv.addEventListener('pointermove',(ev)=>{ if(drag){ moved=true; view.x=ev.clientX-drag.sx; view.y=ev.clientY-drag.sy; draw(); }
-  else { const w=toWorld(ev); const h=hit(w); const id=h&&h.kind==='file'?h.id:null;
+  else { const w=toWorld(ev); let h=hit(w); const direct=!!h;
+    if(!h){ const sid=snap(w); if(sid) h={kind:'file',id:sid}; }
+    snapId = (!direct && h) ? h.id : null;
+    const id=h&&h.kind==='file'?h.id:null;
     const ekey=nearestEdge(w); const changed=(id!==hover)||(ekey!==hoverEdge);
     hover=id; hoverEdge=ekey;
     const tip=$('tip');
@@ -273,7 +289,7 @@ cv.addEventListener('pointermove',(ev)=>{ if(drag){ moved=true; view.x=ev.client
     else if($('hint').textContent) $('hint').textContent='';
     if(changed) draw(); } });
 cv.addEventListener('pointerup',()=>{ drag=null; cv.classList.remove('drag'); });
-cv.addEventListener('click',(ev)=>{ const h=hit(toWorld(ev)); if(!h) return; sel=h; draw(); show(h); });
+cv.addEventListener('click',(ev)=>{ const w=toWorld(ev); let h=hit(w); if(!h){ const s=snap(w); if(s) h={kind:'file',id:s}; } if(!h) return; sel=h; draw(); show(h); });
 cv.addEventListener('dblclick',(ev)=>{ const h=hit(toWorld(ev)); if(!h) return; if(h.kind!=='module') return;
   if(collapsed.has(h.id)) collapsed.delete(h.id); else collapsed.add(h.id); layout(); show(h); });
 function collapseAll(){ mods.forEach(m=>collapsed.add(m.id)); layout(); }
@@ -323,8 +339,11 @@ async function boot(){
   const s=await api('/api/scan'); $('root').textContent=s.root;
   A=await api('/api/arch'); mods=A.modules; files=A.files; edges=A.file_edges; fp=A.fingerprint;
   $('ver').textContent='v'+(A.panel_version||'');
-  const iso=files.filter(f=>f.indeg===0&&f.outdeg===0);
-  $('iso').textContent='孤立文件：'+iso.length+'（无任何 import 关系）'+(iso.length?'：'+iso.slice(0,5).map(f=>base(f.path)).join('、'):'');
+  window.__iso=files.filter(f=>f.indeg===0&&f.outdeg===0);
+  $('iso').textContent='孤立文件：'+window.__iso.length+'（无任何 import 关系；点此列出）';
+  $('iso').onclick=function(){ const el=$('isoList');
+    if(el.style.display==='block'){ el.style.display='none'; return; }
+    el.style.display='block'; el.innerHTML=window.__iso.map(f=>'<div>'+f.path+'</div>').join('')||'<div>（无）</div>'; };
   $('stat').textContent=mods.length+' 模块 / '+files.length+' 文件 / '+edges.length+' 边 / '+A.violations.length+' 违规  score '+s.score.total;
   resize(); layout(); chips();
   const qp=new URLSearchParams(location.search);
