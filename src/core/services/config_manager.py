@@ -1,10 +1,26 @@
-"""配置管理：读写 MWindow_config.json、Fernet 加密保存 api_key、提供 get/set。"""
+"""配置管理：读写 MWindow_config.json、Fernet 加密保存 api_key、提供 get/set。
+
+P10-B2 的三条硬要求：
+1. 配置损坏时**先备份再回退默认值**（历史实现裸 ``except: pass`` 会在下一次 ``save()`` 时
+   用默认值覆盖掉用户 api_key/热键/主题）；
+2. api_key 解密失败**只在「明显不是密文」时**做明文迁移，否则报错返回空串——
+   历史实现会把合法密文当成明文再加密一遍，一旦 ``.key`` 丢失就永久写坏原值；
+3. ``save()`` 原子写（tmp + os.replace），失败时不破坏旧文件并把原因留在 ``last_save_error``。
+"""
 # config_manager.py
+from __future__ import annotations
+
 import json
+import logging
+import os
 import sys
+import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from cryptography.fernet import Fernet
+
+logger = logging.getLogger(__name__)
 
 # 程序目录下的 config 子文件夹
 if getattr(sys, 'frozen', False):
@@ -37,16 +53,22 @@ class ConfigManager:
         else:
             self._key = KEY_FILE.read_bytes()
         self._cipher = Fernet(self._key)
+        self.last_save_error = ""
         self.config = self._load_config()
 
+    # ---------------- 读取与损坏兜底 ----------------
     def _load_config(self):
         config = {}
         if CONFIG_FILE.exists():
             try:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                     config = json.load(f)
-            except:
-                pass
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                self._backup_corrupt(exc)
+                config = {}
+            if not isinstance(config, dict):
+                self._backup_corrupt(ValueError(f"顶层应为对象，实际 {type(config).__name__}"))
+                config = {}
         # 合并默认值，保留已有键
         for key, value in DEFAULT_CONFIG.items():
             config.setdefault(key, value)
@@ -54,16 +76,16 @@ class ConfigManager:
         config.setdefault("api_endpoint", DEFAULT_ENDPOINT)
         config.setdefault("model", DEFAULT_MODEL)
 
-# --修改16       
+# --修改16
         config.setdefault("temperature", 0.4)
         config.setdefault("max_tokens", 2000)
-# --修改16   
-        
+# --修改16
+
         # 提示词默认留空：空串时由语言包按「提示词语言」给出默认文案
         config.setdefault("proof_prompt", "")
         config.setdefault("translate_prompt", "")
         config.setdefault("rewrite_prompt", "")
-            
+
         config.setdefault("debounce_ms", 500)
         config.setdefault("context_before", 1)
         config.setdefault("context_after", 1)
@@ -95,6 +117,19 @@ class ConfigManager:
         config.pop("suggestion_font_color", None)
         return config
 
+    @staticmethod
+    def _backup_corrupt(reason: Exception) -> str:
+        """把损坏的配置文件改名留档；失败也要留日志，绝不静默丢弃现场。"""
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        target = CONFIG_FILE.with_name(f"{CONFIG_FILE.name}.corrupt-{stamp}")
+        try:
+            CONFIG_FILE.replace(target)
+            logger.error("配置文件损坏（%s），已备份到 %s 并回退默认值", reason, target)
+            return str(target)
+        except OSError:
+            logger.exception("配置文件损坏（%s）且备份失败: %s", reason, CONFIG_FILE)
+            return ""
+
     def get(self, key, default=None):
         return self.config.get(key, default)
 
@@ -102,29 +137,48 @@ class ConfigManager:
         self.config[key] = value
         self.save()
 
-    def save(self):
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(self.config, f, ensure_ascii=False, indent=2)
+    def save(self) -> bool:
+        """原子写配置；失败不破坏旧文件，返回是否成功（原因见 last_save_error）。"""
+        fd, tmp_name = tempfile.mkstemp(dir=str(CONFIG_DIR), prefix=CONFIG_FILE.name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(self.config, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_name, CONFIG_FILE)
+            self.last_save_error = ""
+            return True
+        except Exception as exc:  # noqa: BLE001  磁盘满/被杀软锁/权限都可能失败
+            self.last_save_error = str(exc)
+            logger.exception("配置写入失败: %s", CONFIG_FILE)
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            return False
 
     def get_api_key(self) -> str:
         """读取 API Key（密文自动解密）。
 
-        兼容历史明文配置：解密失败时按明文处理，并立即加密回写，
-        完成一次性的明文 → 密文迁移。
+        只有「明显不是 Fernet 密文」的值才按历史明文迁移（一次性加密回写）；
+        密文解不开（典型是 ``.key`` 被删或换了机器）时返回空串并报错，
+        **绝不回写**，否则会把用户唯一的 key 密文永久写坏。
         """
         value = self.config.get("api_key", "")
         if not value:
             return ""
         try:
             return self._cipher.decrypt(value.encode()).decode()
-        except Exception:
-            # 历史遗留的明文 Key：原样返回，并加密回写磁盘
-            plain = value
+        except Exception as exc:  # noqa: BLE001  Fernet 会抛 InvalidToken/ValueError 等
+            if value.startswith("gAAAAA"):
+                logger.error("api_key 解密失败（疑似 config/.key 变更），已保留原密文不覆盖: %s", exc)
+                return ""
+            logger.warning("检测到历史明文 api_key，正在加密迁移")
             try:
-                self.set_api_key(plain)
+                self.set_api_key(value)
             except Exception:
-                pass  # 回写失败不影响本次使用
-            return plain
+                logger.exception("api_key 明文迁移失败，本次仍按明文使用")
+            return value
 
     def set_api_key(self, plain: str):
         """加密存储 API Key；传入空串则清空。"""

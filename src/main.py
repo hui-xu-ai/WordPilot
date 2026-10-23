@@ -3,7 +3,9 @@
 
 这里不出现任何具体功能的装配代码；新增功能请写到 plugins/ 下的插件包里。
 """
+import logging
 import sys
+import threading
 
 from PySide6.QtWidgets import QApplication
 
@@ -13,7 +15,50 @@ from app.main_window import MainWindow
 from infra.memory_trimmer import start_periodic_trim, delayed_trim  #   定时清理内存占用
 
 
+def _install_failure_hooks() -> None:
+    """打包配置是 console=False：未捕获异常必须落盘，否则用户侧现象只剩"点了没反应"。
+
+    三处都装：主线程异常、后台线程异常（监控线程/热键钩子只有这里能看到）、Qt 自身告警。
+    """
+    from PySide6.QtCore import qInstallMessageHandler
+
+    from core.services.config_manager import CONFIG_DIR
+
+    logger = logging.getLogger("smartproof.unhandled")
+    logger.setLevel(logging.ERROR)
+    if not logger.handlers:
+        try:
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            handler = logging.FileHandler(CONFIG_DIR / "errors.log", encoding="utf-8")
+            handler.setFormatter(logging.Formatter(
+                "%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s"))
+            logger.addHandler(handler)
+        except OSError:
+            pass  # 配置目录不可写时退化为标准 excepthook，不阻断启动
+
+    def _excepthook(exc_type, exc, tb):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc, tb)
+            return
+        logger.error("未捕获异常", exc_info=(exc_type, exc, tb))
+
+    def _thread_hook(args):
+        logger.error("线程未捕获异常: %s", getattr(args.thread, "name", "?"),
+                     exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
+
+    def _qt_handler(mode, context, message):
+        text = str(message)
+        if "propagateSizeHints" in text:   # 无边框窗口的已知无害告警
+            return
+        logger.error("Qt: %s", text)
+
+    sys.excepthook = _excepthook
+    threading.excepthook = _thread_hook
+    qInstallMessageHandler(_qt_handler)
+
+
 def main():
+    _install_failure_hooks()
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)

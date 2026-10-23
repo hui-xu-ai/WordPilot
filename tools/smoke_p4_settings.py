@@ -17,9 +17,12 @@ app = QApplication([])                           # noqa: F401
 from core.kernel import Kernel                  # noqa: E402
 from app.main_window import MainWindow          # noqa: E402
 from plugins.proofread.pet_window import WINDOW_ID as PET_ID   # noqa: E402
+from _config_guard import guard                                # noqa: E402
 
 k = Kernel()
 k.boot()
+# save_settings() 会真写用户 config（skin/ui_language/theme）：先快照，结束恢复
+restore_config = guard(k.config, ["skin", "ui_language", "theme", "suggestion_opacity"])
 mw = MainWindow(k)
 k.attach_ui(mw.ui)
 k.plugins.load_all()
@@ -57,4 +60,5 @@ print("[dark] 桌宠色:", pet.canvas.state_color().name())
 k.set_theme("light")
 print("[light] 桌宠色:", pet.canvas.state_color().name())
 
+restore_config()
 print("\nOK")

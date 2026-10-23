@@ -16,9 +16,12 @@ app = QApplication([])                           # noqa: F401
 
 from core.kernel import Kernel                  # noqa: E402
 from app.main_window import MainWindow          # noqa: E402
+from _config_guard import guard                 # noqa: E402
 
 k = Kernel()
 k.boot()
+# 预览会切主题/语言/折叠：快照恢复，不要把用户配置强行写成固定值
+restore_config = guard(k.config, ["theme", "ui_language", "nav.collapsed"])
 mw = MainWindow(k)
 k.attach_ui(mw.ui)
 k.plugins.load_all()
@@ -58,7 +61,6 @@ mw.show_page("plugin:proofread");  snap("rail_dark")
 mw.show_page("plugins");    snap("rail_plugins_dark")
 k.set_theme("light")
 
-# 复位语言与折叠状态，避免污染用户配置
-k.config.set("ui_language", "zh_CN")
-k.config.set("nav.collapsed", True)
+# 恢复语言与折叠状态（快照值，不是硬编码）
+restore_config()
 k.shutdown()

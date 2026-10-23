@@ -158,7 +158,9 @@ for plugin_dir in sorted((INTERNAL / "plugins").glob("*")):
         en = json.loads((i18n_dir / "en_US.json").read_text(encoding="utf-8"))
         gap = set(zh) - set(en)
         check(not gap, f"{pid}: 中英词条对齐（英文缺: {sorted(gap) or '无'}）")
-    check("ui" in manifest.get("requires", []) or True, f"{pid}: requires={manifest.get('requires')}")
+    requires = manifest.get("requires", [])
+    check(isinstance(requires, list) and all(isinstance(x, str) and x for x in requires),
+          f"{pid}: requires 全为非空字符串（{requires}）")
 
 print("\n=== 5) 可执行文件 ===")
 exe = DIST / "SmartProof.exe"

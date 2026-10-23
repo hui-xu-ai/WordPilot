@@ -15,9 +15,12 @@ app = QApplication([])
 
 from core.kernel import Kernel
 from app.main_window import MainWindow
+from _config_guard import guard
 
 kernel = Kernel()
 kernel.boot()
+# 本脚本会改 plugins / ui_language：只快照恢复，绝不 set("plugins", {}) 清空用户配置
+restore_config = guard(kernel.config, ["plugins", "ui_language"])
 mw = MainWindow(kernel)
 kernel.attach_ui(mw.ui)
 kernel.plugins.load_all()
@@ -68,8 +71,11 @@ skins = kernel.services.get("skins")
 assert skins.eye_variant("idle") == "sleep", "idle 应为闭眼打盹"
 assert skins.eye_variant("error") == "open"
 proof.set_state("idle")
-print("idle  -> eyes:", skins.eye_variant("idle"), "| mouth svg has sleep:",
-      "mouth_sleep" in skins.part_svg("mouth", "idle") or True)
+idle_mouth = skins.part_svg("mouth", "idle")
+print("idle  -> eyes:", skins.eye_variant("idle"), "| mouth svg len:", len(idle_mouth))
+# 真断言：idle 必须产出嘴型，且与 ok 是不同部件（原写法 `... or True` 恒真，等于没测）
+assert idle_mouth.strip(), "idle 应产出嘴型 SVG"
+assert idle_mouth != skins.part_svg("mouth", "ok"), "idle 与 ok 不应共用同一嘴型"
 proof._show_ok()
 print("ok    ->", proof.state(), "| eyes:", skins.eye_variant(proof.state()))
 import time
@@ -105,7 +111,9 @@ assert clip is not None, "翻译改写页应能构造"
 assert hasattr(clip, "correct_btn"), "P8 起恢复纠错按钮"
 assert not hasattr(clip, "btn_insert"), "插入 Word 按钮应已移除"
 
-# 配置复位
-kernel.config.set("plugins", {})
-kernel.set_language("zh_CN")
+# 配置复位（恢复快照，不是清空）+ 卸载插件
+# 不 shutdown 就退出会让 proofread 的监控 QThread 在解释器收尾时被销毁（"QThread: Destroyed while
+# thread is still running" 直接 abort 整个进程），冒烟会被判成崩溃而不是 PASS。
+restore_config()
+kernel.shutdown()
 print("\nALL OK")

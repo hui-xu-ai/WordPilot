@@ -15,5 +15,7 @@
   "fail_rewrite": "改写失败，请检查网络或 API 设置",
   "fail_correct": "纠错失败，请检查网络或 API 设置",
   "error_title": "错误",
+  "fail_no_api": "AI 服务未就绪，请先在设置里填写 API Key",
+  "fail_hotkey": "热键处理失败",
   "hotkey_done": "已处理剪贴板内容，结果已写回剪贴板"
 }

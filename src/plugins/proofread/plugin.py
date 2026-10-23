@@ -289,7 +289,12 @@ class ProofreadPlugin(PluginBase):
             self.set_state("busy")
             api = self.ctx.get_service("ai_client")
             corrected = api.proof_text(current)
-            has_diff = corrected and corrected.strip() != current.strip()
+            if corrected is None:
+                # 失败绝不能落到 _show_ok()：那会把"API 挂了"显示成"检查过、无错"
+                self._log_exception(self.tr("log.proof_cursor_failed"))
+                self.set_state("idle")
+                return
+            has_diff = corrected.strip() != current.strip()
             if has_diff:
                 self._on_suggestion(current, corrected, -1, -1)
             else:

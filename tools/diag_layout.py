@@ -15,9 +15,12 @@ app = QApplication([])
 
 from app.main_window import MainWindow
 from core.kernel import Kernel
+from _config_guard import guard
 
 kernel = Kernel()
 kernel.boot()
+# 诊断需要"全部插件都加载"的基线，但结束后必须恢复用户原值（不能只 pop 掉 disabled 就跑）
+restore_config = guard(kernel.config, ["plugins"])
 cfg = dict(kernel.config.get("plugins", {}) or {})
 cfg.pop("disabled", None)      # 冒烟基线：加载全部默认插件
 kernel.config.set("plugins", cfg)
@@ -49,5 +52,8 @@ for c in cards:
     bottom = c.geometry().y() + c.geometry().height()
     print("  底部 y:", bottom, "<= 视口", dash.height())
     assert bottom <= dash.height() + 2, "卡片超出可视区域"
+
+restore_config()
+kernel.shutdown()
 
 print("\nLAYOUT OK")

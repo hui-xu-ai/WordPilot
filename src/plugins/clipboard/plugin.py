@@ -105,16 +105,24 @@ class ClipboardWidget(QWidget):
 
         api = self._ctx.get_service("ai_client")
         if api is None:
+            self.clip_result.setPlainText(self.tr("fail_no_api"))
             return
+
+        def _fail(prefix_key: str) -> str:
+            """失败文案带上具体原因，避免用户只看到"失败"两个字。"""
+            reason = (getattr(api, "last_error", "") or "").strip()
+            base = self.tr(prefix_key)
+            return f"{base}（{reason}）" if reason else base
+
         if action == "translate":
             result = api.translate(text)
-            self.clip_result.setPlainText(result or self.tr("fail_translate"))
+            self.clip_result.setPlainText(result or _fail("fail_translate"))
         elif action == "rewrite":
             result = api.rewrite(text)
-            self.clip_result.setPlainText(result or self.tr("fail_rewrite"))
+            self.clip_result.setPlainText(result or _fail("fail_rewrite"))
         elif action == "correct":
             result = api.clipboard_proof(text)
-            self.clip_result.setPlainText(result or self.tr("fail_correct"))
+            self.clip_result.setPlainText(result or _fail("fail_correct"))
 
 
 class ClipboardPlugin(PluginBase):
@@ -154,3 +162,7 @@ class ClipboardPlugin(PluginBase):
         if result:
             QApplication.clipboard().setText(result)
             self.ctx.ui.status(self.tr("hotkey_done"), 3000)
+        else:
+            # 成功静默、失败必须出声，否则用户以为热键没生效
+            reason = (getattr(api, "last_error", "") or "").strip()
+            self.ctx.ui.status(self.tr("fail_hotkey") + (f"：{reason}" if reason else ""), 5000)

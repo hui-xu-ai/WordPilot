@@ -68,12 +68,18 @@ print("expanded width:", mw.nav.width())
 assert mw.nav.width() == 180
 mw.nav.set_collapsed(True)
 assert mw.nav.width() == 52
-assert kernel.config.get("nav.collapsed") is not None or True
+assert mw.nav.is_collapsed() is True, "折叠状态应记录在 NavRail 上"
 
 print("\n=== 6) 动作型入口（导航助手） ===")
 tools = mw.ui.tools()
 print("tools:", [(t[0], t[2]) for t in tools])
-assert any("导航" in t[0] or "Navigator" in t[0] for t in tools)
+# 冒烟不得假设用户启停了哪个插件：navigator 被禁用时该入口本就不应存在（HANDOFF「冒烟污染」坑）
+plugins_cfg = kernel.config.get("plugins", {}) or {}
+if "navigator" in (plugins_cfg.get("disabled") or []):
+    print("  navigator 在用户配置里被禁用 -> 跳过该入口断言")
+    assert not any("导航" in t[0] for t in tools), "禁用后不应残留导航入口"
+else:
+    assert any("导航" in t[0] or "Navigator" in t[0] for t in tools), "导航助手入口缺失"
 
 print("\n=== 7) 语言热切换（轨道重建、页面状态保留） ===")
 clipboard_page = None
@@ -107,4 +113,5 @@ print("smoke_p4_pet:", "PASS" if result.returncode == 0 else "FAIL")
 if result.returncode != 0:
     print(result.stdout[-800:], result.stderr[-800:])
 
+kernel.shutdown()   # 不卸载插件就退出：监控 QThread 会在解释器收尾时被销毁并 abort 进程
 print("\nALL OK")

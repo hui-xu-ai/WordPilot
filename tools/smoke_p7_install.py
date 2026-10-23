@@ -4,7 +4,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 app = QApplication([])
 from core.kernel import Kernel
+from _config_guard import guard
 k = Kernel(); k.boot()
+# 安装/启停会写 plugins 配置：快照恢复，绝不用 set("plugins", {}) 清空用户 disabled/order
+restore_config = guard(k.config, ["plugins"])
 
 # 造一个假插件 zip
 tmp = tempfile.mkdtemp()
@@ -51,5 +54,5 @@ import shutil
 pass
 from core.plugin_manager import USER_PLUGINS_DIR
 shutil.rmtree(USER_PLUGINS_DIR / "hello", ignore_errors=True)
-k.config.set("plugins", {})
+restore_config()
 print("INSTALL OK")

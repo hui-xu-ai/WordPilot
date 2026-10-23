@@ -15,5 +15,7 @@
   "fail_rewrite": "Rewrite failed; check network or API settings",
   "fail_correct": "Proofreading failed; check network or API settings",
   "error_title": "Error",
+  "fail_no_api": "AI service not ready; set the API key in Settings first",
+  "fail_hotkey": "Hotkey action failed",
   "hotkey_done": "Clipboard processed; result copied back"
 }
