@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -95,6 +96,34 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "panel_start",
+        "description": "启动 pydev 架构面板（本地 Web，127.0.0.1）。何时用：要看架构图/约束提示词，或面板版本陈旧需重启。已在运行且版本一致时直接返回 URL。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"root": {"type": "string"}, "port": {"type": "integer"},
+                           "open": {"type": "boolean"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "panel_stop",
+        "description": "停止架构面板（按 PID 文件 + /api/health 校验，绝不按进程名杀）。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"root": {"type": "string"}, "port": {"type": "integer"}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "panel_status",
+        "description": "查询架构面板状态：是否运行、版本、pid、URL；用于判断是否陈旧。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"root": {"type": "string"}, "port": {"type": "integer"}},
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "proj_pack_list",
         "description": "列出可用领域包与技能。何时用：给项目选装领域技能（安全/测试/前端/后端/Agent/技能/数据）。",
         "inputSchema": {
@@ -110,7 +139,22 @@ def _root(args: dict[str, Any]) -> Path:
     return Path(args.get("root") or Path.cwd()).resolve()
 
 
+def _panel_cmd(action: str, args: dict[str, Any]) -> dict:
+    proj = Path(__file__).resolve().parents[1] / "proj.py"
+    port = int(args.get("port") or 8787)
+    cmd = [sys.executable, str(proj), "panel", action, str(_root(args)), "--port", str(port)]
+    if args.get("open"):
+        cmd.append("--open")
+    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=90, check=False)
+    out = ((proc.stdout or "") + (proc.stderr or "")).strip()
+    return {"ok": proc.returncode == 0, "action": action, "port": port,
+            "output": out[-4000:], "url": f"http://127.0.0.1:{port}/"}
+
+
 def call_tool(name: str, args: dict[str, Any]) -> Any:
+    if name in {"panel_start", "panel_stop", "panel_status"}:
+        return _panel_cmd(name.split("_", 1)[1], args)
     root = _root(args)
     if name == "proj_scan":
         return scanner.scan(root).to_dict()
