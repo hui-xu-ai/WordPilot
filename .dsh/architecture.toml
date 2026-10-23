@@ -5,6 +5,8 @@
 [project]
 title = "SmartProof"
 python_roots = ["src"]
+max_lines_warn = 400
+max_lines_fail = 600
 
 [[modules]]
 id = "app"

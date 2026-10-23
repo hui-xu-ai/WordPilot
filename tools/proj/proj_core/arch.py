@@ -73,6 +73,8 @@ class ArchReport:
     files: list[dict] = field(default_factory=list)
     file_edges: list[list[str]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    thresholds: dict = field(default_factory=dict)
+    coverage: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -80,6 +82,18 @@ class ArchReport:
 
 def _norm(p: str) -> str:
     return p.replace("\\", "/").strip("/")
+
+
+def load_limits(root: Path) -> dict:
+    path = root / MODEL_REL
+    if not path.is_file() or tomllib is None:
+        return {"warn": 400, "fail": 600}
+    try:
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"warn": 400, "fail": 600}
+    proj = raw.get("project", {})
+    return {"warn": int(proj.get("max_lines_warn", 400)), "fail": int(proj.get("max_lines_fail", 600))}
 
 
 def load_model(root: Path) -> tuple[list[Module], list[str]]:
@@ -200,6 +214,11 @@ def build_arch(root: Path) -> ArchReport:
                 report.violations.append({"kind": "public", "from": ma, "to": mb, "count": 1,
                                           "file": target,
                                           "reason": f"{target} 不在 {mb} 的公开入口内"})
+    report.thresholds = load_limits(root)
+    module_files = [f for f in report.files if f["module"] and not f["path"].endswith(_EXEMPT_DOC) and "/tests/" not in f["path"]]
+    with_desc = [f for f in module_files if f["desc"]]
+    report.coverage = {"files": len(module_files), "with_desc": len(with_desc),
+                       "pct": round(100 * len(with_desc) / max(1, len(module_files)))}
     report.warnings = [f"缺职责头：{f['path']}" for f in report.files
                        if f["module"] and not f["desc"]
                        and not f["path"].endswith(_EXEMPT_DOC)
@@ -285,6 +304,9 @@ def arch_context(root: Path) -> dict:
         lines.append(f"- **{m['id']}**（{m['files']} 文件）{m['description'] or '（未写职责）'}")
         entry = m["public"] or m.get("entrypoints") or []
         lines.append(f"  入口：{', '.join(entry) or '未声明'}；允许依赖：{', '.join(m['allowed']) or '无'}")
+    lines.append("")
+    lines.append(f"## 职责覆盖：{report.coverage.get('with_desc', 0)}/{report.coverage.get('files', 0)}"
+                 f"（{report.coverage.get('pct', 0)}%）；行数阈值 >{report.thresholds.get('warn', 400)} / >{report.thresholds.get('fail', 600)}")
     lines.append("")
     lines.append("## 实际跨模块依赖")
     for e in report.edges:

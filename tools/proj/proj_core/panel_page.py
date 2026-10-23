@@ -60,7 +60,7 @@ PAGE = r"""<!doctype html>
     <div>细线 = 模块内 import（取消「只看跨模块」才显示）</div>
     <div>黄线 = 选中/悬停文件的全部边</div>
     <div>浅蓝虚线 = 声明的允许依赖；红虚线 = 实际越界</div>
-    <div>行数着色：<span style="color:#3fb950">≤200</span> · <span style="color:#d29922">≤400</span> · <span style="color:#db6d28">≤600</span> · <span style="color:#f85149">&gt;600</span></div>
+    <div id="legend-lines"></div>
     <div id="iso" style="margin-top:6px;cursor:pointer;text-decoration:underline"></div><div id="isoList" style="display:none;max-height:150px;overflow:auto;border-top:1px solid #1c2430;margin-top:4px;padding-top:4px"></div>
    </div></section>
   <section><h3>屎山监测（文件行数）</h3><div id="size" style="font-size:12px;line-height:1.7"></div></section>
@@ -80,7 +80,7 @@ let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
 const cv=$('cv'), ctx=cv.getContext('2d');
 function base(p){ const s=p.split('/'); return s[s.length-1]; }
 function color(mid){ const i=mods.findIndex(m=>m.id===mid); return PALETTE[(i<0?0:i)%PALETTE.length]; }
-function lineColor(n){ return n>600?'#f85149':n>400?'#db6d28':n>200?'#d29922':'#3fb950'; }
+function lineColor(n){ const w=(A&&A.thresholds&&A.thresholds.warn)||400, f=(A&&A.thresholds&&A.thresholds.fail)||600; return n>f?'#f85149':n>w?'#db6d28':n>w*0.5?'#d29922':'#3fb950'; }
 function fileColor(f){ return colorBy==='lines'?lineColor(f.lines||0):color(f.module); }
 function depViol(a,b){ return A.violations.some(v=>(v.kind||'dependency')==='dependency'&&v.from===a&&v.to===b); }
 function pubViol(mid){ return A.violations.some(v=>v.kind==='public'&&v.to===mid); }
@@ -328,9 +328,12 @@ async function boot(){
   const s=await api('/api/scan'); $('root').textContent=s.root;
   A=await api('/api/arch'); mods=A.modules; files=A.files; edges=A.file_edges; fp=A.fingerprint;
   $('ver').textContent='v'+(A.panel_version||'');
-  const big=files.filter(f=>f.lines>400).sort((a,b)=>b.lines-a.lines);
-  const huge=files.filter(f=>f.lines>600);
-  $('size').innerHTML='&gt;400 行：<b>'+big.length+'</b> 个 · &gt;600 行：<b style="color:#f85149">'+huge.length+'</b> 个<br>'+
+  const W=(A.thresholds&&A.thresholds.warn)||400, F=(A.thresholds&&A.thresholds.fail)||600;
+  $('legend-lines').innerHTML='行数着色：<span style="color:#3fb950">≤'+Math.round(W/2)+'</span> · <span style="color:#d29922">≤'+W+'</span> · <span style="color:#db6d28">≤'+F+'</span> · <span style="color:#f85149">&gt;'+F+'</span>';
+  const big=files.filter(f=>f.lines>W).sort((a,b)=>b.lines-a.lines);
+  const huge=files.filter(f=>f.lines>F);
+  $('size').innerHTML='职责覆盖：<b>'+(A.coverage.with_desc)+'/'+(A.coverage.files)+'</b>（'+A.coverage.pct+'%%）<br>'+
+    '&gt;'+W+' 行：<b>'+big.length+'</b> 个 · &gt;'+F+' 行：<b style="color:#f85149">'+huge.length+'</b> 个<br>'+
     big.slice(0,8).map(f=>'<div class="tag" onclick="pickFile(this.dataset.p)" data-p="'+f.path+'">'+f.lines+' 行 · '+base(f.path)+'</div>').join('');
   window.__iso=files.filter(f=>f.indeg===0&&f.outdeg===0);
   $('iso').textContent='孤立文件：'+window.__iso.length+'（无任何 import 关系；点此列出）';
