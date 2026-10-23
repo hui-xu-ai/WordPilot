@@ -146,7 +146,7 @@ function draw(){
     labelRects.push({x:p.x-tw/2-3,y:p.y-12,w:tw+6,h:15}); });
   // 声明的允许依赖（浅色虚线，与实际边对照）
   mods.forEach(m=>{ (m.allowed||[]).forEach(a=>{ const c1=centers.get(m.id), c2=centers.get(a); if(!c1||!c2) return;
-    ctx.strokeStyle='rgba(139,148,158,0.22)'; ctx.lineWidth=1; ctx.setLineDash([3,5]);
+    ctx.strokeStyle='rgba(196,214,245,0.62)'; ctx.lineWidth=1.4; ctx.setLineDash([4,4]);
     ctx.beginPath(); ctx.moveTo(c1.x,c1.y); ctx.lineTo(c2.x,c2.y); ctx.stroke(); ctx.setLineDash([]); }); });
   // 聚合边
   const agg=new Map();
