@@ -86,3 +86,7 @@ work/verify/
 *.key
 credentials
 credentials.*
+
+# panel 运行时
+.dsh/panel.pid
+.dsh/panel.log
