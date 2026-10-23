@@ -55,7 +55,7 @@ python tools\proj\mcp_server.py [--list-tools]
 | `graph` | 模块依赖图（Python `ast` + JS/TS 正则）：入度 Top、**循环检测**、`--focus` 上下游、未解析引用 | 仅 `--json` |
 | `adr index` | ADR 索引与校验：编号唯一连续 + 状态/日期/背景/决策/后果/备选齐全，产出 `docs/adr/INDEX.md` | 写 `INDEX.md` |
 | `eval` | 一键收口自检：布局/隐私/体积/垃圾/忽略/依赖循环/Wiki 新鲜/测试/技能预算/领域包 | 仅 `--json` |
-| `panel` | 本地只读面板（`http://127.0.0.1:8787/`）：scan 问题清单、依赖图、Wiki 检索、领域包 | 只读 |
+| `panel` | 本地只读面板（`http://127.0.0.1:8787/`）：**可交互架构图**（点节点）＋ **约束提示词生成**（允许改/不得改/必须回归）＋ scan 问题、Wiki 检索、领域包 | 只读 |
 | `mcp_server.py` | 官方 `dsh-mcp-client`（stdio）暴露 7 个工具：`proj_scan`/`proj_push_check`/`proj_wiki_search`/`proj_context`/`proj_graph`/`proj_adr_index`/`proj_pack_list` | 只读（push_check 只读检查） |
 
 ## 约定
