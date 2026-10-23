@@ -39,6 +39,7 @@ PAGE = r"""<!doctype html>
  .fail{color:#f85149}.warn{color:#d29922}.ok{color:#3fb950}
  .chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #2b3648;border-radius:12px;padding:1px 8px;font-size:11px;cursor:pointer;user-select:none}
  .chip.off{opacity:.35;text-decoration:line-through}
+ .chip.pick{outline:1px solid #58a6ff;background:#1f6feb22}
  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
  #zoom{min-width:46px;text-align:center}
 </style></head><body>
@@ -52,7 +53,7 @@ PAGE = r"""<!doctype html>
    <button onclick="zoomBy(0.85)">−</button><span class="muted" id="zoom">100%</span><button onclick="zoomBy(1.18)">+</button>
    <button onclick="fit()">适配</button>
    <button onclick="collapseAll()">折叠全部</button><button onclick="expandAll()">展开全部</button>
-   <span id="chips"></span><span class="muted" id="hint"></span>
+   <span id="chips"></span><span id="pickbar"></span><span class="muted" id="hint"></span>
   </div>
   <div id="wrap"><canvas id="cv"></canvas></div>
  </div>
@@ -70,13 +71,14 @@ const $=(id)=>document.getElementById(id); const api=async(p)=>(await fetch(p)).
 const PALETTE=['#58a6ff','#3fb950','#d29922','#bc8cff','#39c5cf','#f778ba','#e3b341','#7ee787'];
 let A=null, mods=[], files=[], edges=[], centers=new Map(), pos=new Map(), radii=new Map();
 let hidden=new Set(), collapsed=new Set(), sel=null, hover=null, crossOnly=true, violOnly=false, search='';
-let focusMod=null, focusSet=null, hoverEdge=null, edgeGeom=[];
+let focusMod=null, focusSet=null, hoverEdge=null, edgeGeom=[], pick=new Set();
 let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
 const cv=$('cv'), ctx=cv.getContext('2d');
 function base(p){ const s=p.split('/'); return s[s.length-1]; }
 function color(mid){ const i=mods.findIndex(m=>m.id===mid); return PALETTE[(i<0?0:i)%PALETTE.length]; }
 function depViol(a,b){ return A.violations.some(v=>(v.kind||'dependency')==='dependency'&&v.from===a&&v.to===b); }
 function pubViol(mid){ return A.violations.some(v=>v.kind==='public'&&v.to===mid); }
+function modVisible(m){ return !hidden.has(m.id) && (!focusSet || focusSet.has(m.id)); }
 function nodeR(f){ return Math.min(13, 2.6+1.5*Math.sqrt(f.indeg)); }
 function resize(){ const r=cv.getBoundingClientRect(); dpr=window.devicePixelRatio||1; W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; draw(); }
 new ResizeObserver(resize).observe($('wrap'));
@@ -192,12 +194,12 @@ function nearestEdge(w){
   return bd < 10/view.k ? best : null;
 }
 function toggleFocus(){
-  if(focusMod){ focusMod=null; focusSet=null; $('focusBtn').textContent='只看它的邻居'; draw(); return; }
+  if(focusMod){ focusMod=null; focusSet=null; $('focusBtn').textContent='只看它的邻居'; fit(); return; }
   if(!sel||sel.kind!=='module') return;
   focusMod=sel.id; focusSet=new Set([sel.id]);
   A.edges.forEach(e=>{ if(e.from===focusMod) focusSet.add(e.to); if(e.to===focusMod) focusSet.add(e.from); });
   $('focusBtn').textContent='显示全部';
-  draw();
+  fit();
 }
 function toWorld(ev){ const r=cv.getBoundingClientRect(); return {x:(ev.clientX-r.left-view.x)/view.k, y:(ev.clientY-r.top-view.y)/view.k}; }
 function hit(w){
@@ -242,9 +244,10 @@ function writeScope(){ if(!sel) return;
   fetch('/api/scope',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:sel.kind,id:sel.id})})
    .then(r=>r.json()).then(d=>{ $('wrote').textContent=d.path?('已写入 '+d.path):('失败：'+(d.error||'')); }); }
 function fit(){ if(!files.length||!centers.size) return; let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
-  mods.forEach(m=>{ const c=centers.get(m.id), r=collapsed.has(m.id)?collapseR(m):radii.get(m.id);
+  mods.forEach(m=>{ if(!modVisible(m)) return; const c=centers.get(m.id), r=collapsed.has(m.id)?collapseR(m):radii.get(m.id);
     x0=Math.min(x0,c.x-r); y0=Math.min(y0,c.y-r); x1=Math.max(x1,c.x+r); y1=Math.max(y1,c.y+r); });
-  files.forEach(f=>{ const P=pos.get(f.path); if(!P) return; x0=Math.min(x0,P.x); y0=Math.min(y0,P.y); x1=Math.max(x1,P.x); y1=Math.max(y1,P.y); });
+  files.forEach(f=>{ const m=mods.find(x=>x.id===f.module); if(!m||!modVisible(m)) return;
+    const P=pos.get(f.path); if(!P) return; x0=Math.min(x0,P.x); y0=Math.min(y0,P.y); x1=Math.max(x1,P.x); y1=Math.max(y1,P.y); });
   const pad=36, k=Math.min((W-pad*2)/(x1-x0+1),(H-pad*2)/(y1-y0+1),1.8); view.k=Math.max(0.12,k);
   view.x=(W-(x1-x0)*view.k)/2-x0*view.k; view.y=(H-(y1-y0)*view.k)/2-y0*view.k; upZoom(); draw(); }
 $('cross').onchange=(e)=>{ crossOnly=e.target.checked; draw(); };
@@ -252,7 +255,16 @@ $('violonly').onchange=(e)=>{ violOnly=e.target.checked; draw(); };
 $('q').addEventListener('input',(e)=>{ search=e.target.value.trim().toLowerCase(); draw(); });
 $('q').addEventListener('keydown',(e)=>{ if(e.key!=='Enter'||!search) return; const f=files.find(x=>x.path.toLowerCase().includes(search)); if(!f) return;
   sel={kind:'file',id:f.path}; show(sel); const P=pos.get(f.path); view.x=W/2-P.x*view.k; view.y=H/2-P.y*view.k; draw(); });
-function chips(){ $('chips').innerHTML=mods.map(m=>'<span class="chip'+(hidden.has(m.id)?' off':'')+'" onclick="toggleMod(\''+m.id+'\')"><i class="dot" style="background:'+color(m.id)+'"></i>'+m.id+'</span>').join(' '); }
+function chips(){
+  $('chips').innerHTML=mods.map(m=>'<span class="chip'+(hidden.has(m.id)?' off':'')+(pick.has(m.id)?' pick':'')+'" title="点击隐藏/显示；Ctrl/Shift+点击加入多选" onclick="chipClick(\''+m.id+'\',event)"><i class="dot" style="background:'+color(m.id)+'"></i>'+m.id+'</span>').join(' ');
+  $('pickbar').innerHTML = pick.size ? '<button onclick="applyPick()">只看所选（'+pick.size+'）</button><button onclick="clearPick()">清除</button>' : '';
+}
+function chipClick(id, ev){
+  if(ev.ctrlKey || ev.metaKey || ev.shiftKey){ if(pick.has(id)) pick.delete(id); else pick.add(id); chips(); return; }
+  toggleMod(id);
+}
+function applyPick(){ if(!pick.size) return; focusMod=null; focusSet=new Set(pick); fit(); }
+function clearPick(){ pick.clear(); focusSet=null; focusMod=null; chips(); fit(); }
 function toggleMod(id){ if(hidden.has(id)) hidden.delete(id); else hidden.add(id); chips(); draw(); }
 function rows(el,data,cols){ el.innerHTML='<tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr>'+
   data.map(r=>'<tr>'+cols.map(c=>'<td class="'+(r._level||'')+'" title="'+(r[c]??'')+'">'+(r[c]??'')+'</td>').join('')+'</tr>').join(''); }
@@ -261,10 +273,13 @@ async function boot(){
   A=await api('/api/arch'); mods=A.modules; files=A.files; edges=A.file_edges;
   $('stat').textContent=mods.length+' 模块 / '+files.length+' 文件 / '+edges.length+' 边 / '+A.violations.length+' 违规  score '+s.score.total;
   resize(); layout(); chips();
-  const qp=new URLSearchParams(location.search); const f0=qp.get('focus');
-  if(f0 && mods.some(m=>m.id===f0)){ focusMod=f0; focusSet=new Set([f0]);
-    A.edges.forEach(e=>{ if(e.from===f0) focusSet.add(e.to); if(e.to===f0) focusSet.add(e.from); });
-    sel={kind:'module',id:f0}; show(sel); draw(); }
+  const qp=new URLSearchParams(location.search);
+  const only=(qp.get('only')||'').split(',').map(x=>x.trim()).filter(Boolean).filter(x=>mods.some(m=>m.id===x));
+  if(only.length){ focusSet=new Set(only); sel={kind:'module',id:only[0]}; show(sel); draw(); }
+  const fs=(qp.get('focus')||'').split(',').map(x=>x.trim()).filter(Boolean).filter(x=>mods.some(m=>m.id===x));
+  if(!only.length && fs.length){ focusSet=new Set(fs);
+    A.edges.forEach(e=>{ if(fs.includes(e.from)) focusSet.add(e.to); if(fs.includes(e.to)) focusSet.add(e.from); });
+    sel={kind:'module',id:fs[0]}; show(sel); draw(); }
   rows($('viol'), (A.violations||[]).map(v=>({_level:'fail',kind:v.kind||'dependency',from:v.from,to:v.to,file:v.file||'',count:v.count})), ['kind','from','to','count']);
   rows($('issues'), (s.issues||[]).map(i=>({_level:i.level==='FAIL'?'fail':'warn',level:i.level,code:i.code,path:i.path})), ['level','code','path']);
 }
