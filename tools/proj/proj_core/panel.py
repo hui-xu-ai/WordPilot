@@ -32,7 +32,7 @@ PAGE = r"""<!doctype html>
  #right section{margin-bottom:16px;min-width:0}
  #right h3{font-size:12px;color:#8b949e;margin:0 0 7px;border-bottom:1px solid #1c2430;padding-bottom:4px;letter-spacing:.02em}
  #sel{font-size:12px;line-height:1.6;word-break:break-all}
- #constraint{background:#0b0e14;border:1px solid #1c2430;border-radius:6px;padding:9px;font-size:11.5px;white-space:pre-wrap;word-break:break-word;max-height:38vh;overflow:auto;margin:0}
+ #constraint{background:#0b0e14;border:1px solid #1c2430;border-radius:6px;padding:9px;font-size:11.5px;white-space:pre-wrap;word-break:break-word;max-height:36vh;overflow:auto;margin:0}
  input,button{background:#0d121a;color:#e6edf3;border:1px solid #2b3648;border-radius:5px;padding:4px 8px;font:inherit;font-size:12px}
  button{cursor:pointer} button:hover{border-color:#4d8fdb}
  table{border-collapse:collapse;width:100%;font-size:12px} td,th{padding:3px 5px;border-bottom:1px solid #1c2430;text-align:left}
@@ -40,117 +40,169 @@ PAGE = r"""<!doctype html>
  .chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #2b3648;border-radius:12px;padding:1px 8px;font-size:11px;cursor:pointer;user-select:none}
  .chip.off{opacity:.35;text-decoration:line-through}
  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
- .tag{display:inline-block;background:#1f6feb22;border:1px solid #1f6feb66;border-radius:8px;padding:0 5px;margin:1px;font-size:11px;cursor:pointer}
+ #zoom{min-width:46px;text-align:center}
 </style></head><body>
 <header><b>pydev 架构图谱</b><span class="muted" id="root"></span><span class="stat" id="stat"></span></header>
 <main>
  <div id="left">
   <div id="bar">
-   <input id="q" placeholder="搜索文件" size="18">
-   <label class="muted"><input type="checkbox" id="cross" checked> 只画跨模块边</label>
+   <input id="q" placeholder="搜索文件" size="16">
+   <label class="muted"><input type="checkbox" id="cross" checked> 跨模块边</label>
    <label class="muted"><input type="checkbox" id="violonly"> 只看违规</label>
+   <button onclick="zoomBy(0.85)">−</button><span class="muted" id="zoom">100%</span><button onclick="zoomBy(1.18)">+</button>
    <button onclick="fit()">适配</button>
+   <button onclick="collapseAll()">折叠全部</button><button onclick="expandAll()">展开全部</button>
    <span id="chips"></span>
   </div>
   <div id="wrap"><canvas id="cv"></canvas></div>
  </div>
  <div id="right">
-  <section><h3>选中</h3><div id="sel">（点节点或模块圆）</div>
-   <p><button onclick="gen()">生成约束提示词</button> <button onclick="copyC()">复制</button> <button onclick="writeScope()">写入 scope.md</button></p><div class="muted" id="wrote"></div></section>
+  <section><h3>选中</h3><div id="sel">（点节点，双击模块折叠/展开）</div>
+   <p><button onclick="gen()">生成约束提示词</button> <button onclick="copyC()">复制</button> <button onclick="writeScope()">写入 scope.md</button></p>
+   <div class="muted" id="wrote"></div></section>
   <section><h3>约束提示词</h3><pre id="constraint">（选文件或模块后生成）</pre></section>
-  <section><h3>违规（模块对）</h3><table id="viol"></table></section>
+  <section><h3>违规（模块对 / 公开入口）</h3><table id="viol"></table></section>
   <section><h3>问题（scan）</h3><table id="issues"></table></section>
  </div>
 </main>
 <script>
 const $=(id)=>document.getElementById(id); const api=async(p)=>(await fetch(p)).json();
 const PALETTE=['#58a6ff','#3fb950','#d29922','#bc8cff','#39c5cf','#f778ba','#e3b341','#7ee787'];
-let A=null, mods=[], files=[], edges=[], centers=new Map(), pos=new Map(), indeg=new Map();
-let hidden=new Set(), sel=null, hover=null, crossOnly=true, violOnly=false, search='';
+let A=null, mods=[], files=[], edges=[], centers=new Map(), pos=new Map(), radii=new Map();
+let hidden=new Set(), collapsed=new Set(), sel=null, hover=null, crossOnly=true, violOnly=false, search='';
 let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
 const cv=$('cv'), ctx=cv.getContext('2d');
 function base(p){ const s=p.split('/'); return s[s.length-1]; }
 function color(mid){ const i=mods.findIndex(m=>m.id===mid); return PALETTE[(i<0?0:i)%PALETTE.length]; }
-function isViol(a,b){ return A.violations.some(v=>v.from===a&&v.to===b); }
+function depViol(a,b){ return A.violations.some(v=>(v.kind||'dependency')==='dependency'&&v.from===a&&v.to===b); }
+function pubViol(mid){ return A.violations.some(v=>v.kind==='public'&&v.to===mid); }
+function nodeR(f){ return Math.min(13, 2.6+1.5*Math.sqrt(f.indeg)); }
 function resize(){ const r=cv.getBoundingClientRect(); dpr=window.devicePixelRatio||1; W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; draw(); }
 new ResizeObserver(resize).observe($('wrap'));
 
-function layout(){
+function moduleOffsets(){
   mods=[...A.modules].sort((a,b)=>b.files-a.files); files=A.files; edges=A.file_edges;
-  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.36, n=Math.max(1,mods.length);
-  centers=new Map();
-  mods.forEach((m,i)=>{ const ang=-Math.PI/2 + i*2*Math.PI/n; centers.set(m.id,{x:cx+R*Math.cos(ang), y:cy+R*Math.sin(ang)}); });
-  pos=new Map();
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.32, n=Math.max(1,mods.length);
+  centers=new Map(); pos=new Map();
+  mods.forEach((m,i)=>{ const ang=-Math.PI/2+i*2*Math.PI/n; centers.set(m.id,{x:cx+R*Math.cos(ang), y:cy+R*Math.sin(ang)}); });
   mods.forEach(m=>{ const c=centers.get(m.id); const list=files.filter(f=>f.module===m.id);
     list.forEach((f,i)=>{ const ang=i*2.39996, rad=20+9*Math.sqrt(i); pos.set(f.path,{x:c.x+rad*Math.cos(ang), y:c.y+rad*Math.sin(ang)}); }); });
-  // 力导向微调（斥力 + 边弹簧 + 模块引力）
   const list=files.filter(f=>pos.has(f.path));
   for(let it=0; it<220; it++){
     for(let i=0;i<list.length;i++) for(let j=i+1;j<list.length;j++){
-      const A1=pos.get(list[i].path), B1=pos.get(list[j].path); let dx=B1.x-A1.x, dy=B1.y-A1.y; const d2=dx*dx+dy*dy+0.01, d=Math.sqrt(d2);
-      if(d>80) continue; const f=1400/d2; A1.x-=dx/d*f; A1.y-=dy/d*f; B1.x+=dx/d*f; B1.y+=dy/d*f; }
-    edges.forEach(([a,b])=>{ const A1=pos.get(a), B1=pos.get(b); if(!A1||!B1) return; const dx=B1.x-A1.x,dy=B1.y-A1.y,d=Math.hypot(dx,dy)||1; const f=(d-52)*0.02; A1.x+=dx/d*f; A1.y+=dy/d*f; B1.x-=dx/d*f; B1.y-=dy/d*f; });
+      const P=pos.get(list[i].path), Q=pos.get(list[j].path); let dx=Q.x-P.x, dy=Q.y-P.y; const d2=dx*dx+dy*dy+0.01, d=Math.sqrt(d2);
+      if(d>80) continue; const f=1400/d2; P.x-=dx/d*f; P.y-=dy/d*f; Q.x+=dx/d*f; Q.y+=dy/d*f; }
+    edges.forEach(([a,b])=>{ const P=pos.get(a), Q=pos.get(b); if(!P||!Q) return; const dx=Q.x-P.x,dy=Q.y-P.y,d=Math.hypot(dx,dy)||1; const f=(d-52)*0.02; P.x+=dx/d*f; P.y+=dy/d*f; Q.x-=dx/d*f; Q.y-=dy/d*f; });
     list.forEach(f=>{ const P=pos.get(f.path), c=centers.get(f.module); if(!c) return; P.x+=(c.x-P.x)*0.02; P.y+=(c.y-P.y)*0.02; });
   }
-  fit();
+  // 半径（相对当前中心）
+  radii=new Map();
+  mods.forEach(m=>{ const c=centers.get(m.id); let r=26;
+    files.filter(f=>f.module===m.id).forEach(f=>{ const P=pos.get(f.path); if(P) r=Math.max(r, Math.hypot(P.x-c.x,P.y-c.y)+18); });
+    radii.set(m.id, r); });
 }
 
-function moduleRadius(mid){ const c=centers.get(mid); if(!c) return 24; let r=24; files.filter(f=>f.module===mid).forEach(f=>{ const P=pos.get(f.path); if(P) r=Math.max(r, Math.hypot(P.x-c.x,P.y-c.y)+16); });
-  let cap=1e9; mods.forEach(o=>{ if(o.id===mid) return; const c2=centers.get(o.id); if(c2) cap=Math.min(cap, Math.hypot(c.x-c2.x,c.y-c2.y)*0.46); });
-  return Math.max(22, Math.min(r,150,cap)); }
+function separateCenters(){
+  const cx=W/2, cy=H/2, n=Math.max(1,mods.length);
+  let R=Math.min(W,H)*0.30;
+  for(let iter=0; iter<60; iter++){
+    const cs=new Map(); mods.forEach((m,i)=>{ const ang=-Math.PI/2+i*2*Math.PI/n; cs.set(m.id,{x:cx+R*Math.cos(ang), y:cy+R*Math.sin(ang)}); });
+    let ok=true;
+    for(let i=0;i<mods.length&&ok;i++) for(let j=i+1;j<mods.length&&ok;j++){
+      const a=cs.get(mods[i].id), b=cs.get(mods[j].id);
+      if(Math.hypot(a.x-b.x,a.y-b.y) < radii.get(mods[i].id)+radii.get(mods[j].id)+14) ok=false; }
+    if(ok){ // 平移文件节点随中心移动
+      mods.forEach(m=>{ const old=centers.get(m.id), now=cs.get(m.id); const dx=now.x-old.x, dy=now.y-old.y;
+        files.filter(f=>f.module===m.id).forEach(f=>{ const P=pos.get(f.path); if(P){ P.x+=dx; P.y+=dy; } }); });
+      centers=cs; return; }
+    R*=1.12;
+  }
+}
+
+function layout(){ moduleOffsets(); separateCenters(); fit(); }
+
+function nodePos(f){ if(collapsed.has(f.module)) return centers.get(f.module); return pos.get(f.path); }
+function moduleLabelPos(m){ const c=centers.get(m.id), r=collapsed.has(m.id)?collapseR(m):radii.get(m.id); return {x:c.x, y:c.y-r-8}; }
+function collapseR(m){ return Math.max(26, Math.min(58, 6*Math.sqrt(m.files))); }
 
 function draw(){
   if(!ctx) return; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); ctx.fillStyle='#0b0e14'; ctx.fillRect(0,0,W,H);
   if(!A || !centers.size) return; ctx.save(); ctx.translate(view.x,view.y); ctx.scale(view.k,view.k);
-  const vis=f=>!hidden.has(f.module) && (!violOnly || A.violations.some(v=>v.from===f.module||v.to===f.module));
-  // 模块光晕
-  mods.forEach(m=>{ if(hidden.has(m.id)) return; const c=centers.get(m.id); const r=moduleRadius(m.id);
-    ctx.beginPath(); ctx.arc(c.x,c.y,r,0,Math.PI*2); ctx.fillStyle=color(m.id)+'14'; ctx.fill();
-    ctx.strokeStyle=color(m.id)+'55'; ctx.lineWidth=1; ctx.stroke();
-    ctx.fillStyle=color(m.id); ctx.font='12px system-ui'; ctx.textAlign='center';
-    ctx.fillText(m.id+' · '+m.files, c.x, c.y-r-6); ctx.textAlign='left'; });
-  // 边：跨模块聚合
+  const labelRects=[]; const circles=[];
+  const visMod=m=>!hidden.has(m.id) && (!violOnly || depViolAny(m.id) || pubViol(m.id));
+  const depViolAny=mid=>A.violations.some(v=>(v.kind||'dependency')==='dependency'&&(v.from===mid||v.to===mid));
+  // 光晕
+  mods.forEach(m=>{ if(!visMod(m)) return; const c=centers.get(m.id); const r=collapsed.has(m.id)?collapseR(m):radii.get(m.id);
+    ctx.beginPath(); ctx.arc(c.x,c.y,r,0,Math.PI*2); ctx.fillStyle=color(m.id)+'12'; ctx.fill();
+    ctx.strokeStyle=color(m.id)+'44'; ctx.setLineDash(collapsed.has(m.id)?[4,4]:[]); ctx.lineWidth=1; ctx.stroke(); ctx.setLineDash([]);
+    circles.push({x:c.x,y:c.y,r}); });
+  // 模块标签（放在光晕上方，带底）
+  mods.forEach(m=>{ if(!visMod(m)) return; const p=moduleLabelPos(m); const txt=m.id+' · '+m.files+(collapsed.has(m.id)?' ▸':'');
+    ctx.font='12px system-ui'; const tw=ctx.measureText(txt).width;
+    ctx.fillStyle='#0b0e14cc'; ctx.fillRect(p.x-tw/2-3,p.y-12,tw+6,15);
+    ctx.fillStyle=color(m.id); ctx.textAlign='center'; ctx.fillText(txt,p.x,p.y); ctx.textAlign='left';
+    labelRects.push({x:p.x-tw/2-3,y:p.y-12,w:tw+6,h:15}); });
+  // 聚合边
   const agg=new Map();
   edges.forEach(([a,b])=>{ const fa=files.find(f=>f.path===a), fb=files.find(f=>f.path===b); if(!fa||!fb||!fa.module||!fb.module||fa.module===fb.module) return;
     const key=fa.module+'>'+fb.module; agg.set(key,(agg.get(key)||0)+1); });
   agg.forEach((n,key)=>{ const [ma,mb]=key.split('>'); if(hidden.has(ma)||hidden.has(mb)) return;
-    const bad=isViol(ma,mb); if(violOnly && !bad) return; const c1=centers.get(ma), c2=centers.get(mb);
-    ctx.strokeStyle=bad?'#f85149':color(ma)+'66'; ctx.lineWidth=Math.max(1,(1+Math.log2(1+n))*0.9); ctx.setLineDash(bad?[5,4]:[]);
-    const mx=(c1.x+c2.x)/2, my=(c1.y+c2.y)/2-40; ctx.beginPath(); ctx.moveTo(c1.x,c1.y); ctx.quadraticCurveTo(mx,my,c2.x,c2.y); ctx.stroke(); ctx.setLineDash([]);
-    let ly=my-3, ok=false; for(const dy of [0,-14,14,-28,28]){ ly=my-3+dy; ok=!files.some(f=>{ const P=pos.get(f.path); return P && Math.hypot(P.x-mx,P.y-ly)<15; }); if(ok) break; } if(ok){ ctx.fillStyle=bad?'#f85149':'#8b949e'; ctx.font='10px system-ui'; ctx.fillText('x'+n, mx, ly); } });
-  if(!crossOnly){ edges.forEach(([a,b])=>{ const fa=files.find(f=>f.path===a), fb=files.find(f=>f.path===b); if(!fa||!fb||!fa.module||!fb.module||fa.module!==fb.module) return;
-    if(!vis(fa)||!vis(fb)) return; const P=pos.get(a), Q=pos.get(b); if(!P||!Q) return;
-    ctx.strokeStyle='rgba(110,118,129,0.18)'; ctx.lineWidth=0.6/view.k; ctx.beginPath(); ctx.moveTo(P.x,P.y); ctx.lineTo(Q.x,Q.y); ctx.stroke(); }); }
-  // 节点
-  const rank=[...files].sort((x,y)=>y.indeg-x.indeg); const top=new Set(rank.slice(0,10).map(f=>f.path)); const labelRects=[];
-  files.forEach(f=>{ if(!vis(f)) return; const P=pos.get(f.path); if(!P) return; const r=Math.min(13, 2.6+1.5*Math.sqrt(f.indeg));
-    const on = sel&&sel.kind==='file'&&sel.id===f.path;
-    ctx.beginPath(); ctx.arc(P.x,P.y,r,0,Math.PI*2); ctx.fillStyle=color(f.module); ctx.globalAlpha=on?1:.88; ctx.fill(); ctx.globalAlpha=1;
+    const bad=depViol(ma,mb); if(violOnly && !bad) return; const c1=centers.get(ma), c2=centers.get(mb);
+    ctx.strokeStyle=bad?'#f85149':color(ma)+'55'; ctx.lineWidth=Math.max(1,(1+Math.log2(1+n))*0.85); ctx.setLineDash(bad?[5,4]:[]);
+    const mx=(c1.x+c2.x)/2, my=(c1.y+c2.y)/2-34; ctx.beginPath(); ctx.moveTo(c1.x,c1.y); ctx.quadraticCurveTo(mx,my,c2.x,c2.y); ctx.stroke(); ctx.setLineDash([]);
+    if(view.k>0.65){ ctx.font='10px system-ui'; const txt='x'+n; const tw=ctx.measureText(txt).width;
+      for(const dy of [0,-14,14,-28,28]){ const ly=my+dy; const lx=mx-tw/2;
+        const badRect=circles.some(C=>Math.hypot(lx+tw/2-C.x,ly-C.y)<C.r+4) || labelRects.some(R=>lx<R.x+R.w&&lx+tw>R.x&&ly-9<R.y+R.h&&ly+3>R.y);
+        if(!badRect){ ctx.fillStyle=bad?'#f85149':'#8b949e'; ctx.fillText(txt,lx,ly); labelRects.push({x:lx,y:ly-9,w:tw,h:12}); break; } } } });
+  if(!crossOnly){ edges.forEach(([a,b])=>{ const fa=files.find(f=>f.path===a), fb=files.find(f=>f.path===b); if(!fa||!fb||fa.module!==fb.module) return;
+    if(!visMod(mods.find(m=>m.id===fa.module))||!visMod(mods.find(m=>m.id===fb.module))) return;
+    const P=nodePos(fa), Q=nodePos(fb); if(!P||!Q) return;
+    ctx.strokeStyle='rgba(110,118,129,0.16)'; ctx.lineWidth=0.6/view.k; ctx.beginPath(); ctx.moveTo(P.x,P.y); ctx.lineTo(Q.x,Q.y); ctx.stroke(); }); }
+  // 折叠模块：整块显示
+  mods.forEach(m=>{ if(!visMod(m)||!collapsed.has(m.id)) return; const c=centers.get(m.id), r=collapseR(m);
+    ctx.beginPath(); ctx.arc(c.x,c.y,r,0,Math.PI*2); ctx.fillStyle=color(m.id)+'66'; ctx.fill(); ctx.strokeStyle=color(m.id); ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#e6edf3'; ctx.font='11px system-ui'; ctx.textAlign='center'; ctx.fillText(m.id,c.x,c.y+4); ctx.textAlign='left'; });
+  // 文件节点
+  const rank=[...files].sort((x,y)=>y.indeg-x.indeg); const top=new Set(rank.slice(0,14).map(f=>f.path));
+  files.forEach(f=>{ if(collapsed.has(f.module)) return; const m=mods.find(x=>x.id===f.module); if(!m||!visMod(m)) return;
+    const P=pos.get(f.path); if(!P) return; const r=nodeR(f); const on=sel&&sel.kind==='file'&&sel.id===f.path;
+    ctx.beginPath(); ctx.arc(P.x,P.y,r,0,Math.PI*2); ctx.fillStyle=color(f.module); ctx.globalAlpha=on?1:.9; ctx.fill(); ctx.globalAlpha=1;
     if(on){ ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); }
-    const showLabel = on || top.has(f.path) || view.k>1.7 || (hover===f.path) || (search && f.path.toLowerCase().includes(search));
-    if(showLabel){ ctx.font='10px system-ui'; const tw=ctx.measureText(base(f.path)).width, lx=P.x+r+3, ly=P.y-9, lw=tw+2, lh=12;
+    const show=on||hover===f.path||(search&&f.path.toLowerCase().includes(search))||(top.has(f.path)&&view.k>0.55)||view.k>1.5;
+    if(show){ ctx.font='10px system-ui'; const txt=base(f.path), tw=ctx.measureText(txt).width, lx=P.x+r+3, ly=P.y-8, lw=tw+2, lh=12;
+      const hitNode=circles.some(C=>Math.hypot(lx+tw/2-C.x,ly+6-C.y)<C.r+3);
+      const hitCirc=files.some(g=>{ const Q=pos.get(g.path); return Q && g!==f && Math.hypot(lx+tw/2-Q.x,ly+6-Q.y)<nodeR(g)+3; });
       const hitRect=labelRects.some(R=>lx<R.x+R.w&&lx+lw>R.x&&ly<R.y+R.h&&ly+lh>R.y);
-      if(!hitRect){ labelRects.push({x:lx,y:ly,w:lw,h:lh}); ctx.fillStyle=on?'#fff':'#c9d1d9'; ctx.font='10px system-ui'; ctx.fillText(base(f.path), lx, ly+9); } } });
+      if(!hitNode&&!hitCirc&&!hitRect){ labelRects.push({x:lx,y:ly,w:lw,h:lh}); ctx.fillStyle=on?'#fff':'#c9d1d9'; ctx.fillText(txt,lx,ly+9); } } });
   ctx.restore();
 }
+
 function toWorld(ev){ const r=cv.getBoundingClientRect(); return {x:(ev.clientX-r.left-view.x)/view.k, y:(ev.clientY-r.top-view.y)/view.k}; }
 function hit(w){
-  for(const f of files){ if(hidden.has(f.module)) continue; const P=pos.get(f.path); if(!P) continue;
-    const r=Math.max(5, Math.min(13, 2.6+1.5*Math.sqrt(f.indeg))); if(Math.hypot(w.x-P.x,w.y-P.y)<=r+3) return {kind:'file',id:f.path}; }
-  for(const m of mods){ if(hidden.has(m.id)) continue; const c=centers.get(m.id), r=moduleRadius(m.id); if(Math.hypot(w.x-c.x,w.y-c.y)<=r) return {kind:'module',id:m.id}; }
+  for(const f of files){ if(collapsed.has(f.module)||hidden.has(f.module)) continue; const P=pos.get(f.path); if(!P) continue;
+    if(Math.hypot(w.x-P.x,w.y-P.y)<=nodeR(f)+3) return {kind:'file',id:f.path}; }
+  for(const m of mods){ if(hidden.has(m.id)) continue; const c=centers.get(m.id), r=collapsed.has(m.id)?collapseR(m):radii.get(m.id);
+    if(Math.hypot(w.x-c.x,w.y-c.y)<=r) return {kind:'module',id:m.id}; }
   return null;
 }
+function zoomBy(f){ const mx=W/2,my=H/2; const k2=Math.min(6,Math.max(0.12,view.k*f)); const g=k2/view.k;
+  view.x=mx-(mx-view.x)*g; view.y=my-(my-view.y)*g; view.k=k2; upZoom(); draw(); }
+function upZoom(){ $('zoom').textContent=Math.round(view.k*100)+'%'; }
 cv.addEventListener('wheel',(ev)=>{ ev.preventDefault(); const r=cv.getBoundingClientRect(); const mx=ev.clientX-r.left,my=ev.clientY-r.top;
-  const k2=Math.min(6,Math.max(0.12,view.k*(ev.deltaY<0?1.12:0.89))), f=k2/view.k; view.x=mx-(mx-view.x)*f; view.y=my-(my-view.y)*f; view.k=k2; draw(); },{passive:false});
-cv.addEventListener('pointerdown',(ev)=>{ const w=toWorld(ev), h=hit(w); moved=false; cv.setPointerCapture(ev.pointerId);
-  drag={sx:ev.clientX-view.x, sy:ev.clientY-view.y}; cv.classList.add('drag'); });
+  const k2=Math.min(6,Math.max(0.12,view.k*(ev.deltaY<0?1.12:0.89))), g=k2/view.k; view.x=mx-(mx-view.x)*g; view.y=my-(my-view.y)*g; view.k=k2; upZoom(); draw(); },{passive:false});
+cv.addEventListener('pointerdown',(ev)=>{ moved=false; cv.setPointerCapture(ev.pointerId); drag={sx:ev.clientX-view.x, sy:ev.clientY-view.y}; cv.classList.add('drag'); });
 cv.addEventListener('pointermove',(ev)=>{ if(drag){ moved=true; view.x=ev.clientX-drag.sx; view.y=ev.clientY-drag.sy; draw(); }
   else { const h=hit(toWorld(ev)); const id=h&&h.kind==='file'?h.id:null; if(id!==hover){ hover=id; draw(); } } });
 cv.addEventListener('pointerup',()=>{ drag=null; cv.classList.remove('drag'); });
 cv.addEventListener('click',(ev)=>{ const h=hit(toWorld(ev)); if(!h) return; sel=h; draw(); show(h); });
+cv.addEventListener('dblclick',(ev)=>{ const h=hit(toWorld(ev)); if(!h) return; if(h.kind!=='module') return;
+  if(collapsed.has(h.id)) collapsed.delete(h.id); else collapsed.add(h.id); layout(); show(h); });
+function collapseAll(){ mods.forEach(m=>collapsed.add(m.id)); layout(); }
+function expandAll(){ collapsed.clear(); layout(); }
 function show(h){
   if(h.kind==='module'){ const m=mods.find(x=>x.id===h.id);
     $('sel').innerHTML='<b>模块 '+m.id+'</b><br><span class="muted">'+m.files+' 文件 · 允许依赖</span> '+(m.allowed.join(', ')||'（无）')+
+      (m.public&&m.public.length?'<br><span class="muted">公开入口</span> '+m.public.join(', '):'')+
       '<br><span class="muted">路径</span> '+m.paths.join(', '); }
   else { const f=files.find(x=>x.path===h.id);
     $('sel').innerHTML='<b>'+f.path+'</b><br><span class="muted">模块</span> '+f.module+' · <span class="muted">入度</span> '+f.indeg+' · <span class="muted">出度</span> '+f.outdeg; }
@@ -158,12 +210,15 @@ function show(h){
 async function gen(){ if(!sel) return; const q=sel.kind==='module'?('module='+encodeURIComponent(sel.id)):('file='+encodeURIComponent(sel.id));
   const c=await api('/api/constraint?'+q); $('constraint').textContent=c.markdown||c.error||''; }
 function copyC(){ const t=$('constraint').textContent; if(navigator.clipboard) navigator.clipboard.writeText(t); }
-function writeScope(){ if(!sel) return; fetch('/api/scope',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:sel.kind,id:sel.id})}).then(r=>r.json()).then(d=>{ $('wrote').textContent=d.path?('已写入 '+d.path):('失败：'+(d.error||'')); }); }
-function fit(){ if(!files.length || !centers.size) return; let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+function writeScope(){ if(!sel) return;
+  fetch('/api/scope',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:sel.kind,id:sel.id})})
+   .then(r=>r.json()).then(d=>{ $('wrote').textContent=d.path?('已写入 '+d.path):('失败：'+(d.error||'')); }); }
+function fit(){ if(!files.length||!centers.size) return; let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  mods.forEach(m=>{ const c=centers.get(m.id), r=collapsed.has(m.id)?collapseR(m):radii.get(m.id);
+    x0=Math.min(x0,c.x-r); y0=Math.min(y0,c.y-r); x1=Math.max(x1,c.x+r); y1=Math.max(y1,c.y+r); });
   files.forEach(f=>{ const P=pos.get(f.path); if(!P) return; x0=Math.min(x0,P.x); y0=Math.min(y0,P.y); x1=Math.max(x1,P.x); y1=Math.max(y1,P.y); });
-  mods.forEach(m=>{ const c=centers.get(m.id), r=moduleRadius(m.id); x0=Math.min(x0,c.x-r); y0=Math.min(y0,c.y-r); x1=Math.max(x1,c.x+r); y1=Math.max(y1,c.y+r); });
-  const pad=36, k=Math.min((W-pad*2)/(x1-x0+1),(H-pad*2)/(y1-y0+1),1.6); view.k=Math.max(0.12,k);
-  view.x=(W-(x1-x0)*view.k)/2 - x0*view.k; view.y=(H-(y1-y0)*view.k)/2 - y0*view.k; draw(); }
+  const pad=36, k=Math.min((W-pad*2)/(x1-x0+1),(H-pad*2)/(y1-y0+1),1.8); view.k=Math.max(0.12,k);
+  view.x=(W-(x1-x0)*view.k)/2-x0*view.k; view.y=(H-(y1-y0)*view.k)/2-y0*view.k; upZoom(); draw(); }
 $('cross').onchange=(e)=>{ crossOnly=e.target.checked; draw(); };
 $('violonly').onchange=(e)=>{ violOnly=e.target.checked; draw(); };
 $('q').addEventListener('input',(e)=>{ search=e.target.value.trim().toLowerCase(); draw(); });
@@ -178,12 +233,11 @@ async function boot(){
   A=await api('/api/arch'); mods=A.modules; files=A.files; edges=A.file_edges;
   $('stat').textContent=mods.length+' 模块 / '+files.length+' 文件 / '+edges.length+' 边 / '+A.violations.length+' 违规  score '+s.score.total;
   resize(); layout(); chips();
-  rows($('viol'), (A.violations||[]).map(v=>({_level:'fail',from:v.from,to:v.to,count:v.count})), ['from','to','count']);
+  rows($('viol'), (A.violations||[]).map(v=>({_level:'fail',kind:v.kind||'dependency',from:v.from,to:v.to,file:v.file||'',count:v.count})), ['kind','from','to','count']);
   rows($('issues'), (s.issues||[]).map(i=>({_level:i.level==='FAIL'?'fail':'warn',level:i.level,code:i.code,path:i.path})), ['level','code','path']);
 }
 boot();
-</script></body></html>
-"""
+</script></body></html>"""
 
 
 def _commands(root: Path) -> dict:
