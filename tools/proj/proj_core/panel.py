@@ -52,14 +52,14 @@ PAGE = r"""<!doctype html>
    <button onclick="zoomBy(0.85)">−</button><span class="muted" id="zoom">100%</span><button onclick="zoomBy(1.18)">+</button>
    <button onclick="fit()">适配</button>
    <button onclick="collapseAll()">折叠全部</button><button onclick="expandAll()">展开全部</button>
-   <span id="chips"></span>
+   <span id="chips"></span><span class="muted" id="hint"></span>
   </div>
   <div id="wrap"><canvas id="cv"></canvas></div>
  </div>
  <div id="right">
   <section><h3>选中</h3><div id="sel">（点节点，双击模块折叠/展开）</div>
    <p><button onclick="gen()">生成约束提示词</button> <button onclick="copyC()">复制</button> <button onclick="writeScope()">写入 scope.md</button></p>
-   <div class="muted" id="wrote"></div></section>
+   <div class="muted" id="wrote"></div><p><button id="focusBtn" onclick="toggleFocus()" style="display:none">只看它的邻居</button></p></section>
   <section><h3>约束提示词</h3><pre id="constraint">（选文件或模块后生成）</pre></section>
   <section><h3>违规（模块对 / 公开入口）</h3><table id="viol"></table></section>
   <section><h3>问题（scan）</h3><table id="issues"></table></section>
@@ -70,6 +70,7 @@ const $=(id)=>document.getElementById(id); const api=async(p)=>(await fetch(p)).
 const PALETTE=['#58a6ff','#3fb950','#d29922','#bc8cff','#39c5cf','#f778ba','#e3b341','#7ee787'];
 let A=null, mods=[], files=[], edges=[], centers=new Map(), pos=new Map(), radii=new Map();
 let hidden=new Set(), collapsed=new Set(), sel=null, hover=null, crossOnly=true, violOnly=false, search='';
+let focusMod=null, focusSet=null, hoverEdge=null, edgeGeom=[];
 let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
 const cv=$('cv'), ctx=cv.getContext('2d');
 function base(p){ const s=p.split('/'); return s[s.length-1]; }
@@ -129,7 +130,7 @@ function draw(){
   if(!ctx) return; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); ctx.fillStyle='#0b0e14'; ctx.fillRect(0,0,W,H);
   if(!A || !centers.size) return; ctx.save(); ctx.translate(view.x,view.y); ctx.scale(view.k,view.k);
   const labelRects=[]; const circles=[];
-  const visMod=m=>!hidden.has(m.id) && (!violOnly || depViolAny(m.id) || pubViol(m.id));
+  const visMod=m=>!hidden.has(m.id) && (!focusSet || focusSet.has(m.id)) && (!violOnly || depViolAny(m.id) || pubViol(m.id));
   const depViolAny=mid=>A.violations.some(v=>(v.kind||'dependency')==='dependency'&&(v.from===mid||v.to===mid));
   // 光晕
   mods.forEach(m=>{ if(!visMod(m)) return; const c=centers.get(m.id); const r=collapsed.has(m.id)?collapseR(m):radii.get(m.id);
@@ -146,14 +147,19 @@ function draw(){
   const agg=new Map();
   edges.forEach(([a,b])=>{ const fa=files.find(f=>f.path===a), fb=files.find(f=>f.path===b); if(!fa||!fb||!fa.module||!fb.module||fa.module===fb.module) return;
     const key=fa.module+'>'+fb.module; agg.set(key,(agg.get(key)||0)+1); });
+  edgeGeom=[];
   agg.forEach((n,key)=>{ const [ma,mb]=key.split('>'); if(hidden.has(ma)||hidden.has(mb)) return;
+    if(focusSet && !(focusSet.has(ma)&&focusSet.has(mb))) return;
     const bad=depViol(ma,mb); if(violOnly && !bad) return; const c1=centers.get(ma), c2=centers.get(mb);
-    ctx.strokeStyle=bad?'#f85149':color(ma)+'55'; ctx.lineWidth=Math.max(1,(1+Math.log2(1+n))*0.85); ctx.setLineDash(bad?[5,4]:[]);
-    const mx=(c1.x+c2.x)/2, my=(c1.y+c2.y)/2-34; ctx.beginPath(); ctx.moveTo(c1.x,c1.y); ctx.quadraticCurveTo(mx,my,c2.x,c2.y); ctx.stroke(); ctx.setLineDash([]);
-    if(view.k>0.65){ ctx.font='10px system-ui'; const txt='x'+n; const tw=ctx.measureText(txt).width;
+    const hot=hoverEdge===key; const mx=(c1.x+c2.x)/2, my=(c1.y+c2.y)/2-34;
+    edgeGeom.push({key,c1,c2,mx,my});
+    ctx.strokeStyle=hot?'#58a6ff':(bad?'#f85149':color(ma)+'55');
+    ctx.lineWidth=hot?3.2:Math.max(1,(1+Math.log2(1+n))*0.85); ctx.setLineDash(bad?[5,4]:[]);
+    ctx.beginPath(); ctx.moveTo(c1.x,c1.y); ctx.quadraticCurveTo(mx,my,c2.x,c2.y); ctx.stroke(); ctx.setLineDash([]);
+    if(view.k>0.65 || hot){ ctx.font='10px system-ui'; const txt='x'+n; const tw=ctx.measureText(txt).width;
       for(const dy of [0,-14,14,-28,28]){ const ly=my+dy; const lx=mx-tw/2;
         const badRect=circles.some(C=>Math.hypot(lx+tw/2-C.x,ly-C.y)<C.r+4) || labelRects.some(R=>lx<R.x+R.w&&lx+tw>R.x&&ly-9<R.y+R.h&&ly+3>R.y);
-        if(!badRect){ ctx.fillStyle=bad?'#f85149':'#8b949e'; ctx.fillText(txt,lx,ly); labelRects.push({x:lx,y:ly-9,w:tw,h:12}); break; } } } });
+        if(!badRect){ ctx.fillStyle=hot?'#58a6ff':(bad?'#f85149':'#8b949e'); ctx.fillText(txt,lx,ly); labelRects.push({x:lx,y:ly-9,w:tw,h:12}); break; } } } });
   if(!crossOnly){ edges.forEach(([a,b])=>{ const fa=files.find(f=>f.path===a), fb=files.find(f=>f.path===b); if(!fa||!fb||fa.module!==fb.module) return;
     if(!visMod(mods.find(m=>m.id===fa.module))||!visMod(mods.find(m=>m.id===fb.module))) return;
     const P=nodePos(fa), Q=nodePos(fb); if(!P||!Q) return;
@@ -177,6 +183,22 @@ function draw(){
   ctx.restore();
 }
 
+function nearestEdge(w){
+  let best=null, bd=1e9;
+  edgeGeom.forEach(g=>{ for(let i=0;i<=20;i++){ const t=i/20;
+    const x=(1-t)*(1-t)*g.c1.x+2*(1-t)*t*g.mx+t*t*g.c2.x;
+    const y=(1-t)*(1-t)*g.c1.y+2*(1-t)*t*g.my+t*t*g.c2.y;
+    const d=Math.hypot(w.x-x,w.y-y); if(d<bd){ bd=d; best=g.key; } } });
+  return bd < 10/view.k ? best : null;
+}
+function toggleFocus(){
+  if(focusMod){ focusMod=null; focusSet=null; $('focusBtn').textContent='只看它的邻居'; draw(); return; }
+  if(!sel||sel.kind!=='module') return;
+  focusMod=sel.id; focusSet=new Set([sel.id]);
+  A.edges.forEach(e=>{ if(e.from===focusMod) focusSet.add(e.to); if(e.to===focusMod) focusSet.add(e.from); });
+  $('focusBtn').textContent='显示全部';
+  draw();
+}
 function toWorld(ev){ const r=cv.getBoundingClientRect(); return {x:(ev.clientX-r.left-view.x)/view.k, y:(ev.clientY-r.top-view.y)/view.k}; }
 function hit(w){
   for(const f of files){ if(collapsed.has(f.module)||hidden.has(f.module)) continue; const P=pos.get(f.path); if(!P) continue;
@@ -192,7 +214,12 @@ cv.addEventListener('wheel',(ev)=>{ ev.preventDefault(); const r=cv.getBoundingC
   const k2=Math.min(6,Math.max(0.12,view.k*(ev.deltaY<0?1.12:0.89))), g=k2/view.k; view.x=mx-(mx-view.x)*g; view.y=my-(my-view.y)*g; view.k=k2; upZoom(); draw(); },{passive:false});
 cv.addEventListener('pointerdown',(ev)=>{ moved=false; cv.setPointerCapture(ev.pointerId); drag={sx:ev.clientX-view.x, sy:ev.clientY-view.y}; cv.classList.add('drag'); });
 cv.addEventListener('pointermove',(ev)=>{ if(drag){ moved=true; view.x=ev.clientX-drag.sx; view.y=ev.clientY-drag.sy; draw(); }
-  else { const h=hit(toWorld(ev)); const id=h&&h.kind==='file'?h.id:null; if(id!==hover){ hover=id; draw(); } } });
+  else { const w=toWorld(ev); const h=hit(w); const id=h&&h.kind==='file'?h.id:null;
+    const ekey=nearestEdge(w); const changed=(id!==hover)||(ekey!==hoverEdge);
+    hover=id; hoverEdge=ekey;
+    if(ekey){ const g=edgeGeom.find(g=>g.key===ekey); $('hint').textContent=ekey.replace('>',' → '); }
+    else if($('hint').textContent) $('hint').textContent='';
+    if(changed) draw(); } });
 cv.addEventListener('pointerup',()=>{ drag=null; cv.classList.remove('drag'); });
 cv.addEventListener('click',(ev)=>{ const h=hit(toWorld(ev)); if(!h) return; sel=h; draw(); show(h); });
 cv.addEventListener('dblclick',(ev)=>{ const h=hit(toWorld(ev)); if(!h) return; if(h.kind!=='module') return;
@@ -200,6 +227,7 @@ cv.addEventListener('dblclick',(ev)=>{ const h=hit(toWorld(ev)); if(!h) return; 
 function collapseAll(){ mods.forEach(m=>collapsed.add(m.id)); layout(); }
 function expandAll(){ collapsed.clear(); layout(); }
 function show(h){
+  $('focusBtn').style.display = h.kind==='module' ? 'inline-block' : 'none';
   if(h.kind==='module'){ const m=mods.find(x=>x.id===h.id);
     $('sel').innerHTML='<b>模块 '+m.id+'</b><br><span class="muted">'+m.files+' 文件 · 允许依赖</span> '+(m.allowed.join(', ')||'（无）')+
       (m.public&&m.public.length?'<br><span class="muted">公开入口</span> '+m.public.join(', '):'')+
@@ -233,6 +261,10 @@ async function boot(){
   A=await api('/api/arch'); mods=A.modules; files=A.files; edges=A.file_edges;
   $('stat').textContent=mods.length+' 模块 / '+files.length+' 文件 / '+edges.length+' 边 / '+A.violations.length+' 违规  score '+s.score.total;
   resize(); layout(); chips();
+  const qp=new URLSearchParams(location.search); const f0=qp.get('focus');
+  if(f0 && mods.some(m=>m.id===f0)){ focusMod=f0; focusSet=new Set([f0]);
+    A.edges.forEach(e=>{ if(e.from===f0) focusSet.add(e.to); if(e.to===f0) focusSet.add(e.from); });
+    sel={kind:'module',id:f0}; show(sel); draw(); }
   rows($('viol'), (A.violations||[]).map(v=>({_level:'fail',kind:v.kind||'dependency',from:v.from,to:v.to,file:v.file||'',count:v.count})), ['kind','from','to','count']);
   rows($('issues'), (s.issues||[]).map(i=>({_level:i.level==='FAIL'?'fail':'warn',level:i.level,code:i.code,path:i.path})), ['level','code','path']);
 }
