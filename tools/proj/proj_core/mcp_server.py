@@ -170,7 +170,8 @@ def _panel_cmd(action: str, args: dict[str, Any]) -> dict:
         cmd.append("--open")
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                           errors="replace", timeout=90, check=False,
-                          stdin=subprocess.DEVNULL)
+                          stdin=subprocess.DEVNULL,
+                          creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
     out = ((proc.stdout or "") + (proc.stderr or "")).strip()
     return {"ok": proc.returncode == 0, "action": action, "port": port,
             "output": out[-4000:], "url": f"http://127.0.0.1:{port}/"}

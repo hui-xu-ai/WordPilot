@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 SKIP_DIRS = {
@@ -63,6 +64,7 @@ def run_git(root: Path, *args: str) -> str | None:
             ["git", "-C", str(root), *args],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=20, check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
         return p.stdout if p.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):

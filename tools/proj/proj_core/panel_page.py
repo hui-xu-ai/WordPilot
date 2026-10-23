@@ -76,7 +76,7 @@ const PALETTE=['#58a6ff','#3fb950','#d29922','#bc8cff','#39c5cf','#f778ba','#e3b
 let A=null, mods=[], files=[], edges=[], centers=new Map(), pos=new Map(), radii=new Map();
 let hidden=new Set(), collapsed=new Set(), sel=null, hover=null, crossOnly=true, violOnly=false, search='';
 let focusMod=null, focusSet=null, hoverEdge=null, edgeGeom=[], pick=new Set();
-let labelRects=[];
+let labelRects=[], tipTimer=null;
 let impact=null, fp=null, edgeMode='agg', snapId=null, colorBy='module', labelBy='file';
 let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
 const cv=$('cv'), ctx=cv.getContext('2d');
@@ -216,7 +216,7 @@ function draw(){
     const P=pos.get(f.path); if(!P) return; const r=nodeR(f); const on=sel&&sel.kind==='file'&&sel.id===f.path;
     ctx.beginPath(); ctx.arc(P.x,P.y,r,0,Math.PI*2); ctx.fillStyle=fileColor(f); ctx.globalAlpha=on?1:.9; ctx.fill(); ctx.globalAlpha=1;
     if(on){ ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); }
-    if(labelBy!=='none' && view.k>0.2) drawLabel(f,P,r,on);
+    if(labelBy!=='none' && view.k>=0.85) drawLabel(f,P,r,on);
     });
   if(snapId){ const P=pos.get(snapId), f=files.find(x=>x.path===snapId);
     if(P&&f){ ctx.strokeStyle='#58a6ff'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
@@ -235,10 +235,10 @@ function wrapLabel(txt,max,maxLines){
 function labelBoxes(P,r,lines,lh){
   const ws=lines.map(l=>ctx.measureText(l).width), wm=Math.max(...ws), h=lines.length*lh+2;
   return [
-    {x:P.x-wm/2, y:P.y-r-6-h, w:wm, h:h},
-    {x:P.x+r+6, y:P.y-h/2, w:wm, h:h},
-    {x:P.x-wm/2, y:P.y+r+6, w:wm, h:h},
-    {x:P.x-r-6-wm, y:P.y-h/2, w:wm, h:h},
+    {x:P.x-wm/2, y:P.y-r-3-h, w:wm, h:h},
+    {x:P.x+r+3, y:P.y-h/2, w:wm, h:h},
+    {x:P.x-wm/2, y:P.y+r+3, w:wm, h:h},
+    {x:P.x-r-3-wm, y:P.y-h/2, w:wm, h:h},
   ];
 }
 function labelFree(b,self){
@@ -251,7 +251,7 @@ function labelFree(b,self){
 function drawLabel(f,P,r,on){
   const raw=labelBy==='desc'&&f.desc?f.desc:base(f.path);
   const lines=wrapLabel(raw,labelBy==='desc'?16:15,labelBy==='desc'?3:2);
-  const fs=view.k>1? 9/view.k : 8, lh=fs*1.2;
+  const fs=10/view.k, lh=fs*1.25;
   ctx.font=fs+'px system-ui';
   const boxes=labelBoxes(P,r,lines,lh);
   const free=boxes.find(b=>labelFree(b,f.path));
@@ -306,13 +306,14 @@ cv.addEventListener('pointermove',(ev)=>{ if(drag){ moved=true; view.x=ev.client
     const id=h&&h.kind==='file'?h.id:null;
     const ekey=nearestEdge(w); const changed=(id!==hover)||(ekey!==hoverEdge);
     hover=id; hoverEdge=ekey;
-    const tip=$('tip');
-    if(h && h.kind==='file'){ const f=files.find(x=>x.path===h.id);
-      tip.style.display='block'; tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY+12)+'px';
-      const un=(window.__unused&&window.__unused[f.path])||[]; tip.textContent=f.path+'\n模块 '+f.module+' · 入度 '+f.indeg+' / 出度 '+f.outdeg+(un.length?'\n未使用 import：'+un.map(x=>x.name).join(', '):'')+(f.desc?'\n'+f.desc:''); }
-    else if(h && h.kind==='module'){ const m=mods.find(x=>x.id===h.id);
-      tip.style.display='block'; tip.style.left=(ev.clientX+12)+'px'; tip.style.top=(ev.clientY+12)+'px';
-      tip.textContent='模块 '+m.id+' · '+m.files+' 文件\n允许依赖 '+(m.allowed.join(', ')||'（无）')+(m.description?'\n'+m.description:''); }
+    const tip=$('tip'); clearTimeout(tipTimer);
+    if(h){ const cx=ev.clientX, cy=ev.clientY; tipTimer=setTimeout(()=>{
+      tip.style.display='block'; tip.style.left=(cx+12)+'px'; tip.style.top=(cy+12)+'px';
+      if(h.kind==='file'){ const f=files.find(x=>x.path===h.id);
+        const un=(window.__unused&&window.__unused[f.path])||[]; tip.textContent=f.path+'\n模块 '+f.module+' · 入度 '+f.indeg+' / 出度 '+f.outdeg+(un.length?'\n未使用 import：'+un.map(x=>x.name).join(', '):'')+(f.desc?'\n'+f.desc:''); }
+      else { const m=mods.find(x=>x.id===h.id);
+        tip.textContent='模块 '+m.id+' · '+m.files+' 文件\n允许依赖 '+(m.allowed.join(', ')||'（无）')+(m.description?'\n'+m.description:''); }
+    },140); }
     else tip.style.display='none';
     if(ekey){ const g=edgeGeom.find(g=>g.key===ekey); $('hint').textContent=ekey.replace('>',' → '); }
     else if($('hint').textContent) $('hint').textContent='';

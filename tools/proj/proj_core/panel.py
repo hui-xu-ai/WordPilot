@@ -100,7 +100,7 @@ def api_health(root: Path) -> dict:
 
 def api_impact(root: Path, rev: str = "HEAD") -> dict:
     try:
-        proc = subprocess.run(["git", "-C", str(root), "diff", "--name-only", rev],
+        proc = subprocess.run(["git", "-C", str(root), "diff", "--name-only", rev], creationflags=subprocess.CREATE_NO_WINDOW if sys.platform=="win32" else 0,
                               capture_output=True, text=True, timeout=20, check=False)
     except (OSError, subprocess.SubprocessError) as exc:
         return {"error": f"git 调用失败：{exc}"}
