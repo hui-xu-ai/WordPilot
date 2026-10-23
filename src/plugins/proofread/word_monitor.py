@@ -1,15 +1,17 @@
 # word_monitor.py
 #--修改18  整体替换
 import difflib
+import logging
 import re
 import time
 
-import win32con  # ← 新增这一行  修改19
 from PySide6.QtCore import QThread, Signal
 
 from core.services.proof_cache import get_default_cache
 from core.services.word_bridge import get_word_app, com_initialized
 from core.services.word_constants import wdConst as constants  # word常量修改  2026.05.19
+
+logger = logging.getLogger(__name__)
 
 wdUnderlineWavy = constants.wdUnderlineWavy
 wdColorRed = constants.wdColorRed
@@ -128,8 +130,9 @@ def token_based_mark_differences(original_tokens, corrected_sequence, sentence_r
             sub_range.SetRange(first_token_start, last_token_end)
             sub_range.Font.Underline = wdUnderlineWavy
             sub_range.Font.UnderlineColor = wdColorRed
-        except:
-            pass
+        except Exception:
+            # 标记失败不能静默：否则界面说"已给出建议"而 Word 里一条下划线都没有
+            logger.debug("标记 token 区间失败（%s-%s）", first_token_start, last_token_end, exc_info=True)
 #  分块替换句子--修改18
 
 def mark_text_differences(original, corrected, start, end):
@@ -229,11 +232,11 @@ def mark_text_differences(original, corrected, start, end):
                         sub_range = doc.Range(first_token_start, last_token_end)
                         sub_range.Font.Underline = wdUnderlineWavy
                         sub_range.Font.UnderlineColor = wdColorRed
-                    except:
-                        pass
+                    except Exception:
+                        logger.debug("按 token 标记失败（%s-%s）", s_idx, e_idx, exc_info=True)
             return
-    except:
-        pass
+    except Exception:
+        logger.debug("token 标记分支整体失败，回退纯文本标记", exc_info=True)
 
     # 纯文本回退逻辑（保留原函数内容，稍作简化）
 # --修改19    
@@ -263,8 +266,8 @@ def mark_text_differences(original, corrected, start, end):
                                sentence_range.Start + right)
             sub_range.Font.Underline = wdUnderlineWavy
             sub_range.Font.UnderlineColor = wdColorRed
-        except:
-            pass
+        except Exception:
+            logger.debug("标记差异区间失败（%s-%s）", left, right, exc_info=True)
 
 
 def clear_error_marks(start, end):
@@ -386,7 +389,8 @@ class WordMonitor(QThread):
                             sent_text_stripped = sent_text.strip()
                             sel_text = sel_range.Text
                             sel_text_stripped = sel_text.strip()
-                        except:
+                        except Exception:
+                            logger.debug("读取选中句子失败，按无选区处理", exc_info=True)
                             sel_start = sel_end = None
                         
                         # if (sel_start is not None and sel_start < sel_end and              #       测试选中句子
@@ -547,7 +551,8 @@ def clear_marks_on_objects_and_ending(sentence_range, body_len=None):
                 start = b['content']['start']
                 end = b['content']['end']
                 r = doc.Range(start, end)
-                r.Font.Color = win32con.constants.wdColorAutomatic if hasattr(win32con.constants, 'wdColorAutomatic') else 0
+                # 清的是「红色波浪下划线」，不是字体颜色：原来写 Font.Color 会把用户的彩色文字改成黑色
+                r.Font.Underline = 0
 
         # 2. 清除尾部（结束符号 + 换行等）标记
         sent_text = sentence_range.Text
@@ -557,9 +562,9 @@ def clear_marks_on_objects_and_ending(sentence_range, body_len=None):
 
         if body_len < len(sent_text):
             tail_range = doc.Range(sentence_range.Start + body_len, sentence_range.End)
-            tail_range.Font.Color = win32con.constants.wdColorAutomatic
+            tail_range.Font.Underline = 0
     except Exception:
-        pass
+        logger.debug("清除对象/句尾标记失败", exc_info=True)
 
 # --修改21 分离句尾结束符号        
 def split_trailing_chars(text):

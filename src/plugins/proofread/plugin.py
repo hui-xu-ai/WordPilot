@@ -174,12 +174,20 @@ class ProofreadPlugin(PluginBase):
 
     def deactivate(self) -> None:
         if self.monitor is not None:
+            monitor = self.monitor
+            stopped = False
             try:
-                self.monitor.stop()
-                self.monitor.wait(2000)
+                monitor.stop()
+                # 必须确认线程真的结束了才能丢引用：仍在跑就销毁 QThread 会直接 abort 进程
+                stopped = monitor.wait(2000) or monitor.wait(3000)
             except Exception:
                 self._log_exception(self.tr("log.stop_monitor_failed"))
-            self.monitor = None
+            if stopped:
+                self.monitor = None
+            else:
+                # 线程仍卡在 HTTP/COM 上：保留引用（宁可泄漏，也不能销毁运行中的 QThread）
+                if self.ctx is not None:
+                    self.ctx.logger.error("监控线程未在 5s 内退出，保留引用以避免崩溃")
         if self.floating_btn is not None:
             try:
                 self.floating_btn.close()
@@ -255,12 +263,34 @@ class ProofreadPlugin(PluginBase):
         self._apply_visibility()
 
     # ---------------- 校对与替换 ----------------
-    def _on_suggestion(self, original: str, corrected: str, start: int, end: int) -> None:
+    @staticmethod
+    def normalize_span(start, end) -> tuple[int | None, int | None]:
+        """把「无范围」的各种表示（None / -1 / 空区间）统一成 (None, None)。
+
+        审计 H14：热键路径曾用 `-1, -1` 当"没有范围"的哨兵，而 `apply_correction`
+        只判 `is not None`，于是 `doc.Range(-1, -1)` 必然报 COM 错（或从文档开头覆盖）。
+        """
+        if start is None or end is None:
+            return None, None
+        try:
+            start, end = int(start), int(end)
+        except (TypeError, ValueError):
+            return None, None
+        if start < 0 or end <= start:
+            return None, None
+        return start, end
+
+    def _on_suggestion(self, original: str, corrected: str,
+                       start: int | None, end: int | None) -> None:
         """收到校对结果：有差异 -> error（等用户决策）；无差异 -> ok（2 秒后回落打盹）。"""
         if self.floating_btn is None:
             return
+        start, end = self.normalize_span(start, end)
         has_diff = bool(original and corrected and original.strip() != corrected.strip())
-        self.floating_btn.set_suggestion(original, corrected, start, end)
+        # 控件层仍以 -1 表示"无范围"，归一化后在这里转换，避免把哨兵值传到 COM
+        self.floating_btn.set_suggestion(original, corrected,
+                                        -1 if start is None else start,
+                                        -1 if end is None else end)
         if has_diff:
             self.set_state("error")
         else:
@@ -296,7 +326,7 @@ class ProofreadPlugin(PluginBase):
                 return
             has_diff = corrected.strip() != current.strip()
             if has_diff:
-                self._on_suggestion(current, corrected, -1, -1)
+                self._on_suggestion(current, corrected, None, None)
             else:
                 self._show_ok()
         except Exception:
@@ -314,6 +344,7 @@ class ProofreadPlugin(PluginBase):
             word = get_word_app()
             doc = word.ActiveDocument
 
+            start, end = self.normalize_span(start, end)
             if start is not None and end is not None:
                 sent_range = doc.Range(start, end)
             else:
