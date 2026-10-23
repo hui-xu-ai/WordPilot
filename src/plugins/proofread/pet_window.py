@@ -251,6 +251,10 @@ class PetWindow(QWidget):
         self.bubble.ignored.connect(self._on_ignored)
         self.bubble.setVisible(False)
         layout.addWidget(self.bubble, 0, Qt.AlignHCenter)
+        # 待处理建议（original, corrected, start, end）；None 表示"没有新建议"。
+        # 用户采纳/忽略后必须清掉：否则下次点桌宠会把处理过的旧建议再弹出来，
+        # 再点确认就按陈旧偏移重写正文。
+        self._pending_suggestion = None
 
         self.canvas = PetCanvas(self, skins=skins, theme=theme)
         layout.addWidget(self.canvas, 0, Qt.AlignHCenter)
@@ -296,21 +300,32 @@ class PetWindow(QWidget):
     def set_suggestion(self, original, corrected, start=-1, end=-1) -> None:
         """收到校对结果：无差异则记 idle，有差异则记 error 并按配置弹出气泡。"""
         if not original or not corrected or original.strip() == corrected.strip():
+            self._pending_suggestion = None
             self.bubble.clear_diff()
             self.bubble.setVisible(False)
             self._after_bubble_change()
             return
+        self._pending_suggestion = (original, corrected, start, end)
         self.bubble.show_suggestion(original, corrected, None, self.config,
                                     start=start, end=end)
         if not self.config.get("auto_show_suggestion", True):
             self.bubble.setVisible(False)
         self._after_bubble_change()
 
+    def _discard_suggestion(self) -> None:
+        """建议被采纳/忽略后清现场：不清的话旧建议会"复活"并按陈旧偏移改写正文。"""
+        self._pending_suggestion = None
+        self.bubble.clear_diff()
+        self.bubble.hide()
+        self._after_bubble_change()
+
     def toggle_bubble(self) -> None:
         if self.bubble.isVisible():
             self.bubble.hide()
-        else:
+        elif self._pending_suggestion is not None:
             self.bubble.show()
+        else:
+            self.bubble.hide()      # 没有新建议：不把处理过的旧建议再弹出来
         self._after_bubble_change()
 
     def _after_bubble_change(self) -> None:
@@ -415,8 +430,7 @@ class PetWindow(QWidget):
     def _on_accepted(self, corrected, start, end, original) -> None:
         if self._correction_handler is not None:
             self._correction_handler(corrected, start=start, end=end)
-        self.bubble.hide()
-        self._after_bubble_change()
+        self._discard_suggestion()
 
     def _on_ignored(self, text, start, end, original) -> None:
         if self.ignore_mgr is not None:
@@ -428,8 +442,7 @@ class PetWindow(QWidget):
                 clear_error_marks(start, end)
             except Exception:
                 pass      # Word 可能已关闭，忽略 COM 异常
-        self.bubble.hide()
-        self._after_bubble_change()
+        self._discard_suggestion()
 
     def refresh_visibility(self) -> None:
         """由插件在「显示悬浮按钮」配置变化后调用。"""

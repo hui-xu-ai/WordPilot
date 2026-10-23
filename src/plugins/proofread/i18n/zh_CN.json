@@ -7,6 +7,7 @@
   "dashboard.toggle_tip": "开启 / 暂停智能纠错",
   "bubble.accept": "✔ 确认",
   "bubble.ignore": "✘ 忽略",
+  "status.api_missing": "AI 服务未就绪，请先在设置里填写 API Key",
   "bubble.perfect": "✔ 完美，继续加油",
   "bubble.insert": "　插入　",
   "bubble.delete": "　删除　",

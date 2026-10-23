@@ -7,6 +7,7 @@
   "dashboard.toggle_tip": "Enable / pause smart proofreading",
   "bubble.accept": "✔ Accept",
   "bubble.ignore": "✘ Ignore",
+  "status.api_missing": "AI service not ready; set the API key in Settings first",
   "bubble.perfect": "✔ Perfect, keep going",
   "bubble.insert": " INSERT ",
   "bubble.delete": " DELETE ",

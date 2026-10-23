@@ -83,3 +83,79 @@ def test_deactivate_releases_reference_after_thread_stops(plugin_cls):
 
     plugin.deactivate()
     assert plugin.monitor is None
+
+
+# ── B8b：热键校对的异步执行体 ───────────────────────────────────────
+def _bare_plugin(plugin_cls):
+    plugin = plugin_cls.__new__(plugin_cls)
+    plugin._state = "busy"
+    plugin.floating_btn = None
+    plugin.ctx = None
+    plugin._cursor_worker = None
+    plugin.set_state = lambda state: setattr(plugin, "_state", state)
+    plugin._log_exception = lambda message: None
+    return plugin
+
+
+def test_cursor_proof_worker_emits_result(plugin_cls):
+    from plugins.proofread.plugin import _CursorProofWorker
+
+    class FakeApi:
+        last_error = ""
+
+        def proof_text(self, text):
+            return text.upper()
+
+    worker = _CursorProofWorker(FakeApi(), "abc")
+    seen: list[tuple] = []
+    worker.done.connect(lambda *args: seen.append(args))
+    worker.run()                       # 直接跑 run()：不启动真线程
+    assert seen == [("abc", "ABC", "")]
+
+
+def test_cursor_proof_worker_reports_failure(plugin_cls):
+    from plugins.proofread.plugin import _CursorProofWorker
+
+    class BadApi:
+        last_error = "HTTP 401"
+
+        def proof_text(self, text):
+            return None
+
+    worker = _CursorProofWorker(BadApi(), "abc")
+    seen: list[tuple] = []
+    worker.done.connect(lambda *args: seen.append(args))
+    worker.run()
+    assert seen == [("abc", None, "HTTP 401")]
+
+
+def test_cursor_proof_failure_does_not_show_ok(plugin_cls):
+    plugin = _bare_plugin(plugin_cls)
+    called: list[int] = []
+    plugin._show_ok = lambda: called.append(1)
+
+    plugin._on_cursor_proof_done("原句", None, "网络错误")
+
+    assert called == [], "失败不能显示成'检查过无错'"
+    assert plugin._state == "idle"
+
+
+def test_cursor_proof_with_diff_goes_through_suggestion(plugin_cls):
+    plugin = _bare_plugin(plugin_cls)
+    got: list[tuple] = []
+    plugin._on_suggestion = lambda original, corrected, start, end: got.append(
+        (original, corrected, start, end))
+
+    plugin._on_cursor_proof_done("原句", "改后的句子", "")
+
+    assert got == [("原句", "改后的句子", None, None)], "应走建议路径，且不带伪区间"
+
+
+def test_cursor_proof_without_diff_shows_ok(plugin_cls):
+    plugin = _bare_plugin(plugin_cls)
+    called: list[int] = []
+    plugin._show_ok = lambda: called.append(1)
+
+    plugin._on_cursor_proof_done("原句", "原句", "")
+
+    assert called == [1]

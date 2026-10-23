@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from core.sdk.plugin_base import PluginBase
@@ -36,6 +36,29 @@ if TYPE_CHECKING:
     from core.sdk.context import PluginContext
 
 
+class _CursorProofWorker(QThread):
+    """热键校对的后台执行体：只把**网络请求**搬出 GUI 线程，COM 读取仍在主线程。
+
+    历史实现里 `Ctrl+Shift+Z` 在 GUI 线程同步调 `api.proof_text()`（HTTP，timeout=30），
+    按一次热键整个界面冻结到超时。
+    """
+
+    done = Signal(str, object, str)      # (原句, 纠正结果或 None, 失败原因)
+
+    def __init__(self, api, original: str, parent=None) -> None:
+        super().__init__(parent)
+        self._api = api
+        self._original = original
+
+    def run(self) -> None:               # noqa: D401 - QThread 入口
+        try:
+            corrected = self._api.proof_text(self._original)
+            reason = "" if corrected is not None else (getattr(self._api, "last_error", "") or "")
+        except Exception as exc:  # noqa: BLE001  后台线程异常必须回传，不能静默
+            corrected, reason = None, str(exc)
+        self.done.emit(self._original, corrected, reason)
+
+
 class ProofreadPlugin(PluginBase):
     """智能纠错：监听 Word 光标并给出修改建议。"""
 
@@ -46,6 +69,7 @@ class ProofreadPlugin(PluginBase):
         self._dashboard_page = None                    # 智能纠错页（外壳惰性构造后回填）
         self._enabled = True
         self._state = "idle"
+        self._cursor_worker: _CursorProofWorker | None = None
 
     # ---------------- 生命周期 ----------------
     def activate(self, ctx: "PluginContext") -> None:
@@ -311,27 +335,45 @@ class ProofreadPlugin(PluginBase):
             self.set_state("idle")
 
     def proof_cursor(self) -> None:
-        """对光标所在句立即做一次校对（热键 ctrl+shift+z）。"""
+        """对光标所在句立即做一次校对（热键 ctrl+shift+z）。
+
+        COM 读取留在主线程（单句、毫秒级），**网络请求放后台线程**：
+        否则按一次热键界面会冻结到 HTTP 超时（最长 30 秒）。
+        """
+        if self._cursor_worker is not None and self._cursor_worker.isRunning():
+            return      # 连按去抖
         try:
             current = extract_current_sentence()
             if not current or len(current) < 4:
                 return
-            self.set_state("busy")
             api = self.ctx.get_service("ai_client")
-            corrected = api.proof_text(current)
-            if corrected is None:
-                # 失败绝不能落到 _show_ok()：那会把"API 挂了"显示成"检查过、无错"
-                self._log_exception(self.tr("log.proof_cursor_failed"))
-                self.set_state("idle")
+            if api is None:
+                self._status(self.tr("status.api_missing"))
                 return
-            has_diff = corrected.strip() != current.strip()
-            if has_diff:
-                self._on_suggestion(current, corrected, None, None)
-            else:
-                self._show_ok()
+            self.set_state("busy")
+            worker = _CursorProofWorker(api, current, self)
+            worker.done.connect(self._on_cursor_proof_done)
+            worker.finished.connect(self._on_cursor_worker_finished)
+            self._cursor_worker = worker
+            worker.start()
         except Exception:
             self._log_exception(self.tr("log.proof_cursor_failed"))
             self.set_state("idle")
+
+    def _on_cursor_worker_finished(self) -> None:
+        self._cursor_worker = None
+
+    def _on_cursor_proof_done(self, original: str, corrected, reason: str) -> None:
+        """后台校对结果回到主线程：失败绝不落到 `_show_ok()`（那会显示成"检查过、无错"）。"""
+        if corrected is None:
+            self._log_exception(f"{self.tr('log.proof_cursor_failed')}（{reason}）")
+            self.set_state("idle")
+            return
+        has_diff = corrected.strip() != original.strip()
+        if has_diff:
+            self._on_suggestion(original, corrected, None, None)
+        else:
+            self._show_ok()
 
     def apply_correction(self, corrected_text: str, start: int | None = None,
                          end: int | None = None, original_text: str | None = None) -> None:

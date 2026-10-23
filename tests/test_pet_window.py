@@ -1,0 +1,102 @@
+# tests/test_pet_window.py
+"""P10-B8b：采纳/忽略之后，旧建议必须彻底作废。
+
+审计：`_on_accepted`/`_on_ignored` 只 `bubble.hide()`，既不清 diff 也不复位待处理建议；
+用户下次左键点桌宠时 `toggle_bubble` 会把**已处理过的旧建议**原样弹回来，
+再点「确认」就按陈旧偏移重写正文（`apply_correction` 按新正文长度算区间，会吃掉后文）。
+"""
+from __future__ import annotations
+
+import pytest
+
+
+@pytest.fixture(scope="module")
+def pet_cls():
+    from plugins.proofread.pet_window import PetWindow
+
+    return PetWindow
+
+
+class FakeBubble:
+    def __init__(self) -> None:
+        self.visible = False
+        self.cleared = 0
+        self.shown = 0
+
+    def isVisible(self):
+        return self.visible
+
+    def hide(self):
+        self.visible = False
+
+    def setVisible(self, value):
+        self.visible = bool(value)
+
+    def show(self):
+        self.visible = True
+        self.shown += 1
+
+    def clear_diff(self):
+        self.cleared += 1
+
+    def show_suggestion(self, original, corrected, anchor=None, config=None, start=-1, end=-1):
+        self.visible = True
+        self.shown += 1
+
+
+def _pet(pet_cls):
+    pet = pet_cls.__new__(pet_cls)
+    pet.bubble = FakeBubble()
+    pet._pending_suggestion = None
+    pet._correction_handler = None
+    pet.ignore_mgr = None
+    pet.config = type("C", (), {"get": staticmethod(lambda key, default=None: default)})()
+    pet._after_bubble_change = lambda: None
+    return pet
+
+
+def test_accept_discards_pending_suggestion(pet_cls):
+    pet = _pet(pet_cls)
+    pet.set_suggestion("原句", "改后", 10, 12)
+    assert pet._pending_suggestion is not None
+
+    pet._on_accepted("改后", 10, 12, "原句")
+
+    assert pet._pending_suggestion is None, "采纳后必须清掉待处理建议"
+    assert pet.bubble.cleared >= 1, "应清空 diff 内容"
+    assert pet.bubble.isVisible() is False
+
+
+def test_ignore_discards_pending_suggestion(pet_cls):
+    pet = _pet(pet_cls)
+    pet.set_suggestion("原句", "改后", 10, 12)
+    pet._on_ignored("原句", -1, -1, "原句")
+    assert pet._pending_suggestion is None
+
+
+def test_toggle_bubble_does_not_reopen_discarded_suggestion(pet_cls):
+    pet = _pet(pet_cls)
+    pet.set_suggestion("原句", "改后", 10, 12)
+    shown_once = pet.bubble.shown
+    pet._on_accepted("改后", 10, 12, "原句")
+
+    pet.toggle_bubble()          # 用户再点桌宠
+
+    assert pet.bubble.shown == shown_once, "处理过的旧建议不得再次弹出"
+    assert pet.bubble.isVisible() is False
+
+
+def test_toggle_bubble_opens_live_suggestion(pet_cls):
+    pet = _pet(pet_cls)
+    pet.set_suggestion("原句", "改后", 10, 12)
+    pet.bubble.hide()            # 模拟用户先手动收起
+    pet.toggle_bubble()
+    assert pet.bubble.isVisible() is True, "仍有未处理建议时应能重新展开"
+
+
+def test_no_diff_clears_pending(pet_cls):
+    pet = _pet(pet_cls)
+    pet.set_suggestion("原句", "改后", 10, 12)
+    pet.set_suggestion("原句", "原句", -1, -1)
+    assert pet._pending_suggestion is None
+    assert pet.bubble.isVisible() is False
