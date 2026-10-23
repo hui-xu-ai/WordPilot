@@ -24,6 +24,13 @@ DOC_LIMIT = 160
 _EXEMPT_DOC = ("__init__.py",)
 
 
+def file_lines(path: Path) -> int:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").count("\n") + 1
+    except OSError:
+        return 0
+
+
 def file_doc(path: Path) -> str:
     """取文件头 docstring 第一段（或 `# 职责:` 注释），截断到 DOC_LIMIT。"""
     try:
@@ -161,7 +168,8 @@ def build_arch(root: Path) -> ArchReport:
         indeg[b] = indeg.get(b, 0) + 1
     report.files = [{"path": n, "module": _module_of(_norm(n), mods) or "",
                      "indeg": indeg.get(n, 0), "outdeg": outdeg.get(n, 0),
-                     "desc": file_doc(root / n)} for n in g.nodes]
+                     "desc": file_doc(root / n),
+                     "lines": file_lines(root / n)} for n in g.nodes]
     report.file_edges = [[a, b] for a, b in g.edges]
     agg: dict[tuple[str, str], int] = {}
     for a, b in g.edges:

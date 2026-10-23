@@ -35,6 +35,8 @@ PAGE = r"""<!doctype html>
    <input id="q" placeholder="搜索文件" size="16">
    <label class="muted"><input type="checkbox" id="cross" checked> 只看跨模块</label>
    <select id="emode"><option value="agg">跨模块边：聚合</option><option value="file">跨模块边：逐文件</option></select>
+   <select id="colorby"><option value="module">着色：模块</option><option value="lines">着色：行数</option></select>
+   <select id="labelby"><option value="file">标签：文件名</option><option value="desc">标签：职责</option></select>
    <label class="muted"><input type="checkbox" id="violonly"> 只看违规</label>
    <button onclick="zoomBy(0.85)">−</button><span class="muted" id="zoom">100%</span><button onclick="zoomBy(1.18)">+</button>
    <button onclick="fit()">适配</button>
@@ -57,8 +59,11 @@ PAGE = r"""<!doctype html>
     <div>粗曲线 <b>xN</b> = 两模块间 <b>N 条 import</b>（聚合通道）</div>
     <div>细线 = 模块内 import（取消「只看跨模块」才显示）</div>
     <div>黄线 = 选中/悬停文件的全部边</div>
+    <div>浅蓝虚线 = 声明的允许依赖；红虚线 = 实际越界</div>
+    <div>行数着色：<span style="color:#3fb950">≤200</span> · <span style="color:#d29922">≤400</span> · <span style="color:#db6d28">≤600</span> · <span style="color:#f85149">&gt;600</span></div>
     <div id="iso" style="margin-top:6px;cursor:pointer;text-decoration:underline"></div><div id="isoList" style="display:none;max-height:150px;overflow:auto;border-top:1px solid #1c2430;margin-top:4px;padding-top:4px"></div>
    </div></section>
+  <section><h3>屎山监测（文件行数）</h3><div id="size" style="font-size:12px;line-height:1.7"></div></section>
   <section><h3>违规（模块对 / 公开入口）</h3><table id="viol"></table></section>
   <section><h3>问题（scan）</h3><table id="issues"></table></section>
  </div>
@@ -70,11 +75,13 @@ const PALETTE=['#58a6ff','#3fb950','#d29922','#bc8cff','#39c5cf','#f778ba','#e3b
 let A=null, mods=[], files=[], edges=[], centers=new Map(), pos=new Map(), radii=new Map();
 let hidden=new Set(), collapsed=new Set(), sel=null, hover=null, crossOnly=true, violOnly=false, search='';
 let focusMod=null, focusSet=null, hoverEdge=null, edgeGeom=[], pick=new Set();
-let impact=null, fp=null, edgeMode='agg', snapId=null;
+let impact=null, fp=null, edgeMode='agg', snapId=null, colorBy='module', labelBy='file';
 let view={k:1,x:0,y:0}, drag=null, moved=false, dpr=1, W=0, H=0;
 const cv=$('cv'), ctx=cv.getContext('2d');
 function base(p){ const s=p.split('/'); return s[s.length-1]; }
 function color(mid){ const i=mods.findIndex(m=>m.id===mid); return PALETTE[(i<0?0:i)%PALETTE.length]; }
+function lineColor(n){ return n>600?'#f85149':n>400?'#db6d28':n>200?'#d29922':'#3fb950'; }
+function fileColor(f){ return colorBy==='lines'?lineColor(f.lines||0):color(f.module); }
 function depViol(a,b){ return A.violations.some(v=>(v.kind||'dependency')==='dependency'&&v.from===a&&v.to===b); }
 function pubViol(mid){ return A.violations.some(v=>v.kind==='public'&&v.to===mid); }
 function modVisible(m){ return !hidden.has(m.id) && (!focusSet || focusSet.has(m.id)); }
@@ -197,10 +204,10 @@ function draw(){
   const rank=[...files].sort((x,y)=>y.indeg-x.indeg); const top=new Set(rank.slice(0,14).map(f=>f.path));
   files.forEach(f=>{ if(collapsed.has(f.module)) return; const m=mods.find(x=>x.id===f.module); if(!m||!visMod(m)) return;
     const P=pos.get(f.path); if(!P) return; const r=nodeR(f); const on=sel&&sel.kind==='file'&&sel.id===f.path;
-    ctx.beginPath(); ctx.arc(P.x,P.y,r,0,Math.PI*2); ctx.fillStyle=color(f.module); ctx.globalAlpha=on?1:.9; ctx.fill(); ctx.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(P.x,P.y,r,0,Math.PI*2); ctx.fillStyle=fileColor(f); ctx.globalAlpha=on?1:.9; ctx.fill(); ctx.globalAlpha=1;
     if(on){ ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); }
     const show=on||hover===f.path||(search&&f.path.toLowerCase().includes(search))||(top.has(f.path)&&view.k>0.55)||view.k>1.5;
-    if(show){ ctx.font='10px system-ui'; const txt=base(f.path), tw=ctx.measureText(txt).width, lx=P.x+r+3, ly=P.y-8, lw=tw+2, lh=12;
+    if(show){ ctx.font='10px system-ui'; const txt=labelBy==='desc'&&f.desc?(f.desc.length>18?f.desc.slice(0,18)+'…':f.desc):base(f.path); const tw=ctx.measureText(txt).width, lx=P.x+r+3, ly=P.y-8, lw=tw+2, lh=12;
       const hitNode=circles.some(C=>Math.hypot(lx+tw/2-C.x,ly+6-C.y)<C.r+3);
       const hitCirc=files.some(g=>{ const Q=pos.get(g.path); return Q && g!==f && Math.hypot(lx+tw/2-Q.x,ly+6-Q.y)<nodeR(g)+3; });
       const hitRect=labelRects.some(R=>lx<R.x+R.w&&lx+lw>R.x&&ly<R.y+R.h&&ly+lh>R.y);
@@ -274,11 +281,14 @@ function expandAll(){ collapsed.clear(); layout(); }
 function show(h){
   $('focusBtn').style.display = h.kind==='module' ? 'inline-block' : 'none';
   if(h.kind==='module'){ const m=mods.find(x=>x.id===h.id);
+    const entry=(m.public&&m.public.length)?m.public:((m.entrypoints||[]).length?m.entrypoints:[]);
     $('sel').innerHTML='<b>模块 '+m.id+'</b><br><span class="muted">'+m.files+' 文件 · 允许依赖</span> '+(m.allowed.join(', ')||'（无）')+
-      (m.public&&m.public.length?'<br><span class="muted">公开入口</span> '+m.public.join(', '):'')+
+      '<br><span class="muted">职责</span> '+(m.description||'（未写）')+
+      '<br><span class="muted">入口</span> '+(entry.join(', ')||'未声明')+
       '<br><span class="muted">路径</span> '+m.paths.join(', '); }
   else { const f=files.find(x=>x.path===h.id);
-    $('sel').innerHTML='<b>'+f.path+'</b><br><span class="muted">模块</span> '+f.module+' · <span class="muted">入度</span> '+f.indeg+' · <span class="muted">出度</span> '+f.outdeg; }
+    $('sel').innerHTML='<b>'+f.path+'</b><br><span class="muted">模块</span> '+f.module+' · <span class="muted">行数</span> '+f.lines+' · <span class="muted">入度</span> '+f.indeg+' · <span class="muted">出度</span> '+f.outdeg+
+      (f.desc?'<br><span class="muted">职责</span> '+f.desc:''); }
 }
 async function gen(){ if(!sel) return; const q=sel.kind==='module'?('module='+encodeURIComponent(sel.id)):('file='+encodeURIComponent(sel.id));
   const c=await api('/api/constraint?'+q); $('constraint').textContent=c.markdown||c.error||''; }
@@ -295,6 +305,8 @@ function fit(){ if(!files.length||!centers.size) return; let x0=1e9,y0=1e9,x1=-1
   view.x=(W-(x1-x0)*view.k)/2-x0*view.k; view.y=(H-(y1-y0)*view.k)/2-y0*view.k; upZoom(); draw(); }
 $('cross').onchange=(e)=>{ crossOnly=e.target.checked; draw(); };
 $('emode').onchange=(e)=>{ edgeMode=e.target.value; draw(); };
+$('colorby').onchange=(e)=>{ colorBy=e.target.value; draw(); };
+$('labelby').onchange=(e)=>{ labelBy=e.target.value; draw(); };
 $('violonly').onchange=(e)=>{ violOnly=e.target.checked; draw(); };
 $('q').addEventListener('input',(e)=>{ search=e.target.value.trim().toLowerCase(); draw(); });
 $('q').addEventListener('keydown',(e)=>{ if(e.key!=='Enter'||!search) return; const f=files.find(x=>x.path.toLowerCase().includes(search)); if(!f) return;
@@ -316,6 +328,10 @@ async function boot(){
   const s=await api('/api/scan'); $('root').textContent=s.root;
   A=await api('/api/arch'); mods=A.modules; files=A.files; edges=A.file_edges; fp=A.fingerprint;
   $('ver').textContent='v'+(A.panel_version||'');
+  const big=files.filter(f=>f.lines>400).sort((a,b)=>b.lines-a.lines);
+  const huge=files.filter(f=>f.lines>600);
+  $('size').innerHTML='&gt;400 行：<b>'+big.length+'</b> 个 · &gt;600 行：<b style="color:#f85149">'+huge.length+'</b> 个<br>'+
+    big.slice(0,8).map(f=>'<div class="tag" onclick="pickFile(this.dataset.p)" data-p="'+f.path+'">'+f.lines+' 行 · '+base(f.path)+'</div>').join('');
   window.__iso=files.filter(f=>f.indeg===0&&f.outdeg===0);
   $('iso').textContent='孤立文件：'+window.__iso.length+'（无任何 import 关系；点此列出）';
   $('iso').onclick=function(){ const el=$('isoList');
@@ -335,6 +351,8 @@ async function boot(){
   rows($('issues'), (s.issues||[]).map(i=>({_level:i.level==='FAIL'?'fail':'warn',level:i.level,code:i.code,path:i.path})), ['level','code','path']);
   setInterval(poll, 2500);
 }
+function pickFile(path){ const f=files.find(x=>x.path===path); if(!f) return; sel={kind:'file',id:path}; show(sel);
+  const P=pos.get(path); if(P){ view.x=W/2-P.x*view.k; view.y=H/2-P.y*view.k; } draw(); }
 async function poll(){ if(!$('auto').checked) return; try{ const r=await api('/api/arch');
   if(r.fingerprint && r.fingerprint!==fp){ fp=r.fingerprint; A=r; mods=A.modules; files=A.files; edges=A.file_edges; layout(); chips();
     rows($('viol'), (A.violations||[]).map(v=>({_level:'fail',kind:v.kind||'dependency',from:v.from,to:v.to,count:v.count})), ['kind','from','to','count']);
