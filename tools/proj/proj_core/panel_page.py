@@ -36,7 +36,7 @@ PAGE = r"""<!doctype html>
    <label class="muted"><input type="checkbox" id="cross" checked> 只看跨模块</label>
    <select id="emode"><option value="agg">跨模块边：聚合</option><option value="file">跨模块边：逐文件</option></select>
    <select id="colorby"><option value="module">着色：模块</option><option value="lines">着色：行数</option></select>
-   <select id="labelby"><option value="file">标签：文件名</option><option value="desc">标签：职责</option></select>
+   <select id="labelby"><option value="file">标签：文件名</option><option value="desc">标签：职责</option><option value="none">标签：不显示</option></select>
    <label class="muted"><input type="checkbox" id="violonly"> 只看违规</label>
    <button onclick="zoomBy(0.85)">−</button><span class="muted" id="zoom">100%</span><button onclick="zoomBy(1.18)">+</button>
    <button onclick="fit()">适配</button>
@@ -96,31 +96,31 @@ function moduleOffsets(){
   centers=new Map(); pos=new Map();
   mods.forEach((m,i)=>{ const ang=-Math.PI/2+i*2*Math.PI/n; centers.set(m.id,{x:cx+R*Math.cos(ang), y:cy+R*Math.sin(ang)}); });
   mods.forEach(m=>{ const c=centers.get(m.id); const list=files.filter(f=>f.module===m.id);
-    list.forEach((f,i)=>{ const ang=i*2.39996, rad=20+9*Math.sqrt(i); pos.set(f.path,{x:c.x+rad*Math.cos(ang), y:c.y+rad*Math.sin(ang)}); }); });
+    list.forEach((f,i)=>{ const ang=i*2.39996, rad=26+11*Math.sqrt(i); pos.set(f.path,{x:c.x+rad*Math.cos(ang), y:c.y+rad*Math.sin(ang)}); }); });
   const list=files.filter(f=>pos.has(f.path));
   for(let it=0; it<220; it++){
     for(let i=0;i<list.length;i++) for(let j=i+1;j<list.length;j++){
       const P=pos.get(list[i].path), Q=pos.get(list[j].path); let dx=Q.x-P.x, dy=Q.y-P.y; const d2=dx*dx+dy*dy+0.01, d=Math.sqrt(d2);
-      if(d>80) continue; const f=1400/d2; P.x-=dx/d*f; P.y-=dy/d*f; Q.x+=dx/d*f; Q.y+=dy/d*f; }
-    edges.forEach(([a,b])=>{ const P=pos.get(a), Q=pos.get(b); if(!P||!Q) return; const dx=Q.x-P.x,dy=Q.y-P.y,d=Math.hypot(dx,dy)||1; const f=(d-52)*0.02; P.x+=dx/d*f; P.y+=dy/d*f; Q.x-=dx/d*f; Q.y-=dy/d*f; });
+      if(d>105) continue; const f=1400/d2; P.x-=dx/d*f; P.y-=dy/d*f; Q.x+=dx/d*f; Q.y+=dy/d*f; }
+    edges.forEach(([a,b])=>{ const P=pos.get(a), Q=pos.get(b); if(!P||!Q) return; const dx=Q.x-P.x,dy=Q.y-P.y,d=Math.hypot(dx,dy)||1; const f=(d-68)*0.02; P.x+=dx/d*f; P.y+=dy/d*f; Q.x-=dx/d*f; Q.y-=dy/d*f; });
     list.forEach(f=>{ const P=pos.get(f.path), c=centers.get(f.module); if(!c) return; P.x+=(c.x-P.x)*0.02; P.y+=(c.y-P.y)*0.02; });
   }
   // 半径（相对当前中心）
   radii=new Map();
   mods.forEach(m=>{ const c=centers.get(m.id); let r=26;
     files.filter(f=>f.module===m.id).forEach(f=>{ const P=pos.get(f.path); if(P) r=Math.max(r, Math.hypot(P.x-c.x,P.y-c.y)+18); });
-    radii.set(m.id, Math.min(r,170)); });
+    radii.set(m.id, Math.min(r,200)); });
 }
 
 function separateCenters(){
   const cx=W/2, cy=H/2, n=Math.max(1,mods.length);
-  let R=Math.min(W,H)*0.30;
+  let R=Math.min(W,H)*0.33;
   for(let iter=0; iter<60; iter++){
     const cs=new Map(); mods.forEach((m,i)=>{ const ang=-Math.PI/2+i*2*Math.PI/n; cs.set(m.id,{x:cx+R*Math.cos(ang), y:cy+R*Math.sin(ang)}); });
     let ok=true;
     for(let i=0;i<mods.length&&ok;i++) for(let j=i+1;j<mods.length&&ok;j++){
       const a=cs.get(mods[i].id), b=cs.get(mods[j].id);
-      if(Math.hypot(a.x-b.x,a.y-b.y) < radii.get(mods[i].id)+radii.get(mods[j].id)+14) ok=false; }
+      if(Math.hypot(a.x-b.x,a.y-b.y) < radii.get(mods[i].id)+radii.get(mods[j].id)+22) ok=false; }
     if(ok){ // 平移文件节点随中心移动
       mods.forEach(m=>{ const old=centers.get(m.id), now=cs.get(m.id); const dx=now.x-old.x, dy=now.y-old.y;
         files.filter(f=>f.module===m.id).forEach(f=>{ const P=pos.get(f.path); if(P){ P.x+=dx; P.y+=dy; } }); });
@@ -207,16 +207,33 @@ function draw(){
     const P=pos.get(f.path); if(!P) return; const r=nodeR(f); const on=sel&&sel.kind==='file'&&sel.id===f.path;
     ctx.beginPath(); ctx.arc(P.x,P.y,r,0,Math.PI*2); ctx.fillStyle=fileColor(f); ctx.globalAlpha=on?1:.9; ctx.fill(); ctx.globalAlpha=1;
     if(on){ ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); }
-    const show=on||hover===f.path||(search&&f.path.toLowerCase().includes(search))||(top.has(f.path)&&view.k>0.55)||view.k>1.5;
-    if(show){ ctx.font='10px system-ui'; const txt=labelBy==='desc'&&f.desc?(f.desc.length>18?f.desc.slice(0,18)+'…':f.desc):base(f.path); const tw=ctx.measureText(txt).width, lx=P.x+r+3, ly=P.y-8, lw=tw+2, lh=12;
-      const hitNode=circles.some(C=>Math.hypot(lx+tw/2-C.x,ly+6-C.y)<C.r+3);
-      const hitCirc=files.some(g=>{ const Q=pos.get(g.path); return Q && g!==f && Math.hypot(lx+tw/2-Q.x,ly+6-Q.y)<nodeR(g)+3; });
-      const hitRect=labelRects.some(R=>lx<R.x+R.w&&lx+lw>R.x&&ly<R.y+R.h&&ly+lh>R.y);
-      if(!hitNode&&!hitCirc&&!hitRect){ labelRects.push({x:lx,y:ly,w:lw,h:lh}); ctx.fillStyle=on?'#fff':'#c9d1d9'; ctx.fillText(txt,lx,ly+9); } } });
+    if(labelBy!=='none' && view.k>0.25){
+      const raw=labelBy==='desc'&&f.desc?f.desc:base(f.path);
+      const lines=wrapLabel(raw,labelBy==='desc'?16:15,labelBy==='desc'?3:2);
+      const fs=8, lh=9.6, pad=2;
+      ctx.font=fs+'px system-ui';
+      const widths=lines.map(l=>ctx.measureText(l).width), wmax=Math.max(...widths), totalH=lines.length*lh;
+      const bx=P.x-wmax/2-pad, by=P.y-r-totalH-4;
+      const hitNode=files.some(g=>{ if(g===f) return false; const Q=pos.get(g.path);
+        return Q && Math.abs(Q.x-P.x)<wmax/2+4 && Math.abs(Q.y-(by+totalH/2))<totalH/2+8; });
+      const hitRect=labelRects.some(R=>bx<R.x+R.w&&bx+wmax+pad*2>R.x&&by<R.y+R.h&&by+totalH+pad>R.y);
+      if(!hitNode&&!hitRect){ labelRects.push({x:bx,y:by,w:wmax+pad*2,h:totalH+pad});
+        ctx.fillStyle=on?'#fff':'#c9d1d9'; ctx.globalAlpha=view.k>0.8?0.92:0.78;
+        lines.forEach((ln,i)=>ctx.fillText(ln,P.x-widths[i]/2,by+i*lh+fs-1));
+        ctx.globalAlpha=1; } }
+    });
   if(snapId){ const P=pos.get(snapId), f=files.find(x=>x.path===snapId);
     if(P&&f){ ctx.strokeStyle='#58a6ff'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
       ctx.beginPath(); ctx.arc(P.x,P.y,nodeR(f)+7,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); } }
   ctx.restore();
+}
+
+function wrapLabel(txt,max,maxLines){
+  const out=[];
+  for(let i=0;i<txt.length && out.length<maxLines;i+=max){
+    out.push(txt.slice(i,i+max)+(i+max<txt.length&&out.length===maxLines-1?'…':''));
+  }
+  return out.length?out:[txt];
 }
 
 function nearestEdge(w){
@@ -348,6 +365,8 @@ async function boot(){
     el.style.display='block'; el.innerHTML=window.__iso.map(f=>'<div>'+f.path+'</div>').join('')||'<div>（无）</div>'; };
   $('stat').textContent=mods.length+' 模块 / '+files.length+' 文件 / '+edges.length+' 边 / '+A.violations.length+' 违规  score '+s.score.total;
   resize(); layout(); chips();
+  const kp=parseFloat(new URLSearchParams(location.search).get('k'));
+  if(kp>0){ const prev=view.k; view.k=kp; view.x=W/2-(W/2-view.x)*kp/prev; view.y=H/2-(H/2-view.y)*kp/prev; draw(); }
   const qp=new URLSearchParams(location.search);
   if(qp.get('intra')==='1'){ crossOnly=false; $('cross').checked=false; }
   const only=(qp.get('only')||'').split(',').map(x=>x.trim()).filter(Boolean).filter(x=>mods.some(m=>m.id===x));
