@@ -370,6 +370,7 @@ function toggleMod(id){ if(hidden.has(id)) hidden.delete(id); else hidden.add(id
 function rows(el,data,cols){ el.innerHTML='<tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr>'+
   data.map(r=>'<tr>'+cols.map(c=>'<td class="'+(r._level||'')+'" title="'+(r[c]??'')+'">'+(r[c]??'')+'</td>').join('')+'</tr>').join(''); }
 async function boot(){
+  const tipEl=$('tip'); if(tipEl) tipEl.style.display='none';
   const s=await api('/api/scan'); $('root').textContent=s.root;
   A=await api('/api/arch'); mods=A.modules; files=A.files; edges=A.file_edges; fp=A.fingerprint;
   $('ver').textContent='v'+(A.panel_version||'');
