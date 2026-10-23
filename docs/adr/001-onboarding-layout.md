@@ -14,13 +14,13 @@
 - 被否理由：`work/` 被 gitignore，测试样本不可复现；无记忆交接，换会话成本高；无法用 `proj scan/eval` 校验。
 
 ### 备选 B：采用 pydev 布局（选中）
-- 优点：小样本进 `tests/fixtures/`（可复现）、大样本进 `local/`（私有）、截图进 `local/screenshots/`、
+- 优点：小样本进 `docs/test-fixtures/`（可复现）、大样本进 `local/`（私有）、截图进 `local/screenshots/`、
   记忆进 `.dsh-memory/`（独立 git）、文档进 `docs/`（可索引）；工具可机械检查。
 - 被否理由：一次性迁移成本。
 
 ## 决策
 采用备选 B：
-- `tests/fixtures/`：`make_fixture.py`、`fixture_thesis.docx`、`scan_result.json`、`scan_grouped.txt`（**入库**）；
+- `docs/test-fixtures/`：`make_fixture.py`、`fixture_thesis.docx`、`scan_result.json`、`scan_grouped.txt`（**入库**）；
 - `local/fixtures/`：两份真实论文样本（**不入库**，`local/` 已忽略）；
 - `local/screenshots/`：GUI 预览图（**不入库**）；
 - `.dsh-memory/`：交接卡 / 索引 / 流水 / 项目档案（**独立 git**，项目仓库忽略）；

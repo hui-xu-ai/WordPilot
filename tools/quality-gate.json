@@ -1,0 +1,40 @@
+{
+  "$comment": "quality-gate.ps1 的配置。放仓库根 tools/ 下，随项目走。所有阈值都可用命令行覆盖。",
+  "sourceGlobs": ["*.py", "*.ts", "*.js", "*.mjs", "*.ps1", "*.cs", "*.go", "*.java", "*.rs"],
+  "excludeDirs": [".git", "node_modules", ".venv", "venv", "__pycache__", ".dsh-memory", "dist", "build", ".mypy_cache", ".ruff_cache", ".pytest_cache"],
+  "maxFileLines": { "warn": 600, "fail": 1500 },
+  "secrets": {
+    "filePatterns": ["(^|/)\\.env($|\\.)", "credentials", "secret", "id_rsa", "\\.pem$", "\\.pfx$", "\\.key$", "\\.kdbx$", "settings\\.ya?ml$"],
+    "contentPatterns": [
+      "sk-[A-Za-z0-9]{20,}",
+      "ghp_[A-Za-z0-9]{20,}",
+      "github_pat_[A-Za-z0-9_]{20,}",
+      "AKIA[0-9A-Z]{16}",
+      "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+      "(?i)(api[_-]?key|secret[_-]?key|access[_-]?token|password)\\s*[:=]\\s*['\"][^'\"]{12,}['\"]"
+    ],
+    "ignoreGlobs": ["\\.example$", "\\.sample$", "\\.md$", "README", "CHANGELOG"],
+    "$allowMarkerComment": "同一行含此标记则不报（照抄 detect-secrets 的约定）。用于测试夹具/文档示例里的假密钥——真密钥永远不该需要这个标记。",
+    "allowMarker": "allowlist secret",
+    "$patternSourceMarkerComment": "v2.9.12：语义与 allowMarker **不同**——它声明「本行是检测器/脱敏器自身的模式定义，不是密钥」。没有它，写脱敏器的人只能把前缀拆成两个相邻字面量去躲闸门（第四轮验收实测），那是比削弱规则更隐蔽的坏路。",
+    "patternSourceMarker": "gate: pattern-source",
+    "$prefixFragmentsComment": "v2.9.12：疑似规避「减速带」——同一行内相邻字面量拼起来后，若拼出的前缀命中此表则报 WARN（不是 FAIL）。只抓「同行直接拼接」；任何间接都能绕过，它只是提高规避成本。",
+    "prefixFragments": ["sk-", "ghp_", "github_pat_", "AKIA", "glpat-"]
+  },
+  "ignoreMustContain": [".env", "*.pem", "*.key", "credentials", ".venv/", "__pycache__/", "node_modules/"],
+  "layout": {
+    "expectDirs": [],
+    "generatedDirPatterns": ["^out/", "^output/", "^dist/", "^build/", "^work/", "^data/cache/", "^tmp/", "^temp/"]
+  },
+  "junk": { "untrackedWarnCount": 20, "untrackedFailCount": 200, "largeUntrackedMB": 50 },
+  "tests": {
+    "testGlobs": ["test_*.py", "*_test.py", "*.test.ts", "*.spec.ts", "*.test.js", "*.spec.js"],
+    "sourceGlobsForMapping": ["*.py", "*.ts", "*.js"],
+    "searchRoots": ["src", "."]
+  },
+  "commands": [
+    { "name": "ruff", "cmd": "ruff check . --output-format concise", "when": "pyproject.toml", "severity": "fail" },
+    { "name": "pytest", "cmd": "pytest -q --maxfail=1 --basetemp=work/pytest-tmp -p no:cacheprovider", "when": "tests", "severity": "fail", "optional": true }
+  ],
+  "git": { "dirtyFileWarn": 25, "requireTagWhenClean": false }
+}
