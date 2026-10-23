@@ -121,5 +121,7 @@
   "plugins.install_ok_title": "Installed",
   "plugins.install_ok": "Plugin {name} installed. Check it to start using it.",
   "plugins.install_fail_title": "Install failed",
-  "plugins.install_fail": "Install failed: {error}"
+  "plugins.install_fail": "Install failed: {error}",
+  "app.nav.page_build_failed": "That plugin page failed to load; switched to an available page (see logs)",
+  "app.nav.page_unavailable": "That page is unavailable (the plugin may be disabled or failed to load)"
 }

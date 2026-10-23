@@ -30,6 +30,8 @@
 - 所有可见文案走 i18n（self.tr），切换语言时 retranslateUi() 统一刷新；
 - 新增一个功能时，本文件应当零改动。
 """
+import logging
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMainWindow, QMenu,
@@ -44,8 +46,11 @@ from app.settings_page import SettingsPage
 from app.title_bar import TitleBar
 from app.ui_registry import QtUiRegistry
 from core.kernel import Kernel
+from core.plugin_manager import PluginState
 from core.services.config_manager import ConfigManager
 from infra.utils import resource_path
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -71,6 +76,8 @@ class MainWindow(QMainWindow):
         self._page_widgets: dict[str, QWidget] = {}
         # 插件页工厂缓存：惰性构造（首次切到该页才建）；page_id = plugin:<插件id>
         self._plugin_factories: dict[str, tuple] = {}   # page_id -> (factory, built)
+        # 构造失败的插件页：默认页与回退都要跳过它，插件重载后可重试
+        self._failed_pages: set[str] = set()
         # 用户显式选中的页（点击导航 / 外部直达）；None 表示走默认页逻辑。
         # 外壳构造时插件还没加载，此时默认页会先落到「插件管理」，
         # 等插件加载完重建导航，默认页应让位给第一个插件页（智能纠错）。
@@ -224,6 +231,11 @@ class MainWindow(QMainWindow):
         同时回收已卸载插件留下的页面控件。
         """
         self._plugin_factories.clear()
+        self._failed_pages.clear()          # 插件重载/启停后允许重试构造
+        # 兜底：清掉无归属（plugin_id=None）或已停用插件的贡献点，避免残留点不动的入口
+        active_ids = {pid for pid, rec in self.kernel.plugins.records.items()
+                      if rec.state == PluginState.ACTIVE}
+        self.ui.retain_only(active_ids)
         for label, factory, _icon, plugin_id in self.ui.pages():
             self._plugin_factories[f"plugin:{plugin_id}"] = (factory, False)
         for page_id in [pid for pid in self._page_widgets if pid.startswith("plugin:")]:
@@ -246,8 +258,11 @@ class MainWindow(QMainWindow):
         try:
             widget = factory()
         except Exception:
-            # 单个插件页构造失败不应拖垮整个外壳
+            # 单个插件页构造失败不应拖垮整个外壳：记日志 + 标记失败页（可重试）+ 状态栏可见
+            logger.exception("插件页构造失败: %s", page_id)
+            self._failed_pages.add(page_id)
             self._plugin_factories[page_id] = (factory, True)
+            self.statusBar().showMessage(self.tr("app.nav.page_build_failed"), 5000)
             return None
         self._plugin_factories[page_id] = (factory, True)
         self.stack.addWidget(widget)
@@ -322,8 +337,14 @@ class MainWindow(QMainWindow):
         self._show_page(current)
 
     def _default_page(self) -> str:
-        """内容区第一页：优先第一个插件页，插件全禁用时落到「插件管理」。"""
+        """内容区第一页：第一个**可用**插件页；都不可用时落到「插件管理」。
+
+        不能直接返回 `_plugin_factories` 的第一项：那可能是构造失败过的页，
+        随后 `_show_page` 会去 `_page_widgets` 取它并抛 KeyError（启动期直接崩）。
+        """
         for page_id in self._plugin_factories:
+            if page_id in self._failed_pages:
+                continue
             return page_id
         return "plugins"
 
@@ -336,7 +357,10 @@ class MainWindow(QMainWindow):
         widget = self._ensure_page_built(page_id)
         if widget is None:
             page_id = self._default_page()
-            widget = self._page_widgets[page_id]
+            widget = self._page_widgets.get(page_id) or self._page_widgets.get("plugins")
+        if widget is None:
+            logger.error("没有可显示的页面（请求 %s）", page_id)
+            return
         self.nav.set_current_page(page_id)
         self.stack.setCurrentWidget(widget)
 
@@ -346,11 +370,14 @@ class MainWindow(QMainWindow):
         self._show_page(page_id)
 
     def show_page(self, page_id: str) -> None:
-        """切到指定页并抬出主窗口。"""
+        """切到指定页并抬出主窗口；目标不可用时给出提示（不要静默无反应）。"""
         if page_id in self._page_widgets or page_id in self._plugin_factories:
             self._on_page_requested(page_id)
             self.show()
             self.raise_()
+            return
+        logger.warning("show_page 目标不可用: %s", page_id)
+        self.statusBar().showMessage(self.tr("app.nav.page_unavailable"), 5000)
 
     # ---------------- 界面：多语言 ----------------
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
@@ -409,18 +436,27 @@ class MainWindow(QMainWindow):
             self.quit_app()
 
     def quit_app(self):
-        wm = self.kernel.services.get("window_manager")
-        if wm is not None:
-            wm.close_all(force=True)
-        for unsubscribe in self._unsubscribes:
+        """退出：幂等 + 关键清理放 finally，避免某一步抛异常就留下隐藏窗口与托盘图标。"""
+        if getattr(self, "_quitting", False):
+            return
+        self._quitting = True
+        try:
+            for unsubscribe in self._unsubscribes:
+                try:
+                    unsubscribe()
+                except Exception:
+                    logger.exception("退出时退订失败")
+            self._unsubscribes.clear()
+            wm = self.kernel.services.get("window_manager")
+            if wm is not None:
+                wm.close_all(force=True)
+            self.kernel.shutdown()
+        finally:
             try:
-                unsubscribe()
+                self.tray_icon.hide()
             except Exception:
-                pass
-        self._unsubscribes.clear()
-        self.kernel.shutdown()
-        self.tray_icon.hide()
-        QApplication.quit()
+                logger.exception("托盘图标隐藏失败")
+            QApplication.quit()
 
     # ---------------- 外观 / 窗口治理 ----------------
     def apply_style(self):

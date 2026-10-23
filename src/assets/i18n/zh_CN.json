@@ -121,5 +121,7 @@
   "plugins.install_ok_title": "安装成功",
   "plugins.install_ok": "插件 {name} 已安装，勾选后开始工作。",
   "plugins.install_fail_title": "安装失败",
-  "plugins.install_fail": "安装失败：{error}"
+  "plugins.install_fail": "安装失败：{error}",
+  "app.nav.page_build_failed": "该插件页加载失败，已回到可用页面（详见日志）",
+  "app.nav.page_unavailable": "该页面当前不可用（插件可能已停用或加载失败）"
 }

@@ -1,4 +1,4 @@
-# tests/test_hotkey_dispatch.py
+# tests/test_hotkey_service.py
 """P10-B4：热键回调必须编组回主线程，且注销要真正摘掉 OS 钩子。
 
 背景（审计 H6/H7/H18）：`keyboard` 库在自己的钩子线程里回调，而注册进来的全是会动
@@ -40,8 +40,7 @@ def kb(monkeypatch):
 
 @pytest.fixture
 def service(kb):
-    svc = hk_mod.HotkeyService({"hotkeys": {}})
-    return svc
+    return hk_mod.HotkeyService({"hotkeys": {}})
 
 
 def test_callback_is_dispatched_not_run_in_hook_thread(service, kb):

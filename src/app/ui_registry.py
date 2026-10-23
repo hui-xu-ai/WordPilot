@@ -9,9 +9,12 @@
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
 
 from core.sdk.ui import UiRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class QtUiRegistry(UiRegistry):
@@ -76,3 +79,15 @@ class QtUiRegistry(UiRegistry):
         self._tools = [item for item in self._tools if item[4] != plugin_id]
         self._tray = [item for item in self._tray if item[3] != plugin_id]
         self._pages = [item for item in self._pages if item[4] != plugin_id]
+
+    def retain_only(self, active_ids) -> None:
+        """只保留属于 active_ids 的贡献点（含无归属的孤儿）。
+
+        `remove_plugin` 只能按 id 精确清理；一旦某处注册时漏传 plugin_id（历史默认 None），
+        那条入口就永远清不掉，插件停用后侧边栏仍留着、点下去执行已释放的处理器。
+        外壳每次重建导航前调本方法兜底。
+        """
+        keep = set(active_ids)
+        self._tools = [item for item in self._tools if item[4] in keep]
+        self._tray = [item for item in self._tray if item[3] in keep]
+        self._pages = [item for item in self._pages if item[4] in keep]
