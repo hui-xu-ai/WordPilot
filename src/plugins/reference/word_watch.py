@@ -98,6 +98,36 @@ def _is_caption_paragraph(selection) -> bool:
     return any(token in lowered for token in _CAPTION_STYLES)
 
 
+def labels_at_position(word, position: int, window: int = 40) -> list[str]:
+    """按"参考文献角标规则"从**正文文字**里取出光标涉及的编号。
+
+    用户建议（采纳）：不要只依赖域代码，直接看光标附近的 `[5,6]` / `[2-4]` 文字，
+    按括号规则拆开 —— 这样 `[5,6]` 必然得到 5 和 6 两条。
+    """
+    try:
+        document = word.ActiveDocument
+        start = max(0, position - window)
+        text = document.Range(start, position + window).Text or ""
+    except Exception:                      # noqa: BLE001
+        return []
+    offset = position - start
+    best: tuple[int, int, str] | None = None
+    for match in re.finditer(r"[\[（(][^\]）)]{1,40}[\]）)]", text):
+        group = match.group(0)
+        if not re.search(r"\d", group):
+            continue
+        if match.start() <= offset <= match.end():
+            best = (match.start(), match.end(), group)
+            break
+        if best is None:
+            distance = min(abs(offset - match.start()), abs(offset - match.end()))
+            if distance <= 2:
+                best = (match.start(), match.end(), group)
+    if best is None:
+        return []
+    return parse_citation_labels(best[2])
+
+
 def _first_label(*texts: str) -> str:
     for text in texts:
         labels = parse_citation_labels(text or "")
@@ -291,7 +321,7 @@ class WordWatch(QThread):
             self._cleared = True
             self.citationCleared.emit()
 
-    def _anchor_payload(self, word, anchor, doc_name: str) -> dict:
+    def _anchor_payload(self, word, anchors, doc_name: str, position: int = -1) -> dict:
         doc_path = ""
         try:
             doc_path = word.ActiveDocument.FullName or ""
@@ -301,13 +331,24 @@ class WordWatch(QThread):
             point = screen_point(word, word.Selection)
         except Exception:                  # noqa: BLE001
             point = (200, 200)
-        return {
-            "doc_name": doc_name,
-            "doc_path": doc_path,
-            "point": point,
-            "items": [{"anchor_key": anchor.anchor_key, "label": anchor.label,
-                       "reference": None, "doc_name": doc_name, "kind": anchor.kind}],
-        }
+
+        items = [{"anchor_key": anchor.anchor_key, "label": anchor.label,
+                  "reference": None, "doc_name": doc_name, "kind": anchor.kind}
+                 for anchor in anchors]
+
+        # 角标文字补充：域只给出 5、正文写着 `[5,6]` 时，把 6 也补上（用户明确要求按角标规则解析）
+        if position >= 0:
+            known = {item["anchor_key"] for item in items}
+            for label in labels_at_position(word, position):
+                key = f"doc:{doc_name}:cite:{label}"
+                if key not in known:
+                    known.add(key)
+                    items.append({"anchor_key": key, "label": label, "reference": None,
+                                  "doc_name": doc_name, "kind": "label_text"})
+
+        items.sort(key=lambda item: (not item["label"].isdigit(),
+                                     int(item["label"]) if item["label"].isdigit() else 0))
+        return {"doc_name": doc_name, "doc_path": doc_path, "point": point, "items": items}
 
     def _label_fallback_payload(self, word, doc_name: str) -> dict | None:
         """域索引没命中时，看光标旁边是不是 `[12]` 这类编号（EndNote 常把引用显示成文本）。

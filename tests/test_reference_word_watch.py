@@ -244,3 +244,44 @@ def test_watch_has_index_and_status_signal():
     assert isinstance(watch._index, DocIndex)
     assert callable(watch.rescan_index)
     assert hasattr(watch, "statusChanged")
+
+def test_labels_at_position_extracts_all_numbers():
+    """按角标文字规则：光标在 `[5,6]` 里要得到 5 和 6 两条（用户明确要求）。"""
+    from plugins.reference.word_watch import labels_at_position
+
+    class _Doc:
+        def Range(self, start, end):
+            return type("R", (), {"Text": "测试[5,6] 后续文字"})()
+
+    word = type("W", (), {"ActiveDocument": _Doc()})()
+    assert labels_at_position(word, 3) == ["5", "6"]
+    assert labels_at_position(word, 25) == [], "远离角标时不应误报"
+
+
+def test_payload_merges_field_and_text_labels():
+    """域只给出 5、正文写着 [5,6] 时，两条都要出现。"""
+    from plugins.reference.doc_index import DocAnchor
+    from plugins.reference.word_watch import WordWatch
+
+    class _Doc:
+        Name = "论文.docx"
+        FullName = "C:/tmp/论文.docx"
+
+        def Range(self, start, end):
+            return type("R", (), {"Text": "测试[5,6]"})()
+
+    class _Selection:
+        Text = "[5,6]"
+        Start = 4
+        End = 4
+        Information = lambda self, kind: 100  # noqa: E731
+
+    word = type("W", (), {})()
+    word.ActiveDocument = _Doc()
+    word.Selection = _Selection()
+
+    watch = WordWatch()
+    payload = watch._anchor_payload(word, [DocAnchor(2, 6, "doc:论文.docx:cite:5", "5", "endnote_shell")],
+                                    "论文.docx", 4)
+    labels = [item["label"] for item in payload["items"]]
+    assert labels == ["5", "6"], f"连用编号要全部列出，实际 {labels}"
