@@ -155,10 +155,21 @@ def test_note_box_height_is_fixed(overlay):
     assert widget._cards[0].note_edit.minimumHeight() == 56
 
 
-def test_close_button_shows_cross_glyph(overlay):
+def test_close_button_is_self_drawn_and_visible(overlay):
+    """关闭按钮自绘（不依赖字体/emoji/QSS），尺寸固定 22×22，点击能关掉。
+
+    这里钉住三次踩过的坑：padding 挤掉文字、QSS min-height 压扁、emoji 缺字形。
+    """
     widget, _store = overlay
     widget.show_entries([_entry("zotero:1", "1")], (300, 200))
-    assert widget.close_btn.text() == "❌"
+
+    assert widget.close_btn.width() == 22 and widget.close_btn.height() == 22
+    assert not hasattr(widget.close_btn, "text"), "不应该再用文字按钮（字体不可控）"
+
+    dismissed: list[str] = []
+    widget.dismissed.connect(dismissed.append)
+    widget.close_btn.clicked.emit()
+    assert dismissed, "点击 ✕ 必须发出 dismissed 信号"
 
 
 def test_single_entry_height_is_compact(overlay):

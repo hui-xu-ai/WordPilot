@@ -131,6 +131,75 @@ class _EntryCard(QFrame):
         return self._entry
 
 
+class _CloseButton(QWidget):
+    """自绘关闭按钮（纯 QWidget：不受全局 QPushButton 样式影响，也不依赖字体/emoji）。"""
+
+    clicked = Signal()
+    SIZE = 22
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("referenceOverlayClose")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedSize(self.SIZE, self.SIZE)
+        self.setAttribute(Qt.WA_Hover, True)
+        self.setToolTip("")
+
+    def sizeHint(self):                        # noqa: N802 - Qt 命名惯例
+        from PySide6.QtCore import QSize
+
+        return QSize(self.SIZE, self.SIZE)
+
+    # 点击（按下在按钮内、抬起也在按钮内才算）
+    def mouseReleaseEvent(self, event) -> None:      # noqa: N802
+        if event.button() == Qt.LeftButton and self.rect().contains(event.position().toPoint()):
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+    def enterEvent(self, event) -> None:             # noqa: N802
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:             # noqa: N802
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event) -> None:             # noqa: N802
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QColor, QPainter, QPen
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        base = self.palette().color(self.foregroundRole())
+        rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+
+        if self.underMouse():
+            fill = QColor(base)
+            fill.setAlpha(40)
+        else:
+            fill = QColor(self.palette().color(self.window().backgroundRole()))
+            fill = fill.lighter(104)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(fill)
+        painter.drawRoundedRect(rect, 6, 6)
+
+        border = QPen(QColor(base.red(), base.green(), base.blue(), 70))
+        border.setWidthF(1.0)
+        painter.setPen(border)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(rect, 6, 6)
+
+        pen = QPen(base)
+        pen.setWidthF(1.9)
+        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(pen)
+        inner = rect.adjusted(6.5, 6.5, -6.5, -6.5)
+        painter.drawLine(inner.topLeft(), inner.bottomRight())
+        painter.drawLine(inner.topRight(), inner.bottomLeft())
+        painter.end()
+
+
 class ReferenceOverlay(QWidget):
     """桌面上浮的引用信息卡。"""
 
@@ -174,15 +243,12 @@ class ReferenceOverlay(QWidget):
         # 顶部细条：整条可拖动，只有右上角一个 ✕（不再放"参考文献"标题，省空间）
         self.title_bar_host = QWidget()
         self.title_bar_host.setObjectName("referenceOverlayBar")
-        self.title_bar_host.setFixedHeight(26)
+        self.title_bar_host.setFixedHeight(30)
         header = QHBoxLayout(self.title_bar_host)
-        header.setContentsMargins(8, 4, 6, 2)
+        header.setContentsMargins(8, 4, 6, 4)
         header.setSpacing(0)
         header.addStretch(1)
-        self.close_btn = QPushButton("❌")
-        self.close_btn.setObjectName("referenceOverlayClose")
-        self.close_btn.setFixedSize(24, 22)
-        self.close_btn.setCursor(Qt.PointingHandCursor)
+        self.close_btn = _CloseButton(self.title_bar_host)
         self.close_btn.setToolTip(self._tr("overlay.close_tip"))
         self.close_btn.clicked.connect(self._on_close_clicked)
         header.addWidget(self.close_btn, 0, Qt.AlignTop)

@@ -659,18 +659,6 @@ QLabel#referenceOverlayTitle {
     color: @color.text.secondary;
     font-weight: 600;
 }
-QPushButton#referenceOverlayClose {
-    background-color: @color.bg.hover;
-    border: 1px solid @color.border;
-    border-radius: 11 px;
-    outline: none;
-    color: @color.text.primary;
-    font-weight: 700;
-}
-QPushButton#referenceOverlayClose:hover {
-    background-color: @color.bg.selected;
-    border-color: @color.border.strong;
-}
 QLabel#referenceChip {
     background-color: @color.bg.selected;
     color: @color.text.primary;
