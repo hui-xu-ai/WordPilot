@@ -23,6 +23,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Iterator
 
+from plugins.reference.bibliography import parse_bibliography
 from plugins.reference.providers.endnote import parse_endnote_cite
 from plugins.reference.providers.zotero import parse_csl_citation
 from plugins.reference.reference_store import Reference
@@ -89,6 +90,8 @@ class ScanResult:
     footnote_count: int = 0
     endnote_count: int = 0
     ref_count: int = 0
+    #: 文末"参考文献"列表解析出的文献（可为空：文档没有列表或格式不认）
+    references: list[Reference] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -156,6 +159,7 @@ def scan_docx(source: str | Path | bytes, doc_name: str | None = None) -> ScanRe
             return result
 
         para_buffer: list[str] = []
+        paragraph_texts: list[str] = []
         note_anchors: list[tuple[ScanCitation, str, str]] = []
         instr_buffer: list[str] = []
         in_field = False
@@ -265,6 +269,8 @@ def scan_docx(source: str | Path | bytes, doc_name: str | None = None) -> ScanRe
                     text = "".join(para_buffer).strip()
                     if text:
                         previous_paragraph = text[:120]
+                        if len(paragraph_texts) < 40000:
+                            paragraph_texts.append(text)      # 供"参考文献列表"解析
                         found = parse_citation_labels(text)
                         if found:
                             result.labels.extend(found)
@@ -282,6 +288,9 @@ def scan_docx(source: str | Path | bytes, doc_name: str | None = None) -> ScanRe
         for citation, ref_id, prefix in note_anchors:
             source_text = (texts if prefix == "fn" else endnote_texts).get(ref_id, "")
             citation.anchor_key = footnote_anchor(doc_name, source_text, ref_id, prefix)
+
+    if paragraph_texts:
+        result.references = parse_bibliography(paragraph_texts, doc_name)
 
     seen: dict[str, ScanCitation] = {}
     for citation in result.citations:

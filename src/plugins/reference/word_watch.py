@@ -26,7 +26,7 @@ from plugins.reference.providers.zotero import parse_csl_citation
 
 logger = logging.getLogger(__name__)
 
-POLL_MS = 400
+POLL_MS = 300
 CLEAR_AFTER_MS = 600
 RETRY_AFTER_MS = 5000
 
@@ -138,13 +138,24 @@ def resolve_selection(word) -> dict | None:
                           "reference": reference, "doc_name": doc_name})
         elif _ENDNOTE_SHELL.match(code):
             # EndNote 只写了域壳（数据在 .Data 文件里或在库里）：按文档编号建锚点，
-            # 弹「未绑定」卡片让用户绑到库里的文献（比"点了没反应"好）。
-            identity = label or _hash_text(result_text or code)
-            items.append({
-                "anchor_key": f"doc:{doc_name}:cite:{identity}",
-                "label": label, "reference": None, "doc_name": doc_name,
-            })
-            logger.debug("识别到 EndNote 空壳域：label=%r 结果文本=%r", label, result_text[:60])
+            # 弹卡片让用户绑到库里的文献（比"点了没反应"好）。
+            # `[5,6]` 这种一格多篇要**逐个展开**，不能只取第一个编号。
+            labels = parse_citation_labels(result_text) or parse_citation_labels(code)
+            if not labels and label:
+                labels = [label]
+            if labels:
+                for one in labels:
+                    items.append({
+                        "anchor_key": f"doc:{doc_name}:cite:{one}",
+                        "label": one, "reference": None, "doc_name": doc_name,
+                    })
+            else:
+                identity = _hash_text(result_text or code)
+                items.append({
+                    "anchor_key": f"doc:{doc_name}:cite:{identity}",
+                    "label": "", "reference": None, "doc_name": doc_name,
+                })
+            logger.debug("EndNote 空壳域：labels=%r 结果文本=%r", labels, result_text[:60])
         else:
             logger.debug("未识别的域指令（不弹窗）：%r", code[:80])
 
@@ -166,7 +177,13 @@ def resolve_selection(word) -> dict | None:
 
     if not items:
         return None
-    return {"doc_name": doc_name, "items": items, "point": screen_point(word, selection)}
+    doc_path = ""
+    try:
+        doc_path = word.ActiveDocument.FullName or ""
+    except Exception:                      # noqa: BLE001
+        doc_path = ""
+    return {"doc_name": doc_name, "doc_path": doc_path, "items": items,
+            "point": screen_point(word, selection)}
 
 
 def screen_point(word, selection) -> tuple[int, int]:
@@ -244,11 +261,12 @@ class WordWatch(QThread):
                 except Exception:          # noqa: BLE001
                     signature = None
 
-                if signature is not None and signature != self._last_signature:
-                    self._last_signature = signature
-                    self._cleared = False
-                    self._last_hit_at = time.perf_counter()
-                    self.citationFound.emit(payload)
+                # 每次都发：插件侧按"当前显示的是否就是这一组锚点"去重。
+                # 只在选区变化时发，会导致"关掉弹窗、同一位置再点"毫无反应（用户已反馈）。
+                self._last_signature = signature
+                self._cleared = False
+                self._last_hit_at = time.perf_counter()
+                self.citationFound.emit(payload)
 
                 elapsed_ms = (time.perf_counter() - started) * 1000
                 self.msleep(max(80, int(POLL_MS - elapsed_ms)))

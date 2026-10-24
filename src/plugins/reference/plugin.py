@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import TYPE_CHECKING
 
 from core.sdk.plugin_base import PluginBase
@@ -45,6 +46,8 @@ class ReferencePlugin(PluginBase):
         self._dismissed: set[str] = set()
         self._last_point: tuple[int, int] = (200, 200)
         self._last_items: list[dict] = []
+        self._shown_signature: tuple[str, ...] = ()
+        self._bib_cache: dict[str, float] = {}     # 文档路径 → 已导入的 mtime
 
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
@@ -133,19 +136,62 @@ class ReferencePlugin(PluginBase):
         self._last_items = items
         point = payload.get("point") or (200, 200)
         self._last_point = (int(point[0]), int(point[1]))
+        self._import_bibliography(payload.get("doc_path") or "",
+                                  payload.get("doc_name") or "")
+
         entries = [entry for entry in (self._entry_for_item(item) for item in items) if entry]
         if not entries:
             return
-        self._ensure_overlay().show_entries(entries, self._last_point)
+        overlay = self._ensure_overlay()
+        signature = tuple(entry.anchor_key for entry in entries)
+        if signature == self._shown_signature and overlay.isVisible():
+            return                                  # 同一组锚点且已在显示 → 不重画，避免闪烁
+        self._shown_signature = signature
+        overlay.show_entries(entries, self._last_point)
+
+    def _import_bibliography(self, doc_path: str, doc_name: str) -> None:
+        """把文末"参考文献"列表解析进库（同一文档按 mtime 只做一次）。
+
+        EndNote 的引用域常常只是空壳，但文末列表是完整文本 —— 用它补元数据，
+        并让 `doc:<文档>:cite:<n>` 成为这些文献的别名，于是"点了没反应"变成"有信息可看"。
+        """
+        if not doc_path or not os.path.exists(doc_path):
+            return
+        try:
+            mtime = os.path.getmtime(doc_path)
+        except OSError:
+            return
+        if self._bib_cache.get(doc_path) == mtime:
+            return
+        from plugins.reference.docx_scan import scan_docx
+
+        try:
+            result = scan_docx(doc_path, doc_name or os.path.basename(doc_path))
+        except Exception as exc:                    # noqa: BLE001 - 解析失败不影响弹窗
+            logger.warning("解析参考文献列表失败：%s", exc)
+            return
+        imported = 0
+        for reference in result.references:
+            try:
+                self._store.upsert(reference)       # 保留用户已有备注
+                imported += 1
+            except ReferenceStoreError as exc:
+                logger.warning("导入参考文献条目失败：%s", exc)
+        self._bib_cache[doc_path] = mtime
+        if imported:
+            logger.info("从文末参考文献列表补入 %d 条元数据（%s）", imported,
+                        doc_name or os.path.basename(doc_path))
 
     def _on_citation_cleared(self) -> None:
         if self._overlay is not None:
             self._overlay.hide_overlay()
         self._dismissed.clear()        # 光标离开后允许再次弹出
+        self._shown_signature = ()
 
     def _on_overlay_dismissed(self, anchor_key: str) -> None:
         if anchor_key:
             self._dismissed.add(anchor_key)
+        self._shown_signature = ()     # 允许下次点击重新弹出
 
     # ---------------- 未绑定引用的两种处理 ----------------
     def _on_bind_requested(self, anchor_key: str, doc_name: str) -> None:

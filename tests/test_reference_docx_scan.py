@@ -163,3 +163,23 @@ def test_real_zotero_fixture():
     assert first.reference is not None
     assert first.reference.provider == "zotero"
     assert elapsed < 8.0, f"105 MB 文档扫描过慢：{elapsed:.2f}s"
+
+def test_scan_extracts_bibliography_entries(tmp_path):
+    """文末"参考文献"列表要被解析出来（EndNote 引用域是空壳时的元数据来源）。"""
+    doc = tmp_path / "带参考文献.docx"
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w='
+        '"http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+        '<w:p><w:r><w:t>正文[1]。</w:t></w:r></w:p>'
+        '<w:p><w:r><w:t>参考文献</w:t></w:r></w:p>'
+        '<w:p><w:r><w:t>[1] Wang D P. Memristor arc[J]. Nature, 2022, 1(1).</w:t></w:r></w:p>'
+        '</w:body></w:document>'
+    )
+    with zipfile.ZipFile(doc, "w") as zf:
+        zf.writestr("word/document.xml", xml)
+
+    result = scan_docx(doc)
+    assert len(result.references) == 1
+    reference = result.references[0]
+    assert reference.title == "Memristor arc"
+    assert "doc:带参考文献.docx:cite:1" in reference.aliases
