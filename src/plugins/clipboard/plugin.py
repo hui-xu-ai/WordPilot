@@ -129,8 +129,12 @@ class ClipboardPlugin(PluginBase):
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
         self._widget: ClipboardWidget | None = None
+        self._side_panel: QWidget | None = None
         ctx.ui.add_page("page_label", self._build_page, order=15,
                         icon="clipboard", plugin_id="clipboard")
+        # 插件自己的设置（翻译/改写提示词）放右侧抽屉：主界面「设置」只留全局项
+        ctx.ui.add_side_panel("side_label", self._build_side_panel,
+                              width=380, plugin_id="clipboard")
 
         hotkeys = ctx.get_service("hotkeys")
         if hotkeys is not None:
@@ -145,6 +149,70 @@ class ClipboardPlugin(PluginBase):
     def _build_page(self) -> QWidget:
         self._widget = ClipboardWidget(self.ctx)
         return self._widget
+
+    # ---------------- 右侧抽屉：本插件设置 ----------------
+    def _build_side_panel(self) -> QWidget:
+        """翻译/改写提示词（`{text}` 原文、`{target_lang}` 目标语言占位符）。
+
+        幂等：外壳按插件缓存一次，重复调用返回同一控件。
+        """
+        if self._side_panel is not None:
+            return self._side_panel
+        config = self.ctx.get_service("config")
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(14)
+
+        def _card(title_key: str, hint_key: str, config_key: str) -> QTextEdit:
+            card = QWidget()
+            card.setObjectName("card")
+            card_lay = QVBoxLayout(card)
+            card_lay.setContentsMargins(14, 12, 14, 12)
+            card_lay.setSpacing(8)
+            title = QLabel(self.tr(title_key))
+            title.setObjectName("cardTitle")
+            card_lay.addWidget(title)
+            hint = QLabel(self.tr(hint_key))
+            hint.setObjectName("hintLabel")
+            hint.setWordWrap(True)
+            card_lay.addWidget(hint)
+            edit = QTextEdit()
+            edit.setMinimumHeight(96)
+            edit.setPlainText(str(config.get(config_key, "") or ""))
+            card_lay.addWidget(edit)
+            lay.addWidget(card)
+            return edit
+
+        self.translate_prompt_edit = _card("settings.prompt.translate",
+                                           "settings.prompt.translate_hint",
+                                           "translate_prompt")
+        self.rewrite_prompt_edit = _card("settings.prompt.rewrite",
+                                         "settings.prompt.rewrite_hint",
+                                         "rewrite_prompt")
+
+        self.save_prompt_btn = QPushButton(self.tr("settings.save"))
+        self.save_prompt_btn.clicked.connect(self.save_plugin_settings)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(self.save_prompt_btn)
+        lay.addLayout(row)
+        lay.addStretch(1)
+        self._side_panel = panel
+        return panel
+
+    def save_plugin_settings(self) -> None:
+        """一次写盘并广播 `settings.saved`（内核据此重建 AI 客户端）。"""
+        config = self.ctx.get_service("config")
+        payload = {
+            "translate_prompt": self.translate_prompt_edit.toPlainText(),
+            "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
+        }
+        if config.update(payload):
+            self.ctx.events.emit("settings.saved", None)
+            self.ctx.ui.status(self.tr("settings.saved"), 2000)
+        else:
+            self.ctx.ui.status(self.tr("settings.save_failed"), 3000)
 
     def _hotkey_action(self, action: str) -> None:
         """全局热键：页面已打开就操作页面文本，否则直接处理剪贴板内容

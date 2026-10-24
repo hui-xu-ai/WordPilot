@@ -17,5 +17,13 @@
   "error_title": "错误",
   "fail_no_api": "AI 服务未就绪，请先在设置里填写 API Key",
   "fail_hotkey": "热键处理失败",
-  "hotkey_done": "已处理剪贴板内容，结果已写回剪贴板"
+  "hotkey_done": "已处理剪贴板内容，结果已写回剪贴板",
+  "side_label": "翻译改写设置",
+  "settings.prompt.translate": "翻译提示词（{text} 原文，{target_lang} 目标语言）",
+  "settings.prompt.translate_hint": "占位符必须保留：{text} 会被替换成待翻译正文。",
+  "settings.prompt.rewrite": "改写提示词（{text} 原文，{style} 风格）",
+  "settings.prompt.rewrite_hint": "占位符必须保留：{text} 会被替换成待改写正文。",
+  "settings.save": "保存",
+  "settings.saved": "已保存",
+  "settings.save_failed": "保存失败"
 }

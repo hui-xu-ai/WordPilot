@@ -17,5 +17,13 @@
   "error_title": "Error",
   "fail_no_api": "AI service not ready; set the API key in Settings first",
   "fail_hotkey": "Hotkey action failed",
-  "hotkey_done": "Clipboard processed; result copied back"
+  "hotkey_done": "Clipboard processed; result copied back",
+  "side_label": "Translation & rewrite settings",
+  "settings.prompt.translate": "Translate prompt ({text} = source, {target_lang} = target language)",
+  "settings.prompt.translate_hint": "Keep the placeholders: {text} is replaced with the text to translate.",
+  "settings.prompt.rewrite": "Rewrite prompt ({text} = source, {style} = style)",
+  "settings.prompt.rewrite_hint": "Keep the placeholders: {text} is replaced with the text to rewrite.",
+  "settings.save": "Save",
+  "settings.saved": "Saved",
+  "settings.save_failed": "Save failed"
 }

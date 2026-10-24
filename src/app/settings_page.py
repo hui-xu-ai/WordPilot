@@ -30,8 +30,7 @@ PROMPT_LANGUAGE_NAMES = {
     "en_US": "English",
 }
 
-_NAV_KEYS = ("settings.tab.api", "settings.tab.prompt",
-             "settings.tab.appearance", "settings.tab.about")
+_NAV_KEYS = ("settings.tab.api", "settings.tab.appearance", "settings.tab.about")
 
 
 def _qt_version() -> str:
@@ -117,7 +116,6 @@ class SettingsPage(QWidget):
         # 右侧内容（可滚动，小窗口也不挤爆）
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_api_section())
-        self.stack.addWidget(self._build_prompt_section())
         self.stack.addWidget(self._build_appearance_section())
         self.stack.addWidget(self._build_about_section())
         scroll = QScrollArea()
@@ -190,22 +188,8 @@ class SettingsPage(QWidget):
         self.test_status.setObjectName("hintLabel")
         test_row.addWidget(self.test_status, 1)
         form_host.addLayout(test_row)
-        layout.addWidget(card)
-        layout.addStretch(1)
-        return page
-
-    def _build_prompt_section(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 8, 0)
-        layout.setSpacing(14)
-
-        card, lay = self._card()
-        self.warning_label = QLabel()
-        self.warning_label.setWordWrap(True)
-        self.warning_label.setObjectName("warningLabel")
-        lay.addWidget(self.warning_label)
-
+        
+        # 提示词语言属全局（同时影响校对与翻译），随 API 配置一起放这里
         lang_row = QHBoxLayout()
         self.label_prompt_language = QLabel()
         self.prompt_language_combo = QComboBox()
@@ -213,22 +197,9 @@ class SettingsPage(QWidget):
             self.prompt_language_combo.addItem(name, code)
         lang_row.addWidget(self.label_prompt_language)
         lang_row.addWidget(self.prompt_language_combo, 1)
-        lay.addLayout(lang_row)
-
-        self.label_translate_prompt = QLabel()
-        self.label_translate_prompt.setWordWrap(True)
-        lay.addWidget(self.label_translate_prompt)
-        self.translate_prompt_edit = QTextEdit()
-        self.translate_prompt_edit.setMinimumHeight(70)
-        lay.addWidget(self.translate_prompt_edit)
-
-        self.label_rewrite_prompt = QLabel()
-        self.label_rewrite_prompt.setWordWrap(True)
-        lay.addWidget(self.label_rewrite_prompt)
-        self.rewrite_prompt_edit = QTextEdit()
-        self.rewrite_prompt_edit.setMinimumHeight(70)
-        lay.addWidget(self.rewrite_prompt_edit)
+        form_host.addLayout(lang_row)
         layout.addWidget(card)
+        layout.addStretch(1)
         return page
 
     def _build_appearance_section(self) -> QWidget:
@@ -362,11 +333,7 @@ class SettingsPage(QWidget):
         self.about_author_label.setText(self.tr("settings.about.author"))
         self.about_env_label.setText(self.tr("settings.about.env"))
         self.about_paths_title.setText(self.tr("settings.about.paths"))
-
-        self.warning_label.setText(self.tr("settings.prompt.warning"))
         self.label_prompt_language.setText(self.tr("settings.prompt.language"))
-        self.label_translate_prompt.setText(self.tr("settings.prompt.translate"))
-        self.label_rewrite_prompt.setText(self.tr("settings.prompt.rewrite"))
 
         self.theme_group_title.setText(self.tr("settings.appearance.theme_group"))
         self.label_theme.setText(self.tr("settings.appearance.theme"))
@@ -401,15 +368,6 @@ class SettingsPage(QWidget):
         self.model_edit.setText(self.config.get("model", "deepseek-v4-flash"))
         self.temp_edit.setValue(self.config.get("temperature", 0.4))
         self.max_tokens_edit.setValue(self.config.get("max_tokens", 2000))
-        # 默认提示词按「提示词语言」取，与界面语言无关
-        self.translate_prompt_edit.setPlainText(
-            self.config.get("translate_prompt",
-                            self.prompt_tr("prompt.translate.default"))
-        )
-        self.rewrite_prompt_edit.setPlainText(
-            self.config.get("rewrite_prompt",
-                            self.prompt_tr("prompt.rewrite.default"))
-        )
         if self.theme is not None:
             self._select_data(self.theme_combo, self.theme.current)
         self._select_data(self.ui_language_combo,
@@ -434,8 +392,6 @@ class SettingsPage(QWidget):
             "model": self.model_edit.text(),
             "temperature": self.temp_edit.value(),
             "max_tokens": self.max_tokens_edit.value(),
-            "translate_prompt": self.translate_prompt_edit.toPlainText(),
-            "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
             # 动态窗口样式（配色改由主题令牌统一控制）
             # 提示词语言（与界面语言解耦，由调用方决定是否重建客户端）
             "prompt_language": self.prompt_language_combo.currentData(),
