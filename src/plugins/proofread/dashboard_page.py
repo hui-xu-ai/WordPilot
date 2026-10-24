@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QFormLayout, QHBoxLayout, QLabel, QMessageBox,
-                               QPushButton, QScrollArea, QSlider, QSpinBox,
+                               QPushButton, QSlider, QSpinBox,
                                QVBoxLayout, QWidget)
 from core.services.api_logger import clear_api_log
 from core.widgets import MonitorPanel, Switch
@@ -36,26 +36,13 @@ class DashboardPage(QWidget):
         self._config = self._ctx.get_service("config")
         self._i18n = self._ctx.get_service("i18n")
 
+        # 单列上下排布：状态卡在上、API 监控在下（用户要求）。
+        # 不再套 QScrollArea：页面级长滚动条与监控框内部的滚动条重复，视觉上互相打架。
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        outer.addWidget(scroll)
-
-        page = QWidget()
-        scroll.setWidget(page)
-        columns = QHBoxLayout(page)
-        columns.setContentsMargins(24, 20, 24, 20)
-        columns.setSpacing(14)
-
-        # 主区：校对状态（左）+ API 监控（右，常用信息按用户要求留在主页）
-        left = QVBoxLayout()
-        left.setSpacing(14)
-        left.addWidget(self._build_status_card())
-        left.addStretch(1)
-        columns.addLayout(left, 2)
-        columns.addWidget(self._build_monitor_card(), 3)
+        outer.setContentsMargins(24, 20, 24, 20)
+        outer.setSpacing(14)
+        outer.addWidget(self._build_status_card())
+        outer.addWidget(self._build_monitor_card(), 1)
 
         # 初始状态 + 外部开关（桌宠/热键）同步
         self.proof_switch.setChecked(self._plugin.is_enabled())

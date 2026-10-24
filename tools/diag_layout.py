@@ -42,10 +42,14 @@ for c in cards:
     g = c.geometry()
     print(f"  卡片 pos=({g.x()},{g.y()}) size={g.width()}x{g.height()}")
 
-# 布局判定：主区两列（左：状态卡；右：API 监控），次要界面在右侧抽屉
+# 布局判定：主区单列上下排（状态卡在上、API 监控在下），不再有页面级长滚动条
 xs = sorted({c.geometry().x() for c in cards})
 print("不同列起点 x:", xs)
-assert len(xs) == 2, f"主区应为两列（状态 + API 监控），实际列起点 {xs}"
+assert len(xs) == 1, f"主区应为单列上下排（状态在上、监控在下），实际列起点 {xs}"
+assert len(cards) >= 2, f"状态卡与监控卡都应在主区，实际 {len(cards)} 张"
+from PySide6.QtWidgets import QScrollArea  # noqa: E402
+
+assert dash.findChild(QScrollArea) is None, "页面级不应再套 QScrollArea（长滚动条）"
 
 print("=== 右侧抽屉 ===")
 panel = dash.build_secondary_panel()

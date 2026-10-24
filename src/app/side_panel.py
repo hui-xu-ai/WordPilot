@@ -65,6 +65,8 @@ class SidePanelHost(QWidget):
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QScrollArea.NoFrame)
+        # 只允许竖向：横向滚动条会和内容里的输入框/按钮挤在一起，看着像"第二条长滚动条"
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._container_layout.addWidget(self._scroll, 1)
         root.addWidget(self._container, 1)
 
