@@ -80,7 +80,7 @@ class SuggestionCard(QWidget):
 
         # ---- 内部容器：整块就是一张卡片（边框/圆角/底色由主题 #suggestionCard 提供）----
         self.container = QWidget()
-        self.container.setObjectName("suggestionCard")
+        self.container.setObjectName("suggestionPill")
         main_layout.addWidget(self.container)
 
         # 容器内部垂直布局
@@ -108,6 +108,7 @@ class SuggestionCard(QWidget):
             button.setCursor(Qt.PointingHandCursor)
             button.setFixedHeight(26)
             button.setMinimumWidth(58)
+            button.setMaximumWidth(96)      # 字体缺失/长文案时也不要撑满整行
             # 固定宽度，否则按钮会把整行撑满（QPushButton 默认会随布局扩展）
             button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         btn_layout.addWidget(self.accept_btn)
@@ -193,7 +194,7 @@ class SuggestionCard(QWidget):
                     org_frag = escape_vis(original[ostart:oend])
                     left_display = (
                         f"<span style='color:{muted}; {mono}'>{pre_o}</span>"
-                        f"<span style='color:{del_text}; text-decoration:line-through; {mono}'>{org_frag}</span>"
+                        f"<span style='color:{del_text}; text-decoration:line-through; background:{del_bg}; padding:0 2px; border-radius:3px; {mono}'>{org_frag}</span>"
                         f"<span style='color:{muted}; {mono}'>{post_o}</span>"
                     )
 

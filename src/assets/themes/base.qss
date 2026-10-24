@@ -565,11 +565,29 @@ QFrame#navDropIndicator {
 }
 
 /* ---------- 校对建议卡片（proofread 插件） ---------- */
-/* 桌宠建议气泡：整块一张卡片，行内不再重复画框 */
-QWidget#suggestionCard {
-    background-color: @color.bg.card;
+/* 桌宠建议气泡：一条浅色胶囊（参考用户旧风格），行内不再套卡片 */
+QWidget#suggestionPill {
+    background-color: @color.bg.subtle;
     border: 1px solid @color.border;
-    border-radius: @radius.lg px;
+    border-radius: 14 px;
+}
+QWidget#suggestionPill QPushButton {
+    min-height: 22 px;
+    border: none;
+    border-radius: 11 px;
+    padding: 2 px 12 px;
+    background-color: @color.bg.hover;
+    color: @color.text.primary;
+}
+QWidget#suggestionPill QPushButton:hover {
+    background-color: @color.bg.selected;
+}
+QWidget#suggestionPill QPushButton[accent="true"] {
+    background-color: @color.accent;
+    color: @color.on_accent;
+}
+QWidget#suggestionPill QPushButton[accent="true"]:hover {
+    background-color: @color.accent.hover;
 }
 QWidget#diff_row {
     background: transparent;
