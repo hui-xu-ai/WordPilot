@@ -69,8 +69,8 @@ class MainWindow(PagesMixin, QMainWindow):
         # 无边框窗口：标题栏自绘；保留 Window flag 以拥有任务栏按钮
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self.setWindowTitle(self._window_title())
-        self.setMinimumSize(640, 460)
-        self.resize(760, 560)          # 默认窗口比原来小一圈（用户要求收窄）
+        self.setMinimumSize(500, 420)
+        self.resize(550, 500)          # 用户指定默认尺寸：宽 550 × 高 500
 
         # UI 贡献点收集器：插件加载后由 build_extension_menus 统一渲染
         self.ui = QtUiRegistry(self)

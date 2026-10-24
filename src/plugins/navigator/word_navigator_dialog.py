@@ -8,10 +8,11 @@ P10 后续：本文件原先是独立浮窗 `QDialog`（Layer.PALETTE + 置顶 +
 （标题栏、置顶、关于、字体、几何记忆）随之下线。
 """
 import json
+from pathlib import Path
 
 import pythoncom
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QComboBox, QTabWidget, QListWidget, QLineEdit, QProgressBar, QMessageBox
@@ -167,8 +168,10 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         self.tab_widget.currentChanged.connect(self._on_tab_changed)  # 记录标签页切换
         self.table_list = QListWidget()
         self.figure_list = QListWidget()
+        # 标签页文案里的 emoji 在不同字体下辨识度差，改用矢量图标（表格/折线）
         self.tab_widget.addTab(self.table_list, self.tr("tab.table"))
         self.tab_widget.addTab(self.figure_list, self.tr("tab.figure"))
+        self._apply_tab_icons()
         layout.addWidget(self.tab_widget)
 
         self.table_list.itemDoubleClicked.connect(self.on_table_double_clicked)
@@ -185,6 +188,35 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
 
     def _on_tab_changed(self, index):
         self.last_tab_index = index
+
+    def _apply_tab_icons(self) -> None:
+        """给两个标签页换成矢量图标（表格 / 折线），颜色跟随当前文字色。
+
+        走 `infra.utils.resource_path` + `QtSvg`，不依赖 app 层（插件只允许依赖 core/infra）。
+        """
+        color = self.palette().color(self.foregroundRole()).name()
+        self.tab_widget.setTabIcon(0, self._svg_icon("table", color))
+        self.tab_widget.setTabIcon(1, self._svg_icon("chart", color))
+
+    @staticmethod
+    def _svg_icon(name: str, color: str) -> QIcon:
+        from PySide6.QtCore import QSize, QByteArray
+        from PySide6.QtSvg import QSvgRenderer
+
+        from infra.utils import resource_path
+
+        try:
+            path = resource_path(f"assets/icons/{name}.svg")
+            data = Path(path).read_text(encoding="utf-8").replace("$COLOR", color)
+            renderer = QSvgRenderer(QByteArray(data.encode("utf-8")))
+            pixmap = QPixmap(QSize(16, 16))
+            pixmap.fill(Qt.transparent)
+            painter = QPainter(pixmap)
+            renderer.render(painter)
+            painter.end()
+            return QIcon(pixmap)
+        except Exception:  # noqa: BLE001  图标缺失不影响功能
+            return QIcon()
 
     # ---------- Word 连接与保存监测 ----------
     def _get_word_document(self):
