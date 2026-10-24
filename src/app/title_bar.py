@@ -19,6 +19,21 @@ TITLE_BAR_HEIGHT = 36
 BUTTON_ICON_SIZE = 14
 
 
+def restored_position(point_x: int, point_y: int, title_width: int,
+                      normal_width: int, title_height: int) -> tuple[int, int]:
+    """最大化时拖标题栏：算出还原后窗口左上角的屏幕坐标。
+
+    规则与 Windows 原生一致：鼠标在**标题栏上的水平比例**保持不变，
+    窗口因此"跟着鼠标走"，而不是跳回原来的位置。
+    纯函数，便于单测（真实拖拽需要桌面事件，无法离屏验证）。
+    """
+    width = max(1, title_width)
+    ratio = min(max(point_x / width, 0.0), 1.0)
+    x = int(point_x - normal_width * ratio)
+    y = max(0, int(point_y - title_height // 2))
+    return x, y
+
+
 class TitleBar(QWidget):
     minimizeRequested = Signal()
     maximizeToggled = Signal()
@@ -94,10 +109,20 @@ class TitleBar(QWidget):
         if self._drag_pos is None or not event.buttons() & Qt.LeftButton:
             return
         window = self.window()
+        point = event.globalPosition().toPoint()
         if window.isMaximized():
+            # 最大化状态下拖标题栏 = 还原窗口并"接住"鼠标（Windows 原生行为）。
+            # 历史实现直接 return ⇒ 最大化后拖不动窗口。
+            normal = window.normalGeometry()
+            x, y = restored_position(point.x(), point.y(), self.width(),
+                                     normal.width(), self.height())
+            window.showNormal()
+            window.move(x, y)
+            self._drag_pos = point
+            event.accept()
             return
-        window.move(window.pos() + event.globalPosition().toPoint() - self._drag_pos)
-        self._drag_pos = event.globalPosition().toPoint()
+        window.move(window.pos() + point - self._drag_pos)
+        self._drag_pos = point
         event.accept()
 
     def mouseReleaseEvent(self, _event: QMouseEvent) -> None:   # noqa: N802

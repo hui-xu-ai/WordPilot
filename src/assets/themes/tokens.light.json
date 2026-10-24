@@ -7,8 +7,8 @@
   "color.on_accent": "#ffffff",
 
   "color.bg.window": "#ffffff",
-  "color.bg.rail": "#eeeef2",
-  "color.bg.titlebar": "#e3e3ea",
+  "color.bg.rail": "#e9e9ef",
+  "color.bg.titlebar": "#cfd0da",
   "color.bg.card": "#fafafb",
   "color.bg.subtle": "#f3f3f5",
   "color.bg.hover": "#e4e4ea",

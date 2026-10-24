@@ -101,8 +101,8 @@ class MainWindow(QMainWindow):
         return self.i18n.tr(key, **params)
 
     def _window_title(self) -> str:
-        return self.tr("app.window_title", name=self.tr("app.name"),
-                       version=__version__, author=self.tr("app.author"))
+        """标题栏只显示软件名：版本号与作者在「设置 → 关于」里（单一来源 __version__.py）。"""
+        return self.tr("app.title")
 
     def _ready_message(self) -> str:
         return self.tr("app.status.ready", author=self.tr("app.author"))

@@ -45,13 +45,17 @@ class DashboardPage(QWidget):
 
         page = QWidget()
         scroll.setWidget(page)
-        columns = QVBoxLayout(page)
+        columns = QHBoxLayout(page)
         columns.setContentsMargins(24, 20, 24, 20)
         columns.setSpacing(14)
 
-        # 主区只放状态卡（参数/清洗/监控已下沉到右侧抽屉，见 build_secondary_panel）
-        columns.addWidget(self._build_status_card())
-        columns.addStretch(1)
+        # 主区：校对状态（左）+ API 监控（右，常用信息按用户要求留在主页）
+        left = QVBoxLayout()
+        left.setSpacing(14)
+        left.addWidget(self._build_status_card())
+        left.addStretch(1)
+        columns.addLayout(left, 2)
+        columns.addWidget(self._build_monitor_card(), 3)
 
         # 初始状态 + 外部开关（桌宠/热键）同步
         self.proof_switch.setChecked(self._plugin.is_enabled())
@@ -130,7 +134,6 @@ class DashboardPage(QWidget):
         lay.setSpacing(14)
         lay.addWidget(self._build_params_card())
         lay.addWidget(self._build_cleanup_card())
-        lay.addWidget(self._build_monitor_card())
         lay.addStretch(1)
         self._secondary_panel = panel
         self.retranslateUi()
@@ -249,6 +252,9 @@ class DashboardPage(QWidget):
         self.status_card_title.setText(self._app_tr("app.proof.group"))
         self.pet_hint.setText(self.tr("dashboard.pet_hint"))
         self.proof_switch.setToolTip(self.tr("dashboard.toggle_tip"))
+        # API 监控在主区（常驻）
+        self.monitor_card_title.setText(self._app_tr("app.nav.monitor"))
+        self.monitor_widget.retranslateUi()
         # 以下控件在次要面板里，面板未构造时跳过
         if getattr(self, "params_card_title", None) is not None:
             self.params_card_title.setText(self.tr("dashboard.params"))
@@ -258,8 +264,6 @@ class DashboardPage(QWidget):
             self.cleanup_ignore_btn.setText(self._app_tr("app.cleanup.ignore_short"))
             self.cleanup_log_btn.setText(self._app_tr("app.cleanup.log_short"))
             self.cleanup_all_btn.setText(self._app_tr("app.cleanup.all_short"))
-            self.monitor_card_title.setText(self._app_tr("app.nav.monitor"))
-            self.monitor_widget.retranslateUi()
         self._sync_state(self._plugin.is_enabled())
 
     def refresh_theme(self) -> None:

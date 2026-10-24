@@ -42,17 +42,18 @@ for c in cards:
     g = c.geometry()
     print(f"  卡片 pos=({g.x()},{g.y()}) size={g.width()}x{g.height()}")
 
-# 布局判定（ADR-002 之后主区只有状态卡：一列；参数/清洗/监控已进右侧抽屉）
+# 布局判定：主区两列（左：状态卡；右：API 监控），次要界面在右侧抽屉
 xs = sorted({c.geometry().x() for c in cards})
 print("不同列起点 x:", xs)
-assert len(xs) == 1, f"主区应为单列（次要界面已进右侧抽屉），实际列起点 {xs}"
+assert len(xs) == 2, f"主区应为两列（状态 + API 监控），实际列起点 {xs}"
 
 print("=== 右侧抽屉 ===")
 panel = dash.build_secondary_panel()
+wanted_open = bool(kernel.config.get("ui.side_panel.open", False))
 print("次要面板:", type(panel).__name__, "| 抽屉可见:", not mw.side_panel.isHidden(),
-      "| 默认展开:", mw.side_panel.is_open())
-assert panel is not None, "智能纠错必须提供次要界面（参数/清洗/监控）"
-assert mw.side_panel.is_open() is False, "抽屉默认收起，主区保持简洁"
+      "| 展开:", mw.side_panel.is_open(), "| 配置期望:", wanted_open)
+assert panel is not None, "智能纠错必须提供次要界面（校对参数/缓存清洗）"
+assert mw.side_panel.is_open() is wanted_open, "抽屉展开状态必须与配置一致（用户偏好要记住）"
 
 # 底部不越界
 for c in cards:

@@ -31,7 +31,17 @@ PROMPT_LANGUAGE_NAMES = {
 }
 
 _NAV_KEYS = ("settings.tab.api", "settings.tab.prompt",
-             "settings.tab.ui", "settings.tab.appearance")
+             "settings.tab.ui", "settings.tab.appearance", "settings.tab.about")
+
+
+def _qt_version() -> str:
+    """PySide6/Qt 版本（关于页展示用；导入失败时退化为未知）。"""
+    try:
+        from PySide6 import __version__ as pyside_version
+
+        return pyside_version
+    except Exception:  # noqa: BLE001  展示信息，取不到就写未知
+        return "?"
 
 
 class _ConnectionTester(QThread):
@@ -110,6 +120,7 @@ class SettingsPage(QWidget):
         self.stack.addWidget(self._build_prompt_section())
         self.stack.addWidget(self._build_ui_section())
         self.stack.addWidget(self._build_appearance_section())
+        self.stack.addWidget(self._build_about_section())
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
@@ -316,6 +327,58 @@ class SettingsPage(QWidget):
         layout.addStretch(1)
         return page
 
+    # ---------------- 关于 ----------------
+    def _build_about_section(self) -> QWidget:
+        """软件名/版本/作者等元信息：版本号统一取自 `src/__version__.py`（单一来源）。"""
+        from __version__ import APP_NAME, AUTHOR, __version__
+
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(14)
+
+        card, lay = self._card()
+        self.about_title = QLabel()
+        self.about_title.setObjectName("cardTitle")
+        lay.addWidget(self.about_title)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+        form.setHorizontalSpacing(16)
+        self.about_name_label = QLabel()
+        self.about_name_value = QLabel(APP_NAME)
+        form.addRow(self.about_name_label, self.about_name_value)
+        self.about_version_label = QLabel()
+        self.about_version_value = QLabel(__version__)
+        form.addRow(self.about_version_label, self.about_version_value)
+        self.about_author_label = QLabel()
+        self.about_author_value = QLabel(AUTHOR)
+        form.addRow(self.about_author_label, self.about_author_value)
+        self.about_env_label = QLabel()
+        self.about_env_value = QLabel(f"Python {sys.version.split()[0]} · PySide6 {_qt_version()}")
+        self.about_env_value.setWordWrap(True)
+        form.addRow(self.about_env_label, self.about_env_value)
+        lay.addLayout(form)
+        layout.addWidget(card)
+
+        card2, lay2 = self._card()
+        self.about_paths_title = QLabel()
+        self.about_paths_title.setObjectName("cardTitle")
+        lay2.addWidget(self.about_paths_title)
+        self.about_paths_value = QLabel(f"{self._config_dir()}\n{self._config_dir() / 'app.log'}")
+        self.about_paths_value.setWordWrap(True)
+        self.about_paths_value.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.about_paths_value.setObjectName("hintLabel")
+        lay2.addWidget(self.about_paths_value)
+        layout.addWidget(card2)
+        layout.addStretch(1)
+        return page
+
+    def _config_dir(self):
+        from core.services.config_manager import CONFIG_DIR
+
+        return CONFIG_DIR
+
     # ---------------- 多语言（热切换） ----------------
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
         """语言切换后刷新本页的全部可见文案。"""
@@ -331,6 +394,14 @@ class SettingsPage(QWidget):
         self.api_key_edit.setPlaceholderText(self.tr("settings.api.key_placeholder"))
         self.model_edit.setPlaceholderText(self.tr("settings.api.model_placeholder"))
         self.test_btn.setText(self.tr("settings.api.test"))
+
+        # 关于页（版本号等值来自 __version__.py，这里只翻译标签）
+        self.about_title.setText(self.tr("settings.about.title"))
+        self.about_name_label.setText(self.tr("settings.about.name"))
+        self.about_version_label.setText(self.tr("settings.about.version"))
+        self.about_author_label.setText(self.tr("settings.about.author"))
+        self.about_env_label.setText(self.tr("settings.about.env"))
+        self.about_paths_title.setText(self.tr("settings.about.paths"))
 
         self.warning_label.setText(self.tr("settings.prompt.warning"))
         self.label_prompt_language.setText(self.tr("settings.prompt.language"))

@@ -76,12 +76,16 @@ bottom_texts = [w.text() for w in bottom_widgets]
 print("bottom:", bottom_texts)
 assert bottom_texts.index(mw.tr("app.nav.plugins")) < bottom_texts.index(mw.tr("app.menu.settings")), \
     "插件管理应在设置上方"
-# 设置页内容
+# 设置页内容（API / 提示词 / 界面 / 外观 / 关于）
 settings = mw._page_widgets["settings"]
-assert settings.stack.count() == 4
+assert settings.stack.count() == 5, f"设置页应有 5 个分区，实际 {settings.stack.count()}"
+from __version__ import APP_NAME as _APP_NAME, __version__ as _VERSION  # noqa: E402
+
+assert settings.about_name_value.text() == _APP_NAME, "关于页软件名应与 __version__.py 一致"
+assert settings.about_version_value.text() == _VERSION, "关于页版本号应与 __version__.py 一致"
 mw._on_page_requested("settings")
 assert mw.stack.currentWidget() is settings
-print("设置页 4 个分区，可直达")
+print("设置页 5 个分区（含关于），可直达")
 
 print("\n=== 3) 智能纠错页：由插件提供、无重复页头 ===")
 print("factories:", [(p, built) for p, (f, built) in mw._plugin_factories.items()])
