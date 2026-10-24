@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import zipfile
@@ -32,6 +33,15 @@ W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 _LABEL_GROUP = re.compile(r"[\[（(]([0-9]{1,3}(?:\s*[-–—~,，、]\s*[0-9]{1,3})*)[\]）)]")
 _REF_BOOKMARK = re.compile(r"^\s*REF\s+(\S+)", re.IGNORECASE)
+
+
+def footnote_anchor(doc_name: str, text: str, fallback: str, prefix: str = "fn") -> str:
+    """脚注/尾注的身份键：优先用正文哈希（复制/重编号后仍稳定），正文为空才退回 id。"""
+    payload = " ".join((text or "").split())
+    if not payload:
+        return f"doc:{doc_name}:{prefix}:{fallback}"
+    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:10]
+    return f"doc:{doc_name}:{prefix}:{digest}"
 
 
 def parse_citation_labels(text: str) -> list[str]:
@@ -144,6 +154,7 @@ def scan_docx(source: str | Path | bytes, doc_name: str | None = None) -> ScanRe
             return result
 
         para_buffer: list[str] = []
+        note_anchors: list[tuple[ScanCitation, str, str]] = []
         instr_buffer: list[str] = []
         in_field = False
         instr_ready = False
@@ -233,11 +244,13 @@ def scan_docx(source: str | Path | bytes, doc_name: str | None = None) -> ScanRe
                         prefix = "en"
                     if ref_id:
                         context = "".join(para_buffer).strip()
-                        result.citations.append(ScanCitation(
+                        citation = ScanCitation(
                             anchor_key=f"doc:{doc_name}:{prefix}:{ref_id}",
                             kind="footnote" if is_foot else "endnote_ref",
                             label=(parse_citation_labels(context) or [""])[0],
-                            first_para=context[:120]))
+                            first_para=context[:120])
+                        result.citations.append(citation)
+                        note_anchors.append((citation, ref_id, prefix))
                     el.clear()
                 elif tag == f"{W}p":
                     text = "".join(para_buffer).strip()
@@ -253,6 +266,13 @@ def scan_docx(source: str | Path | bytes, doc_name: str | None = None) -> ScanRe
 
     if in_field:                       # 文档被截断在域中间
         flush_field()
+
+    if note_anchors:
+        texts = footnote_texts(source)
+        endnote_texts = footnote_texts(source, member="word/endnotes.xml")
+        for citation, ref_id, prefix in note_anchors:
+            source_text = (texts if prefix == "fn" else endnote_texts).get(ref_id, "")
+            citation.anchor_key = footnote_anchor(doc_name, source_text, ref_id, prefix)
 
     seen: dict[str, ScanCitation] = {}
     for citation in result.citations:

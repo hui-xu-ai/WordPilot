@@ -90,10 +90,14 @@ def test_scan_finds_provider_citation(synthetic_docx):
 
 
 def test_scan_finds_footnote_anchor(synthetic_docx):
+    """脚注身份用正文哈希（复制/重编号都不失效），不是 Word 的内部 id。"""
+    from plugins.reference.docx_scan import footnote_anchor
+
     result = scan_docx(synthetic_docx)
     footnote = [c for c in result.citations if c.kind == "footnote"]
     assert result.footnote_count == 1
-    assert footnote and footnote[0].anchor_key == "doc:合成论文.docx:fn:7"
+    expected = footnote_anchor("合成论文.docx", "这是一条脚注", "7")
+    assert footnote and footnote[0].anchor_key == expected
 
 
 def test_scan_finds_cross_reference_field(synthetic_docx):

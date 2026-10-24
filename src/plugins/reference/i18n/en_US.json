@@ -2,7 +2,6 @@
   "plugin.name": "Reference Assistant",
   "plugin.description": "Bind citations in Word (Zotero/EndNote fields, footnotes, REF cross-references) to a local CSV library and edit notes",
   "log.activated": "Reference assistant plugin activated",
-
   "page_label": "References",
   "search.placeholder": "Search title / authors / journal / notes…",
   "col.cite_label": "No.",
@@ -12,7 +11,6 @@
   "col.container": "Journal",
   "col.note": "My note",
   "col.tags": "Tags",
-
   "field.key": "Identity key",
   "field.label": "Citation label",
   "field.title": "Title",
@@ -24,7 +22,6 @@
   "field.tags": "Tags (semicolon separated)",
   "field.starred": "Starred",
   "field.note": "My note (multi-line)",
-
   "action.new": "New",
   "action.import": "Import CSV",
   "action.export": "Export CSV",
@@ -32,7 +29,6 @@
   "action.save": "Save",
   "action.delete": "Delete",
   "action.bind_orphan": "Bind selected anchor to selected reference",
-
   "status.counts": "{total} entries · {with_note} with notes · {orphans} orphan anchors",
   "status.saved": "Saved",
   "status.deleted": "Deleted",
@@ -40,10 +36,12 @@
   "status.exported": "Exported to {name}",
   "status.need_title": "Fill in at least a title or a note",
   "status.open_failed": "Cannot open the folder: {error}",
-
   "new.hint": "(new entry — identity key is generated on save)",
   "orphan.title": "Orphan anchors ({count}): citations whose reference is missing from the library",
   "orphan.pick_first": "Pick an orphan anchor in the list first",
   "orphan.pick_reference": "Select or create a reference on the right first",
-  "orphan.bound": "Anchor bound to {key}"
+  "orphan.bound": "Anchor bound to {key}",
+  "overlay.title": "References",
+  "overlay.untitled": "(untitled reference)",
+  "overlay.note_placeholder": "Write your note…"
 }

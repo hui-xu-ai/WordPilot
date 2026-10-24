@@ -2,7 +2,6 @@
   "plugin.name": "参考文献助手",
   "plugin.description": "把 Word 里的引用（Zotero/EndNote 域、脚注尾注、REF 交叉引用）与本地 CSV 文献库绑定，显示并编辑备注",
   "log.activated": "参考文献助手插件已激活",
-
   "page_label": "参考文献助手",
   "search.placeholder": "搜索标题 / 作者 / 期刊 / 备注…",
   "col.cite_label": "编号",
@@ -12,7 +11,6 @@
   "col.container": "期刊/出处",
   "col.note": "我的备注",
   "col.tags": "标签",
-
   "field.key": "身份键",
   "field.label": "引用编号",
   "field.title": "标题",
@@ -24,7 +22,6 @@
   "field.tags": "标签（分号分隔）",
   "field.starred": "星标",
   "field.note": "我的备注（可多行）",
-
   "action.new": "新建",
   "action.import": "导入 CSV",
   "action.export": "导出 CSV",
@@ -32,7 +29,6 @@
   "action.save": "保存",
   "action.delete": "删除",
   "action.bind_orphan": "把选中锚点绑定到选中文献",
-
   "status.counts": "共 {total} 条 · 有备注 {with_note} · 孤立锚点 {orphans}",
   "status.saved": "已保存",
   "status.deleted": "已删除",
@@ -40,10 +36,12 @@
   "status.exported": "已导出到 {name}",
   "status.need_title": "标题或备注至少填一项",
   "status.open_failed": "打开目录失败：{error}",
-
   "new.hint": "（新条目，保存后生成身份键）",
   "orphan.title": "孤立锚点（{count} 个）：文档里的引用指向的文献已不在库中",
   "orphan.pick_first": "请先在列表里选中一个孤立锚点",
   "orphan.pick_reference": "请先在右侧选中/新建一条文献",
-  "orphan.bound": "已把锚点绑定到 {key}"
+  "orphan.bound": "已把锚点绑定到 {key}",
+  "overlay.title": "参考文献",
+  "overlay.untitled": "(未命名文献)",
+  "overlay.note_placeholder": "写下你的备注…"
 }
