@@ -81,3 +81,26 @@ def test_corrupted_anchor_json_is_ignored(cache, docx):
     with conn:
         conn.execute("UPDATE doc_scan SET anchors = 'not json' WHERE path = ?", (str(docx),))
     assert cache.load_anchors(str(docx), fp) is None, "缓存损坏按未缓存处理，不崩"
+
+def test_cache_usable_across_threads(cache, docx):
+    """扫描在 QThread 里跑、监听在另一个线程 —— 缓存不能因为线程不同就报
+    "SQLite objects created in a thread can only be used in that same thread"。"""
+    import threading
+
+    fp = fingerprint(str(docx))
+    cache.mark_bibliography(str(docx), fp, "论文.docx")
+    errors: list[BaseException] = []
+
+    def worker():
+        try:
+            assert cache.bibliography_done(str(docx), fp) is True
+            cache.save_anchors(str(docx), fp, "论文.docx",
+                               [DocAnchor(1, 2, "doc:论文.docx:cite:1", "1", "endnote_shell")])
+            assert cache.load_anchors(str(docx), fp) is not None
+        except BaseException as exc:      # noqa: BLE001
+            errors.append(exc)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join()
+    assert not errors, f"跨线程使用缓存报错：{errors[0]!r}"

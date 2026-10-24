@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import sqlite3
+import threading
 from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -49,6 +50,8 @@ class ScanCache:
     def __init__(self, db_path: str | Path | None = None) -> None:
         self._path = Path(db_path) if db_path is not None else None
         self._conn: sqlite3.Connection | None = None
+        # 连接生命周期跨线程：监听线程、扫描工作线程都会用（Qt 线程池不固定线程）
+        self._lock = threading.RLock()
 
     @property
     def path(self) -> Path:
@@ -61,20 +64,23 @@ class ScanCache:
     def _connect(self) -> sqlite3.Connection:
         if self._conn is None:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self._conn = sqlite3.connect(str(self.path))
+            self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(_SCHEMA)
         return self._conn
 
     def close(self) -> None:
-        if self._conn is not None:
-            self._conn.close()
-            self._conn = None
+        with self._lock:
+            if self._conn is not None:
+                self._conn.close()
+                self._conn = None
 
     def _row(self, path: str) -> tuple | None:
-        return self._connect().execute(
-            "SELECT mtime_ns, size, doc_name, anchors, bibliography_done FROM doc_scan WHERE path = ?",
-            (path,)).fetchone()
+        with self._lock:
+            return self._connect().execute(
+                "SELECT mtime_ns, size, doc_name, anchors, bibliography_done"
+                " FROM doc_scan WHERE path = ?",
+                (path,)).fetchone()
 
     # ---------------- 锚点 ----------------
     def load_anchors(self, path: str, fp: tuple[int, int] | None) -> list["DocAnchor"] | None:
@@ -97,8 +103,7 @@ class ScanCache:
         if not path or fp is None:
             return
         payload = json.dumps([asdict(anchor) for anchor in anchors], ensure_ascii=False)
-        conn = self._connect()
-        with conn:
+        with self._lock, self._connect() as conn:
             conn.execute(
                 "INSERT INTO doc_scan (path, mtime_ns, size, doc_name, anchors, bibliography_done)"
                 " VALUES (?, ?, ?, ?, ?, COALESCE((SELECT bibliography_done FROM doc_scan"
@@ -118,8 +123,7 @@ class ScanCache:
     def mark_bibliography(self, path: str, fp: tuple[int, int] | None, doc_name: str) -> None:
         if not path or fp is None:
             return
-        conn = self._connect()
-        with conn:
+        with self._lock, self._connect() as conn:
             conn.execute(
                 "INSERT INTO doc_scan (path, mtime_ns, size, doc_name, anchors, bibliography_done)"
                 " VALUES (?, ?, ?, ?, '[]', 1)"
