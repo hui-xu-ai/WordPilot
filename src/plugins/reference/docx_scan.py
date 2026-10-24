@@ -32,7 +32,9 @@ logger = logging.getLogger(__name__)
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 _LABEL_GROUP = re.compile(r"[\[（(]([0-9]{1,3}(?:\s*[-–—~,，、]\s*[0-9]{1,3})*)[\]）)]")
-_REF_BOOKMARK = re.compile(r"^\s*REF\s+(\S+)", re.IGNORECASE)
+_REF_BOOKMARK = re.compile(r'^\s*REF\s+(\S+)', re.IGNORECASE)
+#: EndNote 只有域壳、没有内嵌数据的旧/新格式
+_ENDNOTE_SHELL = re.compile(r'^\s*ADDIN\s+EN\.(?:JS\.)?CITE(?:\.DATA)?\b', re.IGNORECASE)
 
 
 def footnote_anchor(doc_name: str, text: str, fallback: str, prefix: str = "fn") -> str:
@@ -181,10 +183,14 @@ def scan_docx(source: str | Path | bytes, doc_name: str | None = None) -> ScanRe
 
             match = _REF_BOOKMARK.match(instruction)
             if match and match.group(1).startswith("_Ref"):
-                bookmark = match.group(1)
+                # 题注/编号项交叉引用：只计数，**不再产出可弹窗的锚点**
+                #（用户点导航跳到图注时曾被误触发）
                 result.ref_count += 1
+                return
+            if _ENDNOTE_SHELL.match(instruction) and label:
+                # EndNote 只写了域壳（数据不在文档里）：按文档编号建锚点，等用户绑定
                 result.citations.append(ScanCitation(
-                    anchor_key=f"doc:{doc_name}:ref:{bookmark}", kind="ref",
+                    anchor_key=f"doc:{doc_name}:cite:{label}", kind="endnote_shell",
                     label=label, first_para=context[:120]))
 
         try:
@@ -221,11 +227,14 @@ def scan_docx(source: str | Path | bytes, doc_name: str | None = None) -> ScanRe
                     else:
                         match = _REF_BOOKMARK.match(instruction)
                         if match and match.group(1).startswith("_Ref"):
-                            result.ref_count += 1
-                            result.citations.append(ScanCitation(
-                                anchor_key=f"doc:{doc_name}:ref:{match.group(1)}", kind="ref",
-                                label=(parse_citation_labels(context) or [""])[0],
-                                first_para=context[:120]))
+                            result.ref_count += 1        # 只计数，不产出锚点
+                        elif _ENDNOTE_SHELL.match(instruction):
+                            shell_label = (parse_citation_labels(context) or [""])[0]
+                            if shell_label:
+                                result.citations.append(ScanCitation(
+                                    anchor_key=f"doc:{doc_name}:cite:{shell_label}",
+                                    kind="endnote_shell", label=shell_label,
+                                    first_para=context[:120]))
                     el.clear()
                 elif tag == f"{W}vertAlign":
                     superscript_pending = (el.get(f"{W}val", "") or "").lower() == "superscript"

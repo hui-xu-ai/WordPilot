@@ -100,11 +100,12 @@ def test_scan_finds_footnote_anchor(synthetic_docx):
     assert footnote and footnote[0].anchor_key == expected
 
 
-def test_scan_finds_cross_reference_field(synthetic_docx):
+def test_scan_counts_cross_reference_but_emits_no_anchor(synthetic_docx):
+    """题注/编号项交叉引用只计数、不产出锚点（否则点导航跳图注会误弹窗）。"""
     result = scan_docx(synthetic_docx)
-    refs = [c for c in result.citations if c.kind == "ref"]
     assert result.ref_count == 1
-    assert refs and refs[0].anchor_key == "doc:合成论文.docx:ref:_Ref225454536"
+    assert not [c for c in result.citations if c.kind == "ref"]
+    assert all(":ref:" not in c.anchor_key for c in result.citations)
 
 
 def test_scan_collects_labels_without_duplicates(synthetic_docx):

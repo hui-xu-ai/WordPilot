@@ -121,3 +121,28 @@ def test_empty_entries_hides_window(overlay):
     widget, _store = overlay
     widget.show_entries([], (300, 200))
     assert widget.isVisible() is False
+
+def test_unbound_entry_offers_bind_and_create(overlay):
+    """EndNote 空壳域：没有元数据/备注 → 给「绑定已有文献 / 新建文献」两个动作。"""
+    widget, _store = overlay
+    entry = OverlayEntry(anchor_key="doc:论文.docx:cite:3", label="3", doc_name="论文.docx")
+    widget.show_entries([entry], (300, 200))
+
+    card = widget._cards[0]
+    assert entry.unbound is True
+    assert not hasattr(card, "note_edit"), "未绑定时先不给编辑框，先让用户绑/建"
+    assert card.bind_btn.text() == "overlay.bind"
+    assert card.create_btn.text() == "overlay.create"
+
+    seen: list[tuple[str, str]] = []
+    widget.bindRequested.connect(lambda key, doc: seen.append((key, doc)))
+    card.bind_btn.click()
+    assert seen == [("doc:论文.docx:cite:3", "论文.docx")]
+
+
+def test_force_edit_entry_shows_note_editor(overlay):
+    widget, _store = overlay
+    entry = OverlayEntry(anchor_key="doc:论文.docx:cite:3", label="3", doc_name="论文.docx",
+                         force_edit=True)
+    widget.show_entries([entry], (300, 200))
+    assert hasattr(widget._cards[0], "note_edit"), "已建/已绑的条目要能直接写备注"

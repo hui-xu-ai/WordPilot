@@ -641,3 +641,71 @@ QLabel#stateOk { color: @color.state.ok; }
 QLabel#stateError { color: @color.state.error; }
 QLabel#stateBusy { color: @color.state.busy; }
 QLabel#stateOff { color: @color.state.off; }
+/* ---------- 参考文献助手：引用处悬浮窗 ---------- */
+/* 卡片不透明 + 1px 主边框 + 投影，压在白色 Word 正文上也要能看出边界 */
+QFrame#referenceOverlayFrame {
+    background-color: @color.bg.card;
+    border: 1px solid @color.border.strong;
+    border-radius: 10 px;
+}
+QWidget#referenceOverlayBar {
+    background-color: @color.bg.subtle;
+    border-top-left-radius: 9 px;
+    border-top-right-radius: 9 px;
+}
+QLabel#referenceOverlayTitle {
+    color: @color.text.secondary;
+    font-weight: 600;
+}
+QPushButton#referenceOverlayClose {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: @color.text.secondary;
+    border-radius: 10 px;
+}
+QPushButton#referenceOverlayClose:hover {
+    background-color: @color.bg.hover;
+    color: @color.text.primary;
+}
+QLabel#referenceChip {
+    background-color: @color.bg.selected;
+    color: @color.text.primary;
+    border-radius: 4 px;
+    padding: 0 px 4 px;
+    font-size: 11 px;
+}
+QLabel#referenceTitle {
+    color: @color.text.primary;
+    font-weight: 600;
+}
+QLabel#overlayMeta, QLabel#overlayHint {
+    color: @color.text.secondary;
+}
+QTextEdit#referenceNote {
+    background-color: @color.bg.window;
+    border: 1px solid @color.border;
+    border-radius: 6 px;
+}
+QFrame#referenceEntry {
+    background: transparent;
+    border: none;
+}
+/* ---------- 参考文献助手：顶部筛选 chips ---------- */
+QToolButton[chip="true"] {
+    background-color: transparent;
+    border: 1px solid @color.border;
+    border-radius: 12 px;
+    padding: 3 px 10 px;
+    color: @color.text.secondary;
+    outline: none;
+}
+QToolButton[chip="true"]:hover {
+    background-color: @color.bg.hover;
+    color: @color.text.primary;
+}
+QToolButton[chip="true"]:checked {
+    background-color: @color.accent;
+    border-color: @color.accent;
+    color: @color.on_accent;
+}
