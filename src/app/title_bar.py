@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QIcon, QMouseEvent, QPixmap
+from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter, QPixmap
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
 
 TITLE_BAR_HEIGHT = 36
@@ -42,6 +42,12 @@ class TitleBar(QWidget):
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.setObjectName("titleBar")
+        # QWidget 子类默认**不绘制**样式表里的 background-color / border（Qt 只为"纯 QWidget
+        # 实例"自动开启）。不开这个属性，`QWidget#titleBar` 的配色在真机上完全不生效
+        # ——这正是"标题栏与侧边栏分不清"的根因（实测真机像素为纯白）。
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self._bg_color: str | None = None
+        self._border_color: str | None = None
         self.setFixedHeight(TITLE_BAR_HEIGHT)
         self._drag_pos = None
 
@@ -69,6 +75,25 @@ class TitleBar(QWidget):
         layout.addWidget(self.close_btn)
 
     # ---------------- 外观 ----------------
+    def set_colors(self, background: str | None, border: str | None) -> None:
+        """由主窗口按主题令牌注入分区色：自绘背景 + 底边线。
+
+        QSS 的 `QWidget#titleBar` 规则保留（同一份令牌），但**不依赖它**：
+        QWidget 子类在真机上可能不绘制样式表背景，这里自己画一份，确保一定看得见。
+        """
+        self._bg_color = background
+        self._border_color = border
+        self.update()
+
+    def paintEvent(self, event):        # noqa: N802 - Qt 命名惯例
+        if self._bg_color:
+            painter = QPainter(self)
+            painter.fillRect(self.rect(), QColor(self._bg_color))
+            if self._border_color:
+                painter.setPen(QColor(self._border_color))
+                painter.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
+        super().paintEvent(event)
+
     def _make_button(self, name: str) -> QToolButton:
         btn = QToolButton()
         btn.setObjectName(name)

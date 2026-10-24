@@ -538,6 +538,13 @@ class MainWindow(QMainWindow):
                 icon_factory.icon("win-max", secondary),
                 icon_factory.icon("win-close", secondary))
             self._sync_max_icon()
+        # 分区色自绘注入（不依赖 QSS 是否给 QWidget 子类绘制背景，见 title_bar.set_colors）
+        strong = self._theme_token("color.border.strong", "#c6c6cf")
+        if hasattr(self, "title_bar"):
+            self.title_bar.set_colors(
+                self._theme_token("color.bg.titlebar", "#bfc3d1"), strong)
+        if hasattr(self, "nav"):
+            self.nav.set_colors(self._theme_token("color.bg.rail", "#e9e9ef"), strong)
 
     def register_to_window_manager(self):
         """把主窗口纳入窗口治理（在 kernel.attach_ui 之后调用）。"""

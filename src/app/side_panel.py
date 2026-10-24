@@ -32,6 +32,8 @@ class SidePanelHost(QWidget):
     def __init__(self, parent=None, width: int = DEFAULT_WIDTH, opened: bool = False) -> None:
         super().__init__(parent)
         self.setObjectName("sidePanelHost")
+        # QWidget 子类必须显式开启才会绘制 QSS 背景/边框（见 title_bar.py 的说明）
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self._opened = bool(opened)
         self._width = max(220, int(width))
         self._content: QWidget | None = None
@@ -58,6 +60,7 @@ class SidePanelHost(QWidget):
 
         self._container = QWidget()
         self._container.setObjectName("sidePanel")
+        self._container.setAttribute(Qt.WA_StyledBackground, True)
         self._container_layout = QVBoxLayout(self._container)
         self._container_layout.setContentsMargins(12, 12, 12, 12)
         self._container_layout.setSpacing(10)

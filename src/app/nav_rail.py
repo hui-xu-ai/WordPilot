@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QSize, Qt, Signal
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QColor, QIcon, QPainter
 from PySide6.QtWidgets import (QAbstractButton, QButtonGroup,
                                QToolButton, QVBoxLayout, QWidget)
 
@@ -40,6 +40,10 @@ class NavRail(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__()
         self.setObjectName("navRail")
+        # 同 TitleBar：不开启则 `QWidget#navRail` 的背景色/右边框在真机上不绘制（实测纯白）
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self._bg_color: str | None = None
+        self._border_color: str | None = None
         self._collapsed = True
         self._pages: dict[str, QToolButton] = {}
         self._current_page: str | None = None
@@ -81,6 +85,25 @@ class NavRail(QWidget):
         self._group.setExclusive(True)
 
         self._apply_width()
+
+    # ---------------- 外观 ----------------
+    def set_colors(self, background: str | None, border: str | None) -> None:
+        """由主窗口按主题令牌注入分区色（自绘背景 + 右边框）。
+
+        不依赖 QSS：QWidget 子类在真机上可能不绘制样式表背景，这里自己画一份。
+        """
+        self._bg_color = background
+        self._border_color = border
+        self.update()
+
+    def paintEvent(self, event):        # noqa: N802 - Qt 命名惯例
+        if self._bg_color:
+            painter = QPainter(self)
+            painter.fillRect(self.rect(), QColor(self._bg_color))
+            if self._border_color:
+                painter.setPen(QColor(self._border_color))
+                painter.drawLine(self.width() - 1, 0, self.width() - 1, self.height())
+        super().paintEvent(event)
 
     # ---------------- 条目 ----------------
     def set_entries(self,
