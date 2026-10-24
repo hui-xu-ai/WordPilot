@@ -1,9 +1,9 @@
 {
   "app.title": "WordPilot",
-  "app.name": "Word Smart Companion",
+  "app.name": "WordPilot",
   "app.author": "Xu Hui",
   "app.window_title": "{name} v{version} - {author}",
-  "app.tray.tooltip": "Word Smart Companion",
+  "app.tray.tooltip": "WordPilot",
   "app.tray.show_main": "Show Main Window",
   "app.tray.quit": "Quit",
   "app.tray.background_title": "Still running in background",

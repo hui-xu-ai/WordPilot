@@ -84,7 +84,9 @@ def build_index(root: Path, out_dir: str = DEFAULT_INDEX) -> dict:
     # 输出确定性：不含 generated_at（内容只随被索引文件变化）⇒ 可重复跑、可进 G0 新鲜度比较
     data = {
         "schema": 1,
-        "root": str(root),
+        # 只写"."：index.json 是入库产物，写绝对路径会把本机目录结构带进版本库
+        # （发布到 GitHub 后等于泄露用户名/盘符）。读取端只用 entries，不依赖绝对路径。
+        "root": ".",
         "count": len(entries),
         "entries": [asdict(e) for e in entries],
     }

@@ -28,7 +28,7 @@ SECRET_PATTERNS = [
     ("github-token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b")),
 ]
 # generic-assignment 单独处理：先抓赋值，再做"像不像密钥"的判定，
-# 否则 `token = "color.state.error"` 这类主题令牌会被误报（SmartProof 实测）。
+# 否则 `token = "color.state.error"` 这类主题令牌会被误报（实测）。
 GENERIC_ASSIGN_RE = re.compile(
     r"(?i)\b(?:api[_-]?key|secret|token|password)\b\s*[:=]\s*['\"]([^'\"]{16,})['\"]"
 )

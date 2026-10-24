@@ -90,3 +90,9 @@ credentials.*
 # panel 运行时
 .dsh/panel.pid
 .dsh/panel.log
+
+# 本机项目档案（绝对路径/本机命令，随机器变化，不入库）
+.dsh/project-profile.json
+
+# 用户自定义 QSS（运行时由程序从 user.example.qss 复制生成，个人样式不入库）
+src/config/user.qss

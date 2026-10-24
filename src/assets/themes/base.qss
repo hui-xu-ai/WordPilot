@@ -1,4 +1,4 @@
-/* SmartProof 全局样式模板（Fluent 风格）
+/* WordPilot 全局样式模板（Fluent 风格）
  *
  * 占位符 @token.name 由 ThemeService 用 tokens.<theme>.json 渲染后，
  * 再追加 config/user.qss 作为用户覆盖层。

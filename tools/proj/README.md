@@ -78,7 +78,7 @@ python tools\proj\mcp_server.py [--list-tools]
         transport: stdio
         serverName: pydev-proj
         command: python
-        args: [ "D:\\Python\\DeepSeek\\CodeAgent\\tools\\proj\\mcp_server.py" ]
+        args: [ "<proj-tool-dir>\\\\mcp_server.py" ]
 ```
 
 工具公开名形如 `mcp__pydev-proj__proj_scan`。改 profile 后**必须重启 DSH 进程**才生效。

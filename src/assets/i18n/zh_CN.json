@@ -1,9 +1,9 @@
 {
   "app.title": "WordPilot",
-  "app.name": "Word智能伴侣",
+  "app.name": "WordPilot",
   "app.author": "Xu Hui",
   "app.window_title": "{name} v{version} - {author}",
-  "app.tray.tooltip": "Word智能伴侣",
+  "app.tray.tooltip": "WordPilot",
   "app.tray.show_main": "显示主窗口",
   "app.tray.quit": "退出",
   "app.tray.background_title": "程序仍在后台运行",

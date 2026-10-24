@@ -69,7 +69,7 @@ def run_eval(root: Path, preset_dir: Path | None = None) -> EvalReport:
             report.warned += 1
 
     layout = s.layout
-    # 源码根允许 repo/ 或 src/（SmartProof 等既有项目用 src/）
+    # 源码根允许 repo/ 或 src/（多数既有项目用 src/）
     has_source = layout.get("hasRepo") or (root / "src").is_dir()
     missing = [k for k in ("hasLocal", "hasDocs") if not layout.get(k)]
     if not has_source:
