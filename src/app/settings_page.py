@@ -31,7 +31,7 @@ PROMPT_LANGUAGE_NAMES = {
 }
 
 _NAV_KEYS = ("settings.tab.api", "settings.tab.prompt",
-             "settings.tab.ui", "settings.tab.appearance", "settings.tab.about")
+             "settings.tab.appearance", "settings.tab.about")
 
 
 def _qt_version() -> str:
@@ -118,7 +118,6 @@ class SettingsPage(QWidget):
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_api_section())
         self.stack.addWidget(self._build_prompt_section())
-        self.stack.addWidget(self._build_ui_section())
         self.stack.addWidget(self._build_appearance_section())
         self.stack.addWidget(self._build_about_section())
         scroll = QScrollArea()
@@ -216,13 +215,6 @@ class SettingsPage(QWidget):
         lang_row.addWidget(self.prompt_language_combo, 1)
         lay.addLayout(lang_row)
 
-        self.label_proof_prompt = QLabel()
-        self.label_proof_prompt.setWordWrap(True)
-        lay.addWidget(self.label_proof_prompt)
-        self.proof_prompt_edit = QTextEdit()
-        self.proof_prompt_edit.setMinimumHeight(90)
-        lay.addWidget(self.proof_prompt_edit)
-
         self.label_translate_prompt = QLabel()
         self.label_translate_prompt.setWordWrap(True)
         lay.addWidget(self.label_translate_prompt)
@@ -237,38 +229,6 @@ class SettingsPage(QWidget):
         self.rewrite_prompt_edit.setMinimumHeight(70)
         lay.addWidget(self.rewrite_prompt_edit)
         layout.addWidget(card)
-        return page
-
-    def _build_ui_section(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 8, 0)
-        layout.setSpacing(14)
-
-        card, lay = self._card()
-        self.dynamic_group_title = QLabel()
-        self.dynamic_group_title.setObjectName("cardTitle")
-        lay.addWidget(self.dynamic_group_title)
-
-        self.show_floating_btn = QCheckBox()
-        lay.addWidget(self.show_floating_btn)
-        self.auto_show_check = QCheckBox()
-        lay.addWidget(self.auto_show_check)
-
-        form = QFormLayout()
-        form.setSpacing(10)
-        self.opacity_slider = QSlider(Qt.Horizontal)
-        # 不设区间时 QSlider 默认 0–99：100% 不可达，且已存的 1.0 会被 clamp 成 99 再写回 0.99
-        self.opacity_slider.setRange(20, 100)
-        self.label_opacity = QLabel()
-        form.addRow(self.label_opacity, self.opacity_slider)
-        self.font_size_spin = QSpinBox()
-        self.font_size_spin.setRange(8, 36)
-        self.label_font_size = QLabel()
-        form.addRow(self.label_font_size, self.font_size_spin)
-        lay.addLayout(form)
-        layout.addWidget(card)
-        layout.addStretch(1)
         return page
 
     def _build_appearance_section(self) -> QWidget:
@@ -405,17 +365,8 @@ class SettingsPage(QWidget):
 
         self.warning_label.setText(self.tr("settings.prompt.warning"))
         self.label_prompt_language.setText(self.tr("settings.prompt.language"))
-        self.label_proof_prompt.setText(self.tr("settings.prompt.proof"))
         self.label_translate_prompt.setText(self.tr("settings.prompt.translate"))
         self.label_rewrite_prompt.setText(self.tr("settings.prompt.rewrite"))
-        self.proof_prompt_edit.setPlaceholderText(
-            self.tr("settings.prompt.proof_placeholder"))
-
-        self.dynamic_group_title.setText(self.tr("settings.ui.floating_group"))
-        self.show_floating_btn.setText(self.tr("settings.ui.enable_floating"))
-        self.auto_show_check.setText(self.tr("settings.ui.auto_show"))
-        self.label_opacity.setText(self.tr("settings.ui.opacity"))
-        self.label_font_size.setText(self.tr("settings.ui.font_size"))
 
         self.theme_group_title.setText(self.tr("settings.appearance.theme_group"))
         self.label_theme.setText(self.tr("settings.appearance.theme"))
@@ -450,10 +401,6 @@ class SettingsPage(QWidget):
         self.model_edit.setText(self.config.get("model", "deepseek-v4-flash"))
         self.temp_edit.setValue(self.config.get("temperature", 0.4))
         self.max_tokens_edit.setValue(self.config.get("max_tokens", 2000))
-        self.proof_prompt_edit.setPlainText(
-            self.config.get("proof_prompt",
-                            self.tr("settings.prompt.proof_placeholder"))
-        )
         # 默认提示词按「提示词语言」取，与界面语言无关
         self.translate_prompt_edit.setPlainText(
             self.config.get("translate_prompt",
@@ -463,11 +410,6 @@ class SettingsPage(QWidget):
             self.config.get("rewrite_prompt",
                             self.prompt_tr("prompt.rewrite.default"))
         )
-        self.show_floating_btn.setChecked(self.config.get("show_floating_button", True))
-        self.auto_show_check.setChecked(self.config.get("auto_show_suggestion", True))
-        opacity = float(self.config.get("suggestion_opacity", 0.95) or 0.95)
-        self.opacity_slider.setValue(max(20, min(100, int(round(opacity * 100)))))
-        self.font_size_spin.setValue(self.config.get("suggestion_font_size", 12))
         if self.theme is not None:
             self._select_data(self.theme_combo, self.theme.current)
         self._select_data(self.ui_language_combo,
@@ -492,14 +434,9 @@ class SettingsPage(QWidget):
             "model": self.model_edit.text(),
             "temperature": self.temp_edit.value(),
             "max_tokens": self.max_tokens_edit.value(),
-            "proof_prompt": self.proof_prompt_edit.toPlainText(),
             "translate_prompt": self.translate_prompt_edit.toPlainText(),
             "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
             # 动态窗口样式（配色改由主题令牌统一控制）
-            "show_floating_button": self.show_floating_btn.isChecked(),
-            "auto_show_suggestion": self.auto_show_check.isChecked(),
-            "suggestion_opacity": max(20, min(100, self.opacity_slider.value())) / 100.0,
-            "suggestion_font_size": self.font_size_spin.value(),
             # 提示词语言（与界面语言解耦，由调用方决定是否重建客户端）
             "prompt_language": self.prompt_language_combo.currentData(),
             # 界面语言：保存后由主窗口拉起全局重翻译

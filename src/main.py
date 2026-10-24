@@ -79,6 +79,8 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)
+    # 关闭主窗口只是隐藏到托盘，进程必须继续存活
+    app.setQuitOnLastWindowClosed(False)
 
     # 1) 启动内核：注册 config / ai_client / ignore / caption_cache / word_bridge / hotkeys
     kernel = Kernel().boot()

@@ -15,12 +15,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import logging
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
                                QPushButton, QSlider, QSpinBox, QTextEdit,
                                QVBoxLayout, QWidget)
 from core.services.api_logger import clear_api_log
 from core.widgets import MonitorPanel, Switch
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from plugins.proofread.plugin import ProofreadPlugin
@@ -208,9 +212,20 @@ class DashboardPage(QWidget):
             if bubble is not None and hasattr(bubble, "apply_style"):
                 bubble.apply_style(self._config)
             self._plugin.ctx.events.emit("settings.saved", None)
-            self.status_label.setText(self.tr("settings.saved"))
+            self._set_save_status(self.tr("settings.saved"))
         else:
-            self.status_label.setText(self.tr("settings.save_failed"))
+            self._set_save_status(self.tr("settings.save_failed"), error=True)
+
+    def _set_save_status(self, text: str, error: bool = False) -> None:
+        """保存结果反馈：抽屉里没有独立状态栏时退化为状态提示，不静默。"""
+        label = getattr(self, "save_status_label", None)
+        if label is not None:
+            label.setText(text)
+            return
+        if error:
+            logger.warning("插件设置保存失败：%s", text)
+        else:
+            logger.info("插件设置已保存：%s", text)
 
 
     def _build_params_card(self) -> QWidget:

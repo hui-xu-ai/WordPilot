@@ -78,7 +78,7 @@ assert bottom_texts.index(mw.tr("app.nav.plugins")) < bottom_texts.index(mw.tr("
     "插件管理应在设置上方"
 # 设置页内容（API / 提示词 / 界面 / 外观 / 关于）
 settings = mw._page_widgets["settings"]
-assert settings.stack.count() == 5, f"设置页应有 5 个分区，实际 {settings.stack.count()}"
+assert settings.stack.count() == 4, f"设置页应有 4 个分区（API/提示词/外观/关于），实际 {settings.stack.count()}"
 from __version__ import APP_NAME as _APP_NAME, __version__ as _VERSION  # noqa: E402
 
 assert settings.about_name_value.text() == _APP_NAME, "关于页软件名应与 __version__.py 一致"

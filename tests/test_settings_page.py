@@ -31,12 +31,6 @@ def page(qapp, config_env):
     widget.deleteLater()
 
 
-def test_opacity_slider_has_reachable_full_range(page):
-    widget, _manager = page
-    assert widget.opacity_slider.minimum() == 20, "下限要防止 0% 完全不可见"
-    assert widget.opacity_slider.maximum() == 100, "上限必须是 100%，否则 100% 不可达"
-
-
 def test_save_writes_config_once(page, monkeypatch):
     widget, manager = page
     calls: list[str] = []
@@ -49,16 +43,6 @@ def test_save_writes_config_once(page, monkeypatch):
     monkeypatch.setattr(manager, "save", counting_save)
     widget.save_settings()
     assert calls == ["save"], f"一次保存只应落盘一次，实际 {len(calls)} 次"
-
-
-def test_save_clamps_opacity(page):
-    widget, manager = page
-    widget.opacity_slider.setValue(100)
-    widget.save_settings()
-    assert manager.get("suggestion_opacity") == 1.0
-    widget.opacity_slider.setValue(20)
-    widget.save_settings()
-    assert manager.get("suggestion_opacity") == 0.2
 
 
 def test_save_failure_is_visible_and_not_broadcast(page, monkeypatch):

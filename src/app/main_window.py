@@ -144,16 +144,31 @@ class MainWindow(PagesMixin, QMainWindow):
 
         可重复调用：每次先清再建（切换语言、插件启停/排序都会触发）。
         插件页控件只构造一次并缓存，这里只重建导航轨条目与托盘。
+        托盘菜单整体重建后重新挂到托盘图标上——直接 `clear()` 老菜单再填，在弹出过程中
+        可能出现"点了没反应"（Qt 侧引用已失效）。
         """
-        self.tray_menu.clear()
+        menu = QMenu()
         for label, handler in self.ui.tray_actions():
-            self.tray_menu.addAction(label, handler)
-        self.tray_menu.addSeparator()
-        self.tray_menu.addAction(self.tr("app.tray.show_main"), self.show)
-        self.tray_menu.addAction(self.tr("app.tray.quit"), self.quit_app)
+            menu.addAction(label, self._safe_tray_action(label, handler))
+        menu.addSeparator()
+        menu.addAction(self.tr("app.tray.show_main"), self.show_main_window)
+        menu.addAction(self.tr("app.tray.quit"), self.quit_app)
+        self.tray_menu = menu
+        if hasattr(self, "tray_icon"):
+            self.tray_icon.setContextMenu(menu)
 
         self._collect_plugin_factories()
         self._rebuild_nav()
+
+    @staticmethod
+    def _safe_tray_action(label: str, handler):
+        """包一层：单个菜单项抛异常时记日志，不影响其它项（托盘"点了没反应"很难查）。"""
+        def _run():
+            try:
+                handler()
+            except Exception:
+                logger.exception("托盘菜单项执行失败: %s", label)
+        return _run
 
     # ---------------- 界面：骨架 ----------------
     def init_ui(self):
@@ -284,18 +299,39 @@ class MainWindow(PagesMixin, QMainWindow):
         self.tray_icon.activated.connect(self.on_tray_activated)
         self.tray_icon.show()
 
+    def show_main_window(self) -> None:
+        """从托盘把主窗口叫回来（还原最小化 + 抬到最前）。
+
+        历史实现直接连 `self.show`：若窗口处于最小化或已隐藏且几何在屏外，`show()` 看不出变化，
+        用户会认为"菜单项失效"。这里统一走恢复流程，并把异常写日志/状态栏（不再静默）。
+        """
+        try:
+            if self.isMinimized():
+                self.showNormal()
+            else:
+                self.show()
+            self.raise_()
+            self.activateWindow()
+        except Exception:
+            logger.exception("从托盘恢复主窗口失败")
+            self.statusBar().showMessage(self.tr("app.nav.page_unavailable"), 3000)
+
     def on_tray_activated(self, reason):
-        if reason == QSystemTrayIcon.DoubleClick:
-            self.show()
+        if reason in (QSystemTrayIcon.DoubleClick, QSystemTrayIcon.Trigger):
+            self.show_main_window()
 
     def _on_hidden(self):
-        """关闭转隐藏后的提示（关闭语义由 WindowManager 统一裁决）。"""
+        """关闭转隐藏后的提示（关闭语义由 WindowManager 统一裁决）。
+
+        注意：**托盘不可用时也不要退出**——退出必须由用户显式点"退出"，
+        否则关闭主窗口就变成"程序莫名消失"。
+        """
         if hasattr(self, "tray_icon") and self.tray_icon.isVisible():
             self.tray_icon.showMessage(self.tr("app.tray.background_title"),
                                        self.tr("app.tray.background_body"),
                                        QSystemTrayIcon.Information, 2000)
         else:
-            self.quit_app()
+            logger.warning("托盘图标不可见，程序继续在后台运行（请检查系统托盘）")
 
     def quit_app(self):
         """退出：幂等 + 关键清理放 finally，避免某一步抛异常就留下隐藏窗口与托盘图标。"""
