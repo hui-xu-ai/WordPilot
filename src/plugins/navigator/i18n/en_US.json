@@ -37,6 +37,8 @@
   "status.back": "Returned to the previous position",
   "status.no_history": "No position to return to",
   "error.jump_title": "Jump failed",
+  "error.open_title": "Cannot open Navigator",
+  "error.open_failed": "Navigator window could not be created: {error} (If Word is not open, open a document first; see config/app.log)",
   "error.back_title": "Return failed",
   "font.dialog_title": "Select font",
   "caption.display": "{text}  [p.{page}]"

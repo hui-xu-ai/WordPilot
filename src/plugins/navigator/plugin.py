@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from PySide6.QtWidgets import QMessageBox
+
 from core.sdk.plugin_base import PluginBase
 from core.services.window_manager import CloseBehavior, Layer, Mode
 from plugins.navigator.word_navigator_dialog import WordNavigatorDialog
@@ -39,13 +41,13 @@ class NavigatorPlugin(PluginBase):
             dialog.retranslateUi()
 
     def open(self) -> None:
-        """打开或激活导航助手窗口。"""
+        """打开或激活导航助手窗口；失败必须让用户看见原因（不能静默无反应）。"""
         windows = self.ctx.windows
         if windows is None:
             self.ctx.logger.error("窗口服务不可用，无法打开导航助手")
             return
         try:
-            windows.open(
+            opened = windows.open(
                 WordNavigatorDialog.WINDOW_ID,
                 lambda: WordNavigatorDialog(config=self.ctx.config,
                                             window_manager=windows,
@@ -58,6 +60,11 @@ class NavigatorPlugin(PluginBase):
                 behavior=CloseBehavior.DESTROY,
                 remember_geometry=True,
             )
+            if opened is None:
+                reason = windows.last_error(WordNavigatorDialog.WINDOW_ID)
+                self.ctx.logger.error("打开导航助手失败: %s", reason)
+                QMessageBox.warning(None, self.tr("error.open_title"),
+                                    self.tr("error.open_failed", error=reason or "-"))
         except Exception:
             self._log_exception("无法打开 Word 导航助手")
 

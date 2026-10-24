@@ -37,6 +37,8 @@
   "status.back": "已返回跳转前位置",
   "status.no_history": "没有可返回的位置",
   "error.jump_title": "跳转失败",
+  "error.open_title": "无法打开导航助手",
+  "error.open_failed": "导航助手窗口未能创建：{error}（若 Word 未打开，请先打开文档再试；详情见 config/app.log）",
   "error.back_title": "返回失败",
   "font.dialog_title": "选择字体",
   "caption.display": "{text}  [第{page}页]"

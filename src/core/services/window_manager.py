@@ -97,6 +97,9 @@ class WindowManager:
         self._entries: dict[str, _Entry] = {}
         self._filters: dict[str, _CloseFilter] = {}
         self._force_closing: set[str] = set()
+        # 最近一次打开失败的原因（window_id -> 错误文本）：调用方据此给用户看得见的提示，
+        # 否则工厂里的异常被这里吞掉后，用户只看到"点了没反应"。
+        self._last_errors: dict[str, str] = {}
 
     # ---------------- 查询 ----------------
     def get(self, window_id: str):
@@ -107,6 +110,10 @@ class WindowManager:
 
     def is_open(self, window_id: str) -> bool:
         return self.get(window_id) is not None
+
+    def last_error(self, window_id: str) -> str:
+        """最近一次打开该窗口失败的原因（空串表示没有记录）。"""
+        return self._last_errors.get(window_id, "")
 
     def ids(self) -> list[str]:
         return [wid for wid in self._entries if self.get(wid) is not None]
@@ -159,9 +166,11 @@ class WindowManager:
 
         try:
             widget = factory()
-        except Exception:
+        except Exception as exc:
+            self._last_errors[window_id] = str(exc)
             logger.exception("窗口创建失败: %s", window_id)
             return None
+        self._last_errors.pop(window_id, None)
         if widget is None:
             return None
 

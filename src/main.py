@@ -17,25 +17,41 @@ from infra.memory_trimmer import start_periodic_trim, delayed_trim  #   定时�
 
 
 def _install_failure_hooks() -> None:
-    """打包配置是 console=False：未捕获异常必须落盘，否则用户侧现象只剩"点了没反应"。
+    """打包配置是 console=False：一切失败都必须落盘，否则用户侧现象只剩"点了没反应"。
 
-    三处都装：主线程异常、后台线程异常（监控线程/热键钩子只有这里能看到）、Qt 自身告警。
+    分两处：
+    - 根日志 `config/app.log`（INFO+）：插件/服务里的 `logger.exception(...)` 也在这里 ——
+      没有它，"无法打开导航助手"这类**被 catch 掉**的失败在打包后完全不可见；
+    - `config/errors.log`（ERROR+）：未捕获异常（主线程/后台线程）与 Qt 自身告警。
     """
+    from logging.handlers import RotatingFileHandler
+
     from PySide6.QtCore import qInstallMessageHandler
 
     from core.services.config_manager import CONFIG_DIR
+
+    fmt = logging.Formatter("%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s")
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        root = logging.getLogger()
+        root.setLevel(logging.INFO)
+        if not root.handlers:
+            app_handler = RotatingFileHandler(CONFIG_DIR / "app.log", maxBytes=2 * 1024 * 1024,
+                                              backupCount=2, encoding="utf-8")
+            app_handler.setFormatter(fmt)
+            root.addHandler(app_handler)
+    except OSError:
+        pass  # 配置目录不可写时退化为标准 excepthook，不阻断启动
 
     logger = logging.getLogger("smartproof.unhandled")
     logger.setLevel(logging.ERROR)
     if not logger.handlers:
         try:
-            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             handler = logging.FileHandler(CONFIG_DIR / "errors.log", encoding="utf-8")
-            handler.setFormatter(logging.Formatter(
-                "%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s"))
+            handler.setFormatter(fmt)
             logger.addHandler(handler)
         except OSError:
-            pass  # 配置目录不可写时退化为标准 excepthook，不阻断启动
+            pass
 
     def _excepthook(exc_type, exc, tb):
         if issubclass(exc_type, KeyboardInterrupt):
