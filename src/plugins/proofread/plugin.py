@@ -17,7 +17,11 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+import logging
+
 from core.sdk.plugin_base import PluginBase
+
+logger = logging.getLogger(__name__)
 from core.services.skin_service import STATE_TOKENS
 from core.services.window_manager import CloseBehavior, Layer, Mode
 from core.services.word_bridge import get_word_app
@@ -392,9 +396,20 @@ class ProofreadPlugin(PluginBase):
         含图片/公式的句子无法安全地整体替换，只清除标记并提示手动修改；
         纯文本句则只替换主体部分，保留句尾的段落符等不可见字符。
         """
+        import time as _time
+
+        started = _time.perf_counter()
+        word = None
+        prev_screen_updating = None
         try:
             word = get_word_app()
             doc = word.ActiveDocument
+            # 替换期间冻结重绘：Word 默认每次 COM 变更都重画，长句/大文档上很吃时间
+            try:
+                prev_screen_updating = word.ScreenUpdating
+                word.ScreenUpdating = False
+            except Exception:      # 某些受保护视图不允许改，忽略即可
+                prev_screen_updating = None
 
             start, end = self.normalize_span(start, end)
             if start is not None and end is not None:
@@ -439,6 +454,13 @@ class ProofreadPlugin(PluginBase):
         except Exception as exc:
             QMessageBox.warning(None, self.tr("error.replace_title"),
                                 self.tr("error.replace_failed", error=exc))
+        finally:
+            if word is not None and prev_screen_updating is not None:
+                try:
+                    word.ScreenUpdating = prev_screen_updating
+                except Exception:
+                    pass
+            logger.info("apply_correction 用时 %.0f ms", (_time.perf_counter() - started) * 1000)
 
     def _notify_manual_edit(self) -> None:
         parent = QApplication.activeWindow()

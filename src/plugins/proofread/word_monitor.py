@@ -13,6 +13,9 @@ from core.services.word_constants import wdConst as constants  # word常量修�
 
 logger = logging.getLogger(__name__)
 
+# 标记清除已拆到 word_marks（性能改造见该模块）；此处保留再导出供旧调用方使用
+from plugins.proofread.word_marks import clear_error_marks  # noqa: E402,F401
+
 wdUnderlineWavy = constants.wdUnderlineWavy
 wdColorRed = constants.wdColorRed
 
@@ -270,17 +273,6 @@ def mark_text_differences(original, corrected, start, end):
             logger.debug("标记差异区间失败（%s-%s）", left, right, exc_info=True)
 
 
-def clear_error_marks(start, end):
-    try:
-        word = get_word_app()
-        doc = word.ActiveDocument
-        sentence_range = doc.Range(start, end)
-        for i in range(len(sentence_range.Characters)):
-            char = sentence_range.Characters(i + 1)
-            if char.Font.Underline == wdUnderlineWavy and char.Font.UnderlineColor == wdColorRed:
-                char.Font.Underline = 0
-    except Exception:
-        pass
 
 
 def get_sentence_range(selection):
