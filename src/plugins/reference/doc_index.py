@@ -68,24 +68,38 @@ class DocIndex:
     doc_name: str = ""
     anchors: list[DocAnchor] = field(default_factory=list)
     _starts: list[int] = field(default_factory=list)
+    #: 是否已经为当前文档扫过一次（空文档也算扫过，避免无限重扫）
+    scanned: bool = False
 
     def needs_rescan(self, doc_name: str) -> bool:
-        return doc_name != self.doc_name or not self.anchors
+        return doc_name != self.doc_name or not self.scanned
 
     def clear(self) -> None:
         self.doc_name = ""
         self.anchors = []
         self._starts = []
+        self.scanned = False
 
     def rescan(self, word) -> int:
         """遍历当前文档的所有域，重建锚点表；返回锚点数量。"""
         try:
             document = word.ActiveDocument
             doc_name = document.Name
-            fields = document.Fields
-            count = int(fields.Count)
         except Exception as exc:                 # noqa: BLE001 - Word 关闭/无文档
             logger.debug("扫描域失败：%s", exc)
+            return 0
+
+        # 先记住文档名：即便后面拿不到域，也不要每轮都"重扫"
+        self.doc_name = doc_name
+        self.anchors = []
+        self._starts = []
+        self.scanned = True
+
+        try:
+            fields = document.Fields
+            count = int(fields.Count)
+        except Exception as exc:                 # noqa: BLE001
+            logger.debug("读取域集合失败（保留空索引）：%s", exc)
             return 0
 
         anchors: list[DocAnchor] = []
@@ -108,9 +122,9 @@ class DocIndex:
                 continue
 
         anchors.sort(key=lambda item: (item.start, item.end))
-        self.doc_name = doc_name
         self.anchors = anchors
         self._starts = [item.start for item in anchors]
+        self.scanned = True
         logger.info("参考文献锚点索引已重建：%d 个（%s，域总数 %d）", len(anchors), doc_name, count)
         return len(anchors)
 

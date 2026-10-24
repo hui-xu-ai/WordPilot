@@ -247,54 +247,18 @@ class WordWatch(QThread):
         pythoncom.CoInitialize()
         try:
             from core.services.word_bridge import get_word_app
+
             self._emit_status("watch.starting")
 
             while self._running:
                 started = time.perf_counter()
                 try:
-                    word = get_word_app()
-                    doc_name = word.ActiveDocument.Name
-                except Exception:          # noqa: BLE001 - Word 未开/关闭中
-                    word, doc_name = None, ""
-
-                if word is None:
-                    self._emit_status("watch.no_word")
-                    self._handle_miss()
-                    self.msleep(RETRY_AFTER_MS)
-                    continue
-
-                # 换文档/首次：扫一次域表（1~3 s），之后点击只查表
-                if self._index.needs_rescan(doc_name):
-                    self._emit_status("watch.scanning")
-                    count = self._index.rescan(word)
-                    self._emit_status(f"watch.scanned:{count}")
-                    self._handle_miss()
-                    self.msleep(POLL_MS)
-                    continue
-
-                try:
-                    selection = word.Selection
-                    position = int(selection.Start)
+                    self._tick(get_word_app)
                 except Exception:          # noqa: BLE001
+                    # 关键：单次异常绝不能让监听线程退出（曾经因此整晚都"点了没弹窗"）
+                    logger.exception("参考文献监听单次循环失败")
+                    self._emit_status("watch.error")
                     self._handle_miss()
-                    self.msleep(POLL_MS)
-                    continue
-
-                anchor = self._index.lookup(position) or self._index.lookup(position - 1)
-                if anchor is not None:
-                    self._last_anchor = anchor.anchor_key
-                    self._cleared = False
-                    self._last_hit_at = time.perf_counter()
-                    self.citationFound.emit(self._anchor_payload(word, anchor, doc_name))
-                else:
-                    payload = (self._footnote_payload(word, doc_name)
-                               or self._label_fallback_payload(word, doc_name))
-                    if payload is not None:
-                        self._cleared = False
-                        self._last_hit_at = time.perf_counter()
-                        self.citationFound.emit(payload)
-                    else:
-                        self._handle_miss()
 
                 elapsed_ms = (time.perf_counter() - started) * 1000
                 self.msleep(max(80, int(POLL_MS - elapsed_ms)))
@@ -304,7 +268,54 @@ class WordWatch(QThread):
             except Exception:              # noqa: BLE001
                 pass
 
-    # ---------------- 内部 ----------------
+    # ---------------- 单次循环 ----------------
+    def _tick(self, get_word_app) -> None:
+        try:
+            word = get_word_app()
+            doc_name = word.ActiveDocument.Name
+        except Exception:                  # noqa: BLE001 - Word 未开/关闭中
+            self._emit_status("watch.no_word")
+            self._handle_miss()
+            self.msleep(min(RETRY_AFTER_MS, 1000))
+            return
+
+        if self._index.needs_rescan(doc_name):
+            self._emit_status("watch.scanning")
+            count = self._index.rescan(word)
+            self._emit_status(f"watch.scanned:{count}")
+            self._handle_miss()
+            return
+
+        try:
+            selection = word.Selection
+            position = int(selection.Start)
+        except Exception:                  # noqa: BLE001
+            self._handle_miss()
+            return
+
+        anchors = (self._index.lookup_all(position)
+                   or self._index.lookup_all(position - 1))
+        try:
+            text_labels = labels_at_position(word, position)
+        except Exception:                  # noqa: BLE001 - 文字解析失败不影响域锚点
+            logger.debug("角标文字解析失败（忽略）", exc_info=True)
+            text_labels = []
+        if anchors or text_labels:
+            self._last_anchor = anchors[0].anchor_key if anchors else ""
+            self._cleared = False
+            self._last_hit_at = time.perf_counter()
+            self.citationFound.emit(self._anchor_payload(word, anchors, doc_name, position))
+            return
+
+        payload = (self._footnote_payload(word, doc_name)
+                   or self._label_fallback_payload(word, doc_name))
+        if payload is not None:
+            self._cleared = False
+            self._last_hit_at = time.perf_counter()
+            self.citationFound.emit(payload)
+        else:
+            self._handle_miss()
+
     def rescan_index(self, word) -> int:
         """手动扫描后重建点击查表索引（供页面「扫描本文」调用）。"""
         self._index.clear()
@@ -339,7 +350,12 @@ class WordWatch(QThread):
         # 角标文字补充：域只给出 5、正文写着 `[5,6]` 时，把 6 也补上（用户明确要求按角标规则解析）
         if position >= 0:
             known = {item["anchor_key"] for item in items}
-            for label in labels_at_position(word, position):
+            try:
+                extra_labels = labels_at_position(word, position)
+            except Exception:              # noqa: BLE001 - 文字解析失败不影响域锚点
+                logger.debug("角标文字解析失败（忽略）", exc_info=True)
+                extra_labels = []
+            for label in extra_labels:
                 key = f"doc:{doc_name}:cite:{label}"
                 if key not in known:
                     known.add(key)
