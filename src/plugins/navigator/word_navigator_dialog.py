@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QTabWidget, QListWidget, QLineEdit, QProgressBar, QMessageBox
+    QComboBox, QTabWidget, QListWidget, QLineEdit, QProgressBar, QMessageBox
 )
 
 from core.services.caption_cache import CaptionCache
@@ -70,6 +70,7 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         # 关闭标志：closeEvent 先置 True，所有排队中的 QTimer 回调据此立即返回
         # （历史实现在 CoUninitialize 之后仍会跑批处理，在已释放的 COM 公寓上访问 Word）
         self._closing = False
+        self._chapters: list[str] = []      # 一级章节标题（离线扫描填充，供章节下拉使用）
 
         # 保存监测
         self._save_monitor_timer = QTimer(self)
@@ -148,7 +149,14 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText(self.tr("search.placeholder"))
         self.search_edit.textChanged.connect(self.filter_lists)
-        search_layout.addWidget(self.search_edit)
+        search_layout.addWidget(self.search_edit, 1)
+        # 章节过滤：离线扫描后按一级章节（模板最小标题层级）填充
+        self.chapter_combo = QComboBox()
+        self.chapter_combo.setMinimumWidth(150)
+        self.chapter_combo.addItem(self.tr("chapter.all"), -1)
+        self.chapter_combo.setEnabled(False)
+        self.chapter_combo.currentIndexChanged.connect(self.filter_lists)
+        search_layout.addWidget(self.chapter_combo)
         layout.addLayout(search_layout)
 
         self.tab_widget = QTabWidget()

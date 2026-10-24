@@ -164,11 +164,14 @@ QTableWidget {
     border: 1px solid @color.border;
     border-radius: @radius.md px;
     alternate-background-color: @color.bg.subtle;
+    /* 去掉选中条目外面那圈虚线焦点框（用户反馈"点图注后有红色虚线"） */
+    outline: none;
 }
 QListWidget::item,
 QTreeWidget::item {
     padding: @spacing.sm px;
     border-radius: @radius.sm px;
+    outline: none;
 }
 QListWidget::item:hover,
 QTreeWidget::item:hover {

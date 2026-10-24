@@ -18,6 +18,8 @@
   "tab.table": "📊 Tables",
   "tab.figure": "📈 Figures",
   "status.ready": "Ready",
+  "chapter.all": "All chapters",
+  "status.offline_done": "Offline parse: {tables} tables / {figures} figures",
   "status.no_doc": "No open Word document found. Please start Word and open a file",
   "status.scanning": "A background scan is running, please wait...",
   "status.init_error": "Initialization error: {error}",
