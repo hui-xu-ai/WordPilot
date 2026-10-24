@@ -20,6 +20,7 @@ import time
 
 from PySide6.QtCore import QThread, Signal
 
+from plugins.reference.doc_index import DocIndex, classify_field
 from plugins.reference.docx_scan import footnote_anchor, parse_citation_labels
 from plugins.reference.providers.endnote import parse_endnote_cite
 from plugins.reference.providers.zotero import parse_csl_citation
@@ -121,42 +122,17 @@ def resolve_selection(word) -> dict | None:
 
     items: list[dict] = []
     code, result_text = _field_info(selection)
-    if code and _NUMBER_FIELD.match(code):
-        code, result_text = "", ""         # 图/表/章节号 → 不是文献引用
-
-    selection_text = ""
-    try:
-        selection_text = getattr(selection, "Text", "") or ""
-    except Exception:                      # noqa: BLE001
-        selection_text = ""
+    if code and result_text == "":
+        try:
+            result_text = (selection.Text or "").strip()
+        except Exception:                  # noqa: BLE001
+            result_text = ""
 
     if code:
-        reference = parse_csl_citation(code) or parse_endnote_cite(code)
-        label = _first_label(result_text, selection_text, code)
-        if reference is not None:
-            items.append({"anchor_key": reference.ref_key, "label": label,
-                          "reference": reference, "doc_name": doc_name})
-        elif _ENDNOTE_SHELL.match(code):
-            # EndNote 只写了域壳（数据在 .Data 文件里或在库里）：按文档编号建锚点，
-            # 弹卡片让用户绑到库里的文献（比"点了没反应"好）。
-            # `[5,6]` 这种一格多篇要**逐个展开**，不能只取第一个编号。
-            labels = parse_citation_labels(result_text) or parse_citation_labels(code)
-            if not labels and label:
-                labels = [label]
-            if labels:
-                for one in labels:
-                    items.append({
-                        "anchor_key": f"doc:{doc_name}:cite:{one}",
-                        "label": one, "reference": None, "doc_name": doc_name,
-                    })
-            else:
-                identity = _hash_text(result_text or code)
-                items.append({
-                    "anchor_key": f"doc:{doc_name}:cite:{identity}",
-                    "label": "", "reference": None, "doc_name": doc_name,
-                })
-            logger.debug("EndNote 空壳域：labels=%r 结果文本=%r", labels, result_text[:60])
-        else:
+        for anchor_key, label, kind in classify_field(code, result_text, doc_name):
+            items.append({"anchor_key": anchor_key, "label": label,
+                          "reference": None, "doc_name": doc_name, "kind": kind})
+        if not items:
             logger.debug("未识别的域指令（不弹窗）：%r", code[:80])
 
     if not items:
@@ -242,31 +218,44 @@ class WordWatch(QThread):
                 started = time.perf_counter()
                 try:
                     word = get_word_app()
-                    payload = resolve_selection(word)
+                    doc_name = word.ActiveDocument.Name
                 except Exception:          # noqa: BLE001 - Word 未开/关闭中
-                    word, payload = None, None
+                    word, doc_name = None, ""
 
-                if payload is None:
-                    if not self._cleared and (
-                            (time.perf_counter() - self._last_hit_at) * 1000 >= CLEAR_AFTER_MS):
-                        self._cleared = True
-                        self._last_signature = None
-                        self.citationCleared.emit()
-                    self.msleep(RETRY_AFTER_MS if word is None else POLL_MS)
+                if word is None:
+                    self._handle_miss()
+                    self.msleep(RETRY_AFTER_MS)
+                    continue
+
+                # 换文档/首次：扫一次域表（1~3 s），之后点击只查表
+                if self._index.needs_rescan(doc_name):
+                    self._index.rescan(word)
+                    self._handle_miss()
+                    self.msleep(POLL_MS)
                     continue
 
                 try:
                     selection = word.Selection
-                    signature = (payload["doc_name"], int(selection.Start), int(selection.End))
+                    position = int(selection.Start)
                 except Exception:          # noqa: BLE001
-                    signature = None
+                    self._handle_miss()
+                    self.msleep(POLL_MS)
+                    continue
 
-                # 每次都发：插件侧按"当前显示的是否就是这一组锚点"去重。
-                # 只在选区变化时发，会导致"关掉弹窗、同一位置再点"毫无反应（用户已反馈）。
-                self._last_signature = signature
-                self._cleared = False
-                self._last_hit_at = time.perf_counter()
-                self.citationFound.emit(payload)
+                anchor = self._index.lookup(position) or self._index.lookup(position - 1)
+                if anchor is not None:
+                    self._last_anchor = anchor.anchor_key
+                    self._cleared = False
+                    self._last_hit_at = time.perf_counter()
+                    self.citationFound.emit(self._anchor_payload(word, anchor, doc_name))
+                else:
+                    payload = self._footnote_payload(word, doc_name)
+                    if payload is not None:
+                        self._cleared = False
+                        self._last_hit_at = time.perf_counter()
+                        self.citationFound.emit(payload)
+                    else:
+                        self._handle_miss()
 
                 elapsed_ms = (time.perf_counter() - started) * 1000
                 self.msleep(max(80, int(POLL_MS - elapsed_ms)))
@@ -275,3 +264,52 @@ class WordWatch(QThread):
                 pythoncom.CoUninitialize()
             except Exception:              # noqa: BLE001
                 pass
+
+    # ---------------- 内部 ----------------
+    def _handle_miss(self) -> None:
+        if not self._cleared and (
+                (time.perf_counter() - self._last_hit_at) * 1000 >= CLEAR_AFTER_MS):
+            self._cleared = True
+            self.citationCleared.emit()
+
+    def _anchor_payload(self, word, anchor, doc_name: str) -> dict:
+        doc_path = ""
+        try:
+            doc_path = word.ActiveDocument.FullName or ""
+        except Exception:                  # noqa: BLE001
+            doc_path = ""
+        try:
+            point = screen_point(word, word.Selection)
+        except Exception:                  # noqa: BLE001
+            point = (200, 200)
+        return {
+            "doc_name": doc_name,
+            "doc_path": doc_path,
+            "point": point,
+            "items": [{"anchor_key": anchor.anchor_key, "label": anchor.label,
+                       "reference": None, "doc_name": doc_name, "kind": anchor.kind}],
+        }
+
+    def _footnote_payload(self, word, doc_name: str) -> dict | None:
+        """光标在脚注/尾注里时（不在域索引覆盖范围内）单独处理。"""
+        try:
+            selection = word.Selection
+            notes = selection.Footnotes
+            if notes is not None and notes.Count >= 1:
+                text = notes(1).Range.Text or ""
+                anchor_key = footnote_anchor(doc_name, text, _hash_text(text))
+            else:
+                endnotes = selection.Endnotes
+                if endnotes is None or endnotes.Count < 1:
+                    return None
+                text = endnotes(1).Range.Text or ""
+                anchor_key = footnote_anchor(doc_name, text, _hash_text(text), prefix="en")
+        except Exception:                  # noqa: BLE001
+            return None
+        try:
+            point = screen_point(word, word.Selection)
+        except Exception:                  # noqa: BLE001
+            point = (200, 200)
+        return {"doc_name": doc_name, "doc_path": "", "point": point,
+                "items": [{"anchor_key": anchor_key, "label": "", "reference": None,
+                           "doc_name": doc_name, "kind": "footnote"}]}

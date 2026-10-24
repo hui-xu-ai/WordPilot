@@ -22,8 +22,8 @@ from plugins.reference.reference_store import Reference
 
 logger = logging.getLogger(__name__)
 
-#: 条目起始：`[1]` / `[1]` 带前导空格 / `1.` / `1)`
-_ENTRY_START = re.compile(r"^\s*\[?(\d{1,4})\]?[.、)]?\s+(?=\S)")
+#: 条目起始：实测格式为 `[1]Wang D P, ...`（右括号后**没有空格**），也有 `1. Wang...`
+_ENTRY_START = re.compile(r"^\s*(?:\[(\d{1,4})\]|(\d{1,4})[.、)）])\s*")
 #: 文献类型标识：[J] [M] [D] [C] [EB/OL] …
 _TYPE_MARK = re.compile(r"\[(J|M|D|C|N|R|S|P|G|Z|EB/OL|J/OL|M/OL)\]", re.IGNORECASE)
 _YEAR = re.compile(r"(19|20)\d{2}")
@@ -107,10 +107,10 @@ def parse_bibliography(paragraphs: list[str], doc_name: str = "") -> list[Refere
         if not text:
             continue
         match = _ENTRY_START.match(text)
-        if match and (len(text) > 12 or match.group(1).isdigit()):
+        if match and len(text) > 12:
             if current_index is not None and buffer:
                 entries.append((current_index, " ".join(buffer)))
-            current_index = match.group(1)
+            current_index = match.group(1) or match.group(2)
             buffer = [text]
         elif current_index is not None:
             buffer.append(text)          # 续行
