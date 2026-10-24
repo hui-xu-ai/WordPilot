@@ -64,11 +64,20 @@ def test_title_bar_paints_stylesheet_background(qapp):
 
 
 def test_injected_title_bar_color_is_painted(qapp):
-    """不加载 QSS，只用注入色抓图：自绘这条路必须能画出来。"""
+    """不加载 QSS，只用注入色抓图：自绘这条路必须能画出来（色值随主题令牌走）。"""
     from app.title_bar import TitleBar
+    from core.services.theme_service import ThemeService
+
+    class _Cfg(dict):
+        def get(self, key, default=None):
+            return dict.get(self, key, default)
+
+    theme = ThemeService(_Cfg({"theme": "light"}))
+    theme.reload()
+    bar_color = theme.token("color.bg.titlebar")
 
     bar = TitleBar(None)
-    bar.set_colors("#bfc3d1", "#c6c6cf")
+    bar.set_colors(bar_color, theme.token("color.border.strong"))
     img = bar.grab().toImage()
     color = img.pixelColor(img.width() // 2, img.height() // 2).name()
-    assert color == "#bfc3d1", f"标题栏自绘颜色应为 #bfc3d1，实际 {color}"
+    assert color == bar_color, f"标题栏自绘颜色应为 {bar_color}，实际 {color}"

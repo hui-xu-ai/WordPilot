@@ -28,13 +28,22 @@ def test_nav_rail_paints_stylesheet_background(qapp):
 
 def test_injected_rail_color_is_painted(qapp):
     from app.nav_rail import NavRail
+    from core.services.theme_service import ThemeService
+
+    class _Cfg(dict):
+        def get(self, key, default=None):
+            return dict.get(self, key, default)
+
+    theme = ThemeService(_Cfg({"theme": "light"}))
+    theme.reload()
+    rail_color = theme.token("color.bg.rail")
 
     rail = NavRail()
-    rail.set_colors("#e9e9ef", "#c6c6cf")
+    rail.set_colors(rail_color, theme.token("color.border.strong"))
     rail.resize(60, 400)
     img = rail.grab().toImage()
     color = img.pixelColor(img.width() // 2, img.height() // 2).name()
-    assert color == "#e9e9ef", f"侧栏自绘颜色应为 #e9e9ef，实际 {color}"
+    assert color == rail_color, f"侧栏自绘颜色应为 {rail_color}，实际 {color}"
 
 
 def test_titlebar_and_rail_tokens_differ():
