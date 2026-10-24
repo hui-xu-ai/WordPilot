@@ -186,6 +186,6 @@ ctx.events.emit("my_feature.done", payload)
 | 想做什么 | 看哪个插件 |
 | --- | --- |
 | 后台线程 + 悬浮 UI + 全局热键 + 能力暴露 | `plugins/proofread/` |
-| 非模态工具对话框 | `plugins/navigator/` |
+| 主界面内容页（扫文档 + 列表 + 跳转，无窗口） | `plugins/navigator/` |
 | 带工作文档的模态工具箱 | `plugins/image_toolbox/` |
 | 占位 / 开发中功能如何声明 | `plugins/reference/`（注意 `enabled_by_default: false`） |

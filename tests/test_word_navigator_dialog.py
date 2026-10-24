@@ -12,9 +12,9 @@ import pytest
 
 @pytest.fixture(scope="module")
 def dialog_cls():
-    from plugins.navigator.word_navigator_dialog import WordNavigatorDialog
+    from plugins.navigator.word_navigator_dialog import WordNavigatorPanel
 
-    return WordNavigatorDialog
+    return WordNavigatorPanel
 
 
 def _bare(dialog_cls):
@@ -50,7 +50,7 @@ def test_auto_refresh_noops_after_close(dialog_cls):
 
 
 def test_teardown_sets_flag_before_com_uninit(dialog_cls):
-    """`_teardown` 必须先把 _closing 置 True，再做任何清理。"""
+    """`shutdown()` 必须先把 _closing 置 True，再做任何清理。"""
     events: list[str] = []
     dlg = _bare(dialog_cls)
     dlg._closing = False
@@ -61,7 +61,7 @@ def test_teardown_sets_flag_before_com_uninit(dialog_cls):
     dlg.doc = "doc"
     dlg.word = "word"
 
-    dlg._teardown()
+    dlg.shutdown()
 
     assert dlg._closing is True
     assert events[:3] == ["stop_monitor", "restore_screen", "cache_close"]

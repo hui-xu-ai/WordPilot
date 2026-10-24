@@ -65,7 +65,7 @@
 | `app/settings_page.py` | 设置页（主窗口内置页：API、提示词、界面、外观 四个分区） | 界面语言与提示词语言分离 |
 | `core/widgets/` | 通用 Qt 控件库（Switch / MonitorPanel），外壳与插件共用 | 插件不可 import app 层，故下沉到 core |
 | `plugins/proofread/` | 智能纠错：监控线程 + 桌宠窗口 + 替换逻辑 + 热键 + 纠错主页 | 桌宠见 §8，纠错见 §4 |
-| `plugins/navigator/` | 题录导航：扫描 SEQ 域→列表→跳转/返回 | 见 §5 性能问题 |
+| `plugins/navigator/` | 题录导航：主界面内容页（`add_page`）扫描 SEQ 域→列表→跳转/返回 | 见 §5 性能问题；P10 起不再是独立浮窗 |
 | `plugins/image_toolbox/` | 图片工具箱：借隐藏文档 `Image.docx` 批量裁剪居中 | |
 | `plugins/reference/` | 参考文献助手（开发中，默认不启用） | 对应 `work/` 下两个测试文档 |
 | `infra/utils.py` | `resource_path` 兼容开发/打包资源路径 | |

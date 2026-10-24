@@ -45,15 +45,15 @@ print("proof switch:", dash.proof_switch.isCheckable(), "| cleanup btns:",
 print("\n=== 3) 插件管理：禁用/启用/排序 ===")
 pm = kernel.plugins
 print("初始启用:", [r.manifest.id for r in pm.all() if r.state == "active"])
+# navigator 已改成主界面内容页（P10 后续），不再是"动作型工具入口"
 pm.set_enabled("navigator", False)
-pages_after = [p for p in mw.nav._pages.keys()]
-tools_after = [t[0] for t in mw.ui.tools()]
-print("禁用 navigator 后 tools:", tools_after)
-assert not any("导航" in t for t in tools_after), "禁用后导航助手不应在工具入口里"
+pages_after = list(mw.nav._pages.keys())
+print("禁用 navigator 后 nav pages:", pages_after)
+assert "plugin:navigator" not in pages_after, "禁用后导航页应从上轨消失"
 pm.set_enabled("navigator", True)
-tools_back = [t[0] for t in mw.ui.tools()]
-print("重新启用后 tools:", tools_back)
-assert any("导航" in t for t in tools_back)
+pages_back = list(mw.nav._pages.keys())
+print("重新启用后 nav pages:", pages_back)
+assert "plugin:navigator" in pages_back, "启用后导航页应回到上轨"
 pm.set_order(["image_toolbox", "clipboard", "navigator", "proofread"])
 print("plugins.order:", kernel.config.get("plugins", {}).get("order"))
 pm.set_enabled("navigator", True)  # 保持配置干净

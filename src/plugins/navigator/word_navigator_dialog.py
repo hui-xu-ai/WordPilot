@@ -1,14 +1,20 @@
 # word_navigator_dialog.py
+"""题录导航面板（主界面内容页）。
+
+P10 后续：本文件原先是独立浮窗 `QDialog`（Layer.PALETTE + 置顶 + 几何记忆），
+与其他插件（智能纠错/翻译改写/图片工具）都注册成主界面导航页的做法不一致——
+用户看到的是"浮在主界面上的另一块窗口"，既没有导航轨条目也不跟主窗口布局。
+现在改成 `QWidget` 面板，由插件用 `ctx.ui.add_page()` 注册；窗口专属件
+（标题栏、置顶、关于、字体、几何记忆）随之下线。
+"""
 import json
-from pathlib import Path
 
 import pythoncom
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QTabWidget, QListWidget, QLineEdit, QCheckBox, QProgressBar,
-    QMessageBox, QFontDialog
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
+    QTabWidget, QListWidget, QLineEdit, QProgressBar, QMessageBox
 )
 
 from core.services.caption_cache import CaptionCache
@@ -18,15 +24,6 @@ from core.services.word_constants import wdConst
 
 CONFIG_FILE = CONFIG_DIR / "navigator_config.json"
 wdFieldSequence = wdConst.wdFieldSequence               # Word 序列域类型常量
-
-
-def _plugin_version() -> str:
-    """插件版本以 plugin.json 为唯一来源，避免与界面文案漂移。"""
-    try:
-        manifest = json.loads((Path(__file__).with_name("plugin.json")).read_text(encoding="utf-8"))
-        return manifest.get("version", "0.0.0")
-    except Exception:
-        return "0.0.0"
 
 
 class CaptionItem:
@@ -55,15 +52,14 @@ class CaptionItem:
         return False
 
 
-class WordNavigatorDialog(QDialog):
-    #: 在窗口治理服务中的注册 id（置顶偏好与几何记忆都挂在这个 id 下）
-    WINDOW_ID = "navigator.main"
+class WordNavigatorPanel(QWidget):
+    """题录导航内容页：扫标题/图表题注、筛选、双击跳转、返回上一位置。"""
 
     def __init__(self, parent=None, config=None, window_manager=None, i18n=None,
                  plugin_id="navigator"):
         super().__init__(parent)
         self.app_config = config                    # 内核 ConfigManager（原 navigator_config.json 收敛到这里）
-        self.window_manager = window_manager
+        self.window_manager = window_manager        # 仅为兼容旧调用签名保留，页面形态不再用它
         self.i18n = i18n
         self._ns = plugin_id
         # ---------- 安全初始化 COM ----------
@@ -72,7 +68,7 @@ class WordNavigatorDialog(QDialog):
             pythoncom.CoInitialize()
             self._com_ok = True
         except Exception:
-            pass  # 即使 COM 初始化失败，对话框仍然可以显示，只是无法操作 Word
+            pass  # 即使 COM 初始化失败，面板仍然可以显示，只是无法操作 Word
 
         # ---------- 预定义所有可能在异常路径中访问的属性 ----------
         self._scan_silent = False
@@ -80,14 +76,9 @@ class WordNavigatorDialog(QDialog):
         self._new_table = []
         self._new_figure = []
 
-        self.setWindowTitle(self.tr("window.title"))
-        self.setMinimumSize(450, 600)
-        self.resize(450, 600)
+        self.setMinimumWidth(360)
 
         self.config = self.load_config()
-        # 置顶不再由本窗口自己加 WindowStaysOnTopHint，
-        # 改由 WindowManager 按 PALETTE 层策略统一施加
-        self.topmost = self.config.get("topmost", True)
 
         self.word = None
         self.doc = None
@@ -128,11 +119,7 @@ class WordNavigatorDialog(QDialog):
 
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
         """切换语言后刷新常驻界面的文案。"""
-        self.setWindowTitle(self.tr("window.title"))
         self.btn_refresh.setText(self.tr("btn.refresh"))
-        self.btn_font.setText(self.tr("btn.font"))
-        self.btn_about.setText(self.tr("btn.about"))
-        self.chk_topmost.setText(self.tr("chk.topmost"))
         self.btn_return.setText(self.tr("btn.return"))
         self.search_edit.setPlaceholderText(self.tr("search.placeholder"))
         self.tab_widget.setTabText(0, self.tr("tab.table"))
@@ -156,13 +143,6 @@ class WordNavigatorDialog(QDialog):
             "font_size": self.app_config.get("navigator.font_size", legacy.get("font_size", 12)),
         }
 
-    def save_config(self):
-        if self.app_config is None:
-            return
-        self.app_config.set("navigator.topmost", self.topmost)
-        self.app_config.set("navigator.font_family", self.current_font.family())
-        self.app_config.set("navigator.font_size", self.current_font.pointSize())
-
     def apply_config(self):
         family = self.config.get("font_family", "Microsoft YaHei")
         size = self.config.get("font_size", 12)
@@ -177,21 +157,7 @@ class WordNavigatorDialog(QDialog):
         self.btn_refresh = QPushButton(self.tr("btn.refresh"))
         self.btn_refresh.clicked.connect(self.load_captions)
         toolbar.addWidget(self.btn_refresh)
-
-        self.btn_font = QPushButton(self.tr("btn.font"))
-        self.btn_font.clicked.connect(self.change_font)
-        toolbar.addWidget(self.btn_font)
-
-        self.btn_about = QPushButton(self.tr("btn.about"))
-        self.btn_about.clicked.connect(lambda: QMessageBox.information(self, self.tr("about.title"),
-            self.tr("about.body", version=_plugin_version())))
-        toolbar.addWidget(self.btn_about)
-
-        self.chk_topmost = QCheckBox(self.tr("chk.topmost"))
-        self.chk_topmost.setChecked(self.topmost)
-        self.chk_topmost.stateChanged.connect(self.toggle_topmost)
         toolbar.addStretch()
-        toolbar.addWidget(self.chk_topmost)
         layout.addLayout(toolbar)
 
         self.btn_return = QPushButton(self.tr("btn.return"))
@@ -230,22 +196,6 @@ class WordNavigatorDialog(QDialog):
 
     def _on_tab_changed(self, index):
         self.last_tab_index = index
-
-    # ---------- 字体 ----------
-    def change_font(self):
-        result = QFontDialog.getFont(self.current_font, self, self.tr("font.dialog_title"))
-        font = result[0] if isinstance(result[0], QFont) else result[1]
-        ok = result[1] if isinstance(result[0], QFont) else result[0]
-        if ok and isinstance(font, QFont):
-            self.current_font = font
-            self.setFont(font)
-            self.save_config()
-
-    def toggle_topmost(self, state):
-        self.topmost = (state == Qt.Checked)
-        self.save_config()
-        if self.window_manager is not None:
-            self.window_manager.set_palette_topmost(self.WINDOW_ID, self.topmost)
 
     # ---------- Word 连接与保存监测 ----------
     def _get_word_document(self):
@@ -715,13 +665,10 @@ class WordNavigatorDialog(QDialog):
             except:
                 pass
 
-    def closeEvent(self, event):        #  2026.05.18
-        self._teardown()
-        super().closeEvent(event)
+    def shutdown(self) -> None:
+        """释放现场：**先置关闭标志**，再停监测/恢复 ScreenUpdating/关缓存/释放 COM/引用。
 
-    def _teardown(self) -> None:
-        """关闭清理：**先置关闭标志**，再停监测/恢复 ScreenUpdating/关缓存/释放引用。
-
+        由插件在 `deactivate()` 里调用（页面形态下不再有 closeEvent）。
         置标志必须最先做：排队中的 `QTimer.singleShot` 批处理回调据此立刻返回，
         否则会在 `CoUninitialize` 之后仍去访问 Word（已释放的 COM 公寓）。
         """

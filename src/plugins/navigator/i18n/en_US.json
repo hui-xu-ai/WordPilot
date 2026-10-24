@@ -2,6 +2,7 @@
   "plugin.name": "Word Navigator",
   "plugin.description": "Scan headings, figure/table captions and equations into a searchable, jumpable navigation panel",
   "tool_label": "Navigator",
+  "nav.page": "Navigator",
   "tray_label": "Word Navigator",
   "window.title": "Word Navigator - Xu Hui",
   "com_error": "COM initialization failed, cannot connect to Word",
