@@ -101,23 +101,37 @@ class DeepSeekClient:
             return None
         return template
 
-    def proof_text(self, text: str, cache_key: str | None = None) -> str | None:
+    def proof_text(self, text: str, cache_key: str | None = None,
+                   prompt_key: str = "proof_prompt",
+                   cache_namespace: str = "") -> str | None:
         """校对文本；失败返回 ``None``，原因见 ``last_error``。
 
         cache_key：缓存键。proof_sentence 以 body_text（去尾部的正文）为键调用，
         与直接以原文为键的剪贴板校对共用同一份 SQLite 缓存；
         不传时默认以 text 本身为键。
+
+        prompt_key / cache_namespace：用于**按调用场景解耦提示词**（例如翻译改写页的"纠错"
+        用整段文本提示词，桌宠逐句校对用句子提示词）。缓存键加命名空间前缀，
+        避免"同一段文本、不同提示词"互相命中错误结果。
         """
         key = cache_key if cache_key is not None else text
+        if cache_namespace:
+            key = f"{cache_namespace}:{key}"
         cache = get_default_cache()
         cached = cache.get(key)
         if cached is not None:
             return cached.strip()
 
-        template = (self.config.get("proof_prompt") or "").strip()
+        template = (self.config.get(prompt_key) or "").strip()
+        if not template and prompt_key != "proof_prompt":
+            # 场景提示词留空时退回通用校对提示词，避免发空提示
+            template = (self.config.get("proof_prompt") or "").strip()
         if not template:
-            # 默认提示词走「提示词语言」，与界面语言互不影响
-            template = self.prompt_tr("prompt.proof.default")
+            # 默认提示词走「提示词语言」，与界面语言互不影响；
+            # 整段纠错有自己的默认文案（强调保持段落结构、不改写）
+            default_key = ("prompt.correct.default" if prompt_key == "correct_prompt"
+                           else "prompt.proof.default")
+            template = self.prompt_tr(default_key)
         if "{text}" not in template:
             template += "\n{text}"
         prompt = template.replace("{text}", text)
@@ -175,8 +189,13 @@ class DeepSeekClient:
         return None if result is None else result.strip()
 
     def clipboard_proof(self, text: str) -> str | None:
-        """兼容旧代码的剪贴板校对"""
-        return self.proof_text(text)
+        """翻译改写页的「纠错」：整段文本 + 独立提示词（`correct_prompt`）+ 独立缓存命名空间。
+
+        历史实现直接转调 `proof_text()`，与桌宠逐句校对共用同一套提示词与缓存：
+        两处需求不同（整段 vs 单句），改一处会互相影响，而且同文本会命中对方的缓存结果。
+        """
+        return self.proof_text(text, prompt_key="correct_prompt",
+                               cache_namespace="correct")
 
     def _call_api(self, messages: list) -> str | None:
         """返回内容或 ``None``；任何失败都写入 ``last_error`` 并落日志（不再 print）。"""

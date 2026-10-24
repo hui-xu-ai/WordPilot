@@ -190,6 +190,10 @@ class ClipboardPlugin(PluginBase):
         self.rewrite_prompt_edit = _card("settings.prompt.rewrite",
                                          "settings.prompt.rewrite_hint",
                                          "rewrite_prompt")
+        # 本页还有一个「纠错」按钮：整段文本校对，提示词与桌宠逐句校对分开管理
+        self.correct_prompt_edit = _card("settings.prompt.correct",
+                                         "settings.prompt.correct_hint",
+                                         "correct_prompt")
 
         self.save_prompt_btn = QPushButton(self.tr("settings.save"))
         self.save_prompt_btn.clicked.connect(self.save_plugin_settings)
@@ -207,6 +211,7 @@ class ClipboardPlugin(PluginBase):
         payload = {
             "translate_prompt": self.translate_prompt_edit.toPlainText(),
             "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
+            "correct_prompt": self.correct_prompt_edit.toPlainText(),
         }
         if config.update(payload):
             self.ctx.events.emit("settings.saved", None)

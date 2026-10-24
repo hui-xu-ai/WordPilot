@@ -25,5 +25,7 @@
   "settings.prompt.rewrite_hint": "占位符必须保留：{text} 会被替换成待改写正文。",
   "settings.save": "保存",
   "settings.saved": "已保存",
-  "settings.save_failed": "保存失败"
+  "settings.save_failed": "保存失败",
+  "settings.prompt.correct": "纠错提示词（整段文本，{text} 原文）",
+  "settings.prompt.correct_hint": "与桌宠逐句校对分开：这里处理整段文本（如整段剪贴板内容）。留空则沿用桌宠的校对提示词。"
 }

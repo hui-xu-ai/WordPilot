@@ -102,3 +102,19 @@ def test_side_panel_is_cached(plugin):
     _instance, ctx, _manager = plugin
     _label, factory, _kwargs = ctx.ui.side_panels[0]
     assert factory() is factory(), "抽屉控件应缓存，重复调用返回同一实例"
+
+def test_correct_prompt_is_managed_separately(plugin):
+    """本页的「纠错」按钮用整段文本提示词，且与桌宠逐句校对分开存储。"""
+    _instance, ctx, manager = plugin
+    _label, factory, _kwargs = ctx.ui.side_panels[0]
+    factory()
+
+    assert hasattr(_instance, "correct_prompt_edit"), "抽屉里必须有纠错提示词输入框"
+    _instance.translate_prompt_edit.setPlainText("译成{target_lang}：{text}")
+    _instance.rewrite_prompt_edit.setPlainText("改写：{text}")
+    _instance.correct_prompt_edit.setPlainText("整段纠错：{text}")
+    _instance.save_plugin_settings()
+
+    assert manager.get("correct_prompt") == "整段纠错：{text}"
+    # 不能覆盖桌宠那份
+    assert manager.get("proof_prompt") in (None, "", manager.get("proof_prompt"))

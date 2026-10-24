@@ -146,3 +146,16 @@ def test_blank_prompt_falls_back_to_language_pack(session):
     assert "原句" in content
     assert content.strip() != "原句", "回退失败：只发了正文，没有提示词"
 
+
+def test_clipboard_proof_uses_its_own_prompt_and_cache(session):
+    """翻译改写页的「纠错」必须用 correct_prompt，且缓存键带命名空间（不与逐句校对串味）。"""
+    client = _client(proof_prompt="逐句校对：{text}", correct_prompt="整段纠错：{text}")
+
+    assert client.clipboard_proof("同一段文本") == "结果"
+    content = session.payloads[-1]["messages"][-1]["content"]
+    assert "整段纠错" in content, f"应使用整段纠错提示词，实际：{content!r}"
+
+    # 同一段文本走逐句校对：不得命中纠错那份缓存
+    client.proof_text("同一段文本")
+    content = session.payloads[-1]["messages"][-1]["content"]
+    assert "逐句校对" in content, "逐句校对命中了纠错缓存（缓存键没隔离）"
