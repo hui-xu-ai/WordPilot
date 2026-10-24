@@ -1,6 +1,6 @@
 # Wiki 索引
 
-> 由 `proj wiki index` 生成（内容确定性，可重复跑）｜条目：15
+> 由 `proj wiki index` 生成（内容确定性，可重复跑）｜条目：16
 
 ## .
 - [WordPilot 工作区（pydev 预设）](AGENTS.md) — 2603 B
@@ -14,7 +14,8 @@
 - [路线图 · ROADMAP](docs/ROADMAP.md) — 4479 B
 - [ADR-001 采用 pydev 项目布局与记忆分离](docs/adr/001-onboarding-layout.md) — 1964 B
 - [ADR-002 插件次要界面：全局右侧可折叠抽屉](docs/adr/002-side-panel.md) — 4695 B
-- [ADR 索引](docs/adr/INDEX.md) — 538 B
+- [ADR-003 循环依赖的判定口径：只算运行期模块级导入](docs/adr/003-dependency-graph-scope.md) — 2955 B
+- [ADR 索引](docs/adr/INDEX.md) — 712 B
 - [WordPilot · 代码地图（CODE_MAP）](docs/architecture/CODE_MAP.md) — 6388 B
 - [2026-10-16](docs/archive/workbuddy-memory/2026-10-16.md)（archive） — 5280 B
 - [2026-10-17](docs/archive/workbuddy-memory/2026-10-17.md)（archive） — 5109 B

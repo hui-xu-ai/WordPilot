@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root": ".",
-  "count": 15,
+  "count": 16,
   "entries": [
     {
       "path": "AGENTS.md",
@@ -60,6 +60,26 @@
       "archive": false
     },
     {
+      "path": "docs/adr/003-dependency-graph-scope.md",
+      "title": "ADR-003 循环依赖的判定口径：只算运行期模块级导入",
+      "headings": [
+        "ADR-003 循环依赖的判定口径：只算运行期模块级导入",
+        "背景",
+        "备选",
+        "备选 A：改产品代码，删掉 TYPE_CHECKING 导入与延迟导入",
+        "备选 B：工具按运行期语义统计（选中）",
+        "备选 C：忽略这条 WARN",
+        "决策",
+        "后果"
+      ],
+      "tags": [
+        "adr"
+      ],
+      "bytes": 2955,
+      "mtime": "2026-10-24T07:33:44.840101+00:00",
+      "archive": false
+    },
+    {
       "path": "docs/adr/INDEX.md",
       "title": "ADR 索引",
       "headings": [
@@ -68,8 +88,8 @@
       "tags": [
         "adr"
       ],
-      "bytes": 538,
-      "mtime": "2026-10-24T04:33:23.870823+00:00",
+      "bytes": 712,
+      "mtime": "2026-10-24T07:33:54.303691+00:00",
       "archive": false
     },
     {

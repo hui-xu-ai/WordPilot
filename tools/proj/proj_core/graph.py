@@ -1,4 +1,8 @@
-"""proj graph —— 模块依赖图与循环检测（Python ast + JS/TS 正则）。"""
+"""proj graph —— 模块依赖图与循环检测（Python ast + JS/TS 正则）。
+
+口径（ADR-003）：Python 只统计**运行期模块级导入**——跳过 `if TYPE_CHECKING:` 分支与函数体内导入，
+因为它们是打破循环依赖的标准写法，计入会产出假循环。
+"""
 from __future__ import annotations
 
 import ast
@@ -54,13 +58,31 @@ def _py_module_map(root: Path) -> dict[str, str]:
     return out
 
 
+def _is_type_checking(test: ast.expr) -> bool:
+    """判断 `if TYPE_CHECKING:` / `if typing.TYPE_CHECKING:` 这类条件。"""
+    if isinstance(test, ast.Name):
+        return test.id == "TYPE_CHECKING"
+    if isinstance(test, ast.Attribute):
+        return test.attr == "TYPE_CHECKING"
+    if isinstance(test, ast.BoolOp):
+        return any(_is_type_checking(v) for v in test.values)
+    return False
+
+
 def _py_specs(text: str) -> list[str]:
+    """收集**运行期**模块依赖：只看模块级导入，跳过 TYPE_CHECKING 分支与函数体内的导入。
+
+    这两类都是打破循环依赖的标准写法——`TYPE_CHECKING` 只在类型检查时存在，
+    函数内延迟导入在调用时才执行——把它们算作依赖会产出假循环（本项目实测 3 组）。
+    """
     try:
         tree = ast.parse(text)
     except SyntaxError:
         return []
+
     specs: list[str] = []
-    for node in ast.walk(tree):
+
+    def emit(node: ast.AST) -> None:
         if isinstance(node, ast.Import):
             specs.extend(a.name for a in node.names)
         elif isinstance(node, ast.ImportFrom):
@@ -71,6 +93,21 @@ def _py_specs(text: str) -> list[str]:
             elif node.module:
                 specs.append(node.module)
                 specs.extend(node.module + "." + a.name for a in node.names)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return                            # 函数体内的导入不是模块级依赖
+        elif isinstance(node, ast.If):
+            if _is_type_checking(node.test):
+                for stmt in node.orelse:      # 只走 else 分支（若有）
+                    emit(stmt)
+                return
+            for stmt in [*node.body, *node.orelse]:
+                emit(stmt)
+        else:
+            for child in ast.iter_child_nodes(node):
+                emit(child)
+
+    for stmt in tree.body:
+        emit(stmt)
     return specs
 
 
