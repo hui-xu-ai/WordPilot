@@ -106,7 +106,7 @@ class _EntryCard(QFrame):
         self.note_edit = QTextEdit()
         self.note_edit.setObjectName("referenceNote")
         self.note_edit.setPlainText(entry.note)
-        self.note_edit.setFixedHeight(46)      # 大约两行文字，用户预设够用
+        self.note_edit.setFixedHeight(56)      # 三行左右：用户反馈两行显示不全
         self.note_edit.setPlaceholderText(tr("overlay.note_placeholder"))
         layout.addWidget(self.note_edit)
         self.note_edit.textChanged.connect(self._on_text_changed)
@@ -193,6 +193,7 @@ class ReferenceOverlay(QWidget):
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)   # 不要可见滚动条
         self._body = QWidget()
         self._body_layout = QVBoxLayout(self._body)
         self._body_layout.setContentsMargins(10, 0, 10, 0)

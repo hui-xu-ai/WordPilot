@@ -19,6 +19,7 @@ from plugins.reference.library_page import LibraryPage
 from plugins.reference.overlay import OverlayEntry, ReferenceOverlay
 from plugins.reference.reference_index import ReferenceIndex
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
+from plugins.reference.scan_cache import ScanCache, fingerprint
 from plugins.reference.word_watch import WordWatch
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ class ReferencePlugin(PluginBase):
         self._overlay: ReferenceOverlay | None = None
         self._watch: WordWatch | None = None
         self._dismissed: set[str] = set()
+        self._scan_cache: ScanCache | None = None
         self._last_point: tuple[int, int] = (200, 200)
         self._last_items: list[dict] = []
         self._shown_signature: tuple[str, ...] = ()
@@ -53,6 +55,7 @@ class ReferencePlugin(PluginBase):
         super().activate(ctx)
         self._store = ReferenceStore()
         self._index = ReferenceIndex()
+        self._scan_cache = ScanCache()
         try:
             self._store.ensure_directory()
             self._index.ensure(self._store)
@@ -73,7 +76,7 @@ class ReferencePlugin(PluginBase):
     def _start_watch(self) -> None:
         if self._watch is not None or self._store is None:
             return
-        self._watch = WordWatch()
+        self._watch = WordWatch(cache=self._scan_cache)
         self._watch.citationFound.connect(self._on_citation_found)
         self._watch.citationCleared.connect(self._on_citation_cleared)
         self._watch.statusChanged.connect(self._on_watch_status)
@@ -273,6 +276,13 @@ class ReferencePlugin(PluginBase):
         stats: dict = {"doc_name": name, "doc_path": path, "bibliography": 0,
                        "provider": 0, "imported": 0, "anchors": 0}
 
+        fp = fingerprint(path)
+        if self._scan_cache is not None and self._scan_cache.bibliography_done(path, fp):
+            # 文档没改动过：不重复解析文末列表，直接用已有库 + 缓存锚点
+            stats["anchors"] = self._watch.rescan_index(word) if self._watch else 0
+            stats["cached"] = 1
+            return stats
+
         result = scan_docx(path, name)
         stats["bibliography"] = len(result.references)
         stats["provider"] = len(result.provider_citations)
@@ -287,6 +297,8 @@ class ReferencePlugin(PluginBase):
             except ReferenceStoreError as exc:
                 logger.warning("扫描入库失败（%s）：%s", reference.ref_key, exc)
         self._bib_cache[path] = 0.0                    # 已手工扫过，避免再次全量导入
+        if self._scan_cache is not None:
+            self._scan_cache.mark_bibliography(path, fp, name)
 
         if self._watch is not None:
             stats["anchors"] = self._watch.rescan_index(word)
@@ -311,5 +323,8 @@ class ReferencePlugin(PluginBase):
         if self._index is not None:
             self._index.close()
             self._index = None
+        if self._scan_cache is not None:
+            self._scan_cache.close()
+            self._scan_cache = None
         self._page = None
         super().deactivate()

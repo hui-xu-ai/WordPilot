@@ -82,5 +82,7 @@
   "watch.scanning": "Building citation index…",
   "watch.scanned": "Citation index ready: {count} anchors",
   "overlay.close_tip": "Close",
-  "status.reloaded": "Reloaded"
+  "status.reloaded": "Reloaded",
+  "action.scan.tip": "Parse citations and the bibliography of the active document and import them (skipped when the document is unchanged)",
+  "action.reload.tip": "Re-read the local CSV library only; does not parse the Word document"
 }

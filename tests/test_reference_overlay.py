@@ -147,11 +147,12 @@ def test_force_edit_entry_shows_note_editor(overlay):
     widget.show_entries([entry], (300, 200))
     assert hasattr(widget._cards[0], "note_edit"), "已建/已绑的条目要能直接写备注"
 
-def test_note_box_is_two_lines_high(overlay):
-    """备注框固定两行高（用户预设最多两行）。"""
+def test_note_box_height_is_fixed(overlay):
+    """备注框固定高度（56 px，约三行；两行会显示不全，用户反馈过）。"""
     widget, _store = overlay
     widget.show_entries([_entry("zotero:1", "1")], (300, 200))
-    assert widget._cards[0].note_edit.height() == 46
+    assert widget._cards[0].note_edit.height() == 56
+    assert widget._cards[0].note_edit.minimumHeight() == 56
 
 
 def test_close_button_shows_cross_glyph(overlay):

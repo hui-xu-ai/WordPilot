@@ -223,8 +223,9 @@ class WordWatch(QThread):
     citationCleared = Signal()
     statusChanged = Signal(str)            # 连接状态/扫描进度（供页面状态栏显示）
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, cache=None) -> None:
         super().__init__(parent)
+        self._cache = cache
         self._running = False
         self._last_signature: tuple[str, int, int] | None = None
         self._last_hit_at = 0.0
@@ -280,9 +281,19 @@ class WordWatch(QThread):
             return
 
         if self._index.needs_rescan(doc_name):
-            self._emit_status("watch.scanning")
-            count = self._index.rescan(word)
-            self._emit_status(f"watch.scanned:{count}")
+            doc_path, fp = self._document_fingerprint(word)
+            cached = None
+            if self._cache is not None:
+                cached = self._cache.load_anchors(doc_path, fp)
+            if cached is not None:
+                count = self._index.load(doc_name, cached)
+                self._emit_status(f"watch.cached:{count}")
+            else:
+                self._emit_status("watch.scanning")
+                count = self._index.rescan(word)
+                if self._cache is not None:
+                    self._cache.save_anchors(doc_path, fp, doc_name, self._index.anchors)
+                self._emit_status(f"watch.scanned:{count}")
             self._handle_miss()
             return
 
@@ -315,6 +326,17 @@ class WordWatch(QThread):
             self.citationFound.emit(payload)
         else:
             self._handle_miss()
+
+    @staticmethod
+    def _document_fingerprint(word) -> tuple[str, tuple[int, int] | None]:
+        """取文档路径与文件指纹；失败返回 ("", None)（此时不做缓存）。"""
+        try:
+            from plugins.reference.scan_cache import fingerprint
+
+            path = word.ActiveDocument.FullName or ""
+            return path, fingerprint(path)
+        except Exception:                  # noqa: BLE001
+            return "", None
 
     def rescan_index(self, word) -> int:
         """手动扫描后重建点击查表索引（供页面「扫描本文」调用）。"""

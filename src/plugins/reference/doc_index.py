@@ -128,6 +128,15 @@ class DocIndex:
         logger.info("参考文献锚点索引已重建：%d 个（%s，域总数 %d）", len(anchors), doc_name, count)
         return len(anchors)
 
+    def load(self, doc_name: str, anchors: list[DocAnchor]) -> int:
+        """直接装载（来自扫描缓存）：免去一次 COM 遍历。"""
+        anchors = sorted(anchors, key=lambda item: (item.start, item.end))
+        self.doc_name = doc_name
+        self.anchors = anchors
+        self._starts = [item.start for item in anchors]
+        self.scanned = True
+        return len(anchors)
+
     def lookup_all(self, position: int) -> list[DocAnchor]:
         """查位置命中的**所有**锚点（`[5,6]` 这种一格多篇会返回两条）。
 

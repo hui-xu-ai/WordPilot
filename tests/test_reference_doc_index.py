@@ -140,3 +140,11 @@ def test_doc_anchor_defaults():
 @pytest.mark.parametrize("code", ["", "   ", " STYLEREF 1 \\s "])
 def test_ignored_fields(code):
     assert classify_field(code, "图 1", "论文.docx") == []
+
+def test_load_from_cache_skips_rescan():
+    """从缓存装载锚点后，不需要再遍历 COM 域。"""
+    index = DocIndex()
+    count = index.load("论文.docx", [DocAnchor(5, 9, "doc:论文.docx:cite:3", "3", "endnote_shell")])
+    assert count == 1
+    assert index.needs_rescan("论文.docx") is False, "装载后不该再要求重扫"
+    assert index.lookup(7).label == "3"

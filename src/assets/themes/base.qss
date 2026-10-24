@@ -35,6 +35,7 @@ QGroupBox::title {
 
 /* ---------- 按钮 ---------- */
 QPushButton {
+    outline: none;      /* 全局去掉点击后的虚线焦点框 */
     background-color: @color.bg.card;
     border: 1px solid @color.border.strong;
     border-bottom: 2px solid @color.border.strong;
@@ -348,6 +349,7 @@ QToolTip {
     padding: @spacing.xs px @spacing.sm px;
 }
 QToolButton {
+    outline: none;
     background-color: transparent;
     border: none;
     border-radius: @radius.sm px;

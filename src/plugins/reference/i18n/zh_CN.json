@@ -82,5 +82,7 @@
   "watch.scanning": "正在建立引用索引…",
   "watch.scanned": "引用索引就绪：{count} 个锚点",
   "overlay.close_tip": "关闭",
-  "status.reloaded": "已刷新"
+  "status.reloaded": "已刷新",
+  "action.scan.tip": "解析当前文档的引用与文末参考文献列表，导入本地库（文档没改动时会跳过）",
+  "action.reload.tip": "只重新读取本地 CSV 库，不解析 Word 文档"
 }
