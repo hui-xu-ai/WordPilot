@@ -519,6 +519,23 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event):
         super().showEvent(event)
+        # 无边框窗口在 Windows 上没有系统阴影：白底上看不出边界。
+        # 首次显示时向 DWM 要回原生阴影（失败只是没阴影，不影响功能）。
+        if not getattr(self, "_shadow_applied", False):
+            self._shadow_applied = True
+            if self.config.get("ui.native_shadow", True):
+                from infra import win_shadow
+
+                self._shadow_ok = win_shadow.enable_native_shadow(self)
         wm = self.kernel.services.get("window_manager")
         if wm is not None:
             wm.refresh_topmost(self._window_id)
+
+    def nativeEvent(self, eventType, message):      # noqa: N802 - Qt 命名惯例
+        """把 WM_NCCALCSIZE 压成 0：保留无边框外观，同时让 DWM 画阴影。"""
+        from infra import win_shadow
+
+        handled = win_shadow.handle_native_event(eventType, message)
+        if handled is not None:
+            return handled
+        return super().nativeEvent(eventType, message)
