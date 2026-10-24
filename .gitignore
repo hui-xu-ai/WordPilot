@@ -96,3 +96,6 @@ credentials.*
 
 # 用户自定义 QSS（运行时由程序从 user.example.qss 复制生成，个人样式不入库）
 src/config/user.qss
+
+# Word 打开文件时生成的锁文件（~$xxx.docx），不该入库
+src/config/~$*
