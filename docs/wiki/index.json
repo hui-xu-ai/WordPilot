@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root": ".",
-  "count": 16,
+  "count": 17,
   "entries": [
     {
       "path": "AGENTS.md",
@@ -80,6 +80,23 @@
       "archive": false
     },
     {
+      "path": "docs/adr/004-reference-identity-and-csv-store.md",
+      "title": "ADR-004 参考文献身份与中间层存储：CSV 唯一事实源 + 派生索引",
+      "headings": [
+        "ADR-004 参考文献身份与中间层存储：CSV 唯一事实源 + 派生索引",
+        "背景",
+        "决策",
+        "备选与否决理由",
+        "后果"
+      ],
+      "tags": [
+        "adr"
+      ],
+      "bytes": 3243,
+      "mtime": "2026-10-24T12:43:18.356710+00:00",
+      "archive": false
+    },
+    {
       "path": "docs/adr/INDEX.md",
       "title": "ADR 索引",
       "headings": [
@@ -88,8 +105,8 @@
       "tags": [
         "adr"
       ],
-      "bytes": 712,
-      "mtime": "2026-10-24T07:33:54.303691+00:00",
+      "bytes": 919,
+      "mtime": "2026-10-24T12:43:29.735123+00:00",
       "archive": false
     },
     {
@@ -127,8 +144,8 @@
       "tags": [
         "architecture"
       ],
-      "bytes": 6388,
-      "mtime": "2026-10-24T07:25:20.483337+00:00",
+      "bytes": 7425,
+      "mtime": "2026-10-24T12:45:43.279795+00:00",
       "archive": false
     },
     {

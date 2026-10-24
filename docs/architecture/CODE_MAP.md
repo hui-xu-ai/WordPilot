@@ -80,4 +80,14 @@
 | `src/plugins/proofread/suggestion_window.py` | 返回差异片段列表，每个片段包含 original 和 suggest 字符串 |
 | `src/plugins/proofread/word_monitor.py` | 将 Word 句子 Range 解析为带对象信息的 token 列表 |
 | `src/plugins/reference/__init__.py` | （未写） |
-| `src/plugins/reference/plugin.py` | 参考文献助手插件（开发中，默认不启用）。 |
+| `src/plugins/reference/plugin.py` | 参考文献助手插件（已启用）。 |
+| `src/plugins/proofread/word_marks.py` | Word 校对标记的清除逻辑（从 word_monitor 拆出）。 |
+| `src/plugins/reference/reference_store.py` | 参考文献数据层：集中 CSV 是唯一事实源（可整份替换，不回写文献库）。 |
+| `src/plugins/reference/reference_index.py` | 参考文献派生索引（SQLite，可删可重建）。 |
+| `src/plugins/reference/providers/zotero.py` | Zotero 域代码解析。 |
+| `src/plugins/reference/providers/endnote.py` | EndNote 域代码解析。 |
+| `src/plugins/reference/docx_scan.py` | 离线解析 .docx，抽出可挂备注的引用锚点。 |
+| `src/plugins/reference/library_page.py` | 主页面：浏览/搜索/编辑/导入导出/孤立锚点。 |
+| `src/plugins/reference/overlay.py` | 引用处悬浮窗（拖动/置顶/关闭/多篇堆叠/备注自动保存）。 |
+| `src/plugins/reference/overlay_geometry.py` | 悬浮窗定位纯函数（可单测）。 |
+| `src/plugins/reference/word_watch.py` | COM 选区监听（QThread），识别光标所在引用。 |
