@@ -53,7 +53,7 @@ def test_chapters_and_items(sample_docx):
 
     result = scan_docx(sample_docx)
 
-    assert result.chapters == ["章标题", "第2章  方法"], result.chapters
+    assert result.chapters == ["第1章", "第2章  方法"], result.chapters   # 占位符"章标题"补成"第1章"
     assert result.chapter_level == 2, "模板用 heading 2 当章标题"
     assert len(result.table_items()) == 1
     assert len(result.figure_items()) == 2, "图注续行（1.1)）不应被当成题录"

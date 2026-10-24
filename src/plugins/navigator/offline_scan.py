@@ -91,6 +91,29 @@ def _heading_level(style_name: str) -> int:
     return int(match.group(1)) if match else 0
 
 
+#: 章标题占位符（论文模板常见）：识别出来也显示"第N章"，否则下拉里会是三行一样的"章标题"
+PLACEHOLDER_TITLES = {"章标题", "标题", "chapter title", "章", "chapter", ""}
+
+#: 后置章节（不编"第N章"）
+BACK_MATTER = ("参考文献", "致谢", "附录", "摘要", "abstract", "references",
+               "acknowledg", "appendix", "结论与展望")
+
+_CHAPTER_NUM_RE = re.compile(r"第\s*[0-9一二三四五六七八九十百零]+\s*章")
+_LEADING_NUM_RE = re.compile(r"^\s*[0-9]+[.\s、]")
+
+
+def chapter_label(index: int, text: str) -> str:
+    """章节下拉里显示的名字：已有编号就原样用，否则补"第N章"。"""
+    text = (text or "").strip()
+    if _CHAPTER_NUM_RE.search(text) or _LEADING_NUM_RE.match(text):
+        return text
+    if any(word in text.lower() for word in BACK_MATTER):
+        return text
+    if text in PLACEHOLDER_TITLES or len(text) <= 2:
+        return f"第{index + 1}章"
+    return f"第{index + 1}章 {text}"
+
+
 def _kind_of(text: str, style_name: str, paragraph: ET.Element) -> str | None:
     """判断段落是不是题注；返回 table / figure / None。
 
@@ -166,7 +189,7 @@ def scan_docx(docx_path: str) -> OfflineResult:
     for index, (level, text) in enumerate(titles):
         if level == chapter_level:
             mapping[index] = len(result.chapters)
-            result.chapters.append(text)
+            result.chapters.append(chapter_label(len(result.chapters), text))
     result.chapter_level = chapter_level
 
     def chapter_index(heading_index: int) -> int:
@@ -188,3 +211,8 @@ def chapter_of(result: OfflineResult, index: int) -> str:
     if 0 <= index < len(result.chapters):
         return result.chapters[index]
     return ""
+
+
+def chapter_key(text: str) -> str:
+    """题录文本归一化，用于把离线章节信息对到 COM 扫出来的条目上。"""
+    return (text or "").split("  [", 1)[0].strip()

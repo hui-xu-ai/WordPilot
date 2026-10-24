@@ -45,10 +45,21 @@ class _FakeFind:
         return self.hit
 
 
+class _FakeContent:
+    """模拟 Word 的 Range：既有 Find，也能被 Select（老跳转路径）。"""
+
+    def __init__(self, hit: bool):
+        self.Find = _FakeFind(hit)
+        self.selected = False
+
+    def Select(self):        # noqa: N802
+        self.selected = True
+
+
 class _FakeDoc:
     def __init__(self, hit: bool):
         self.range_calls: list[tuple[int, int]] = []
-        self.Content = type("Content", (), {"Find": _FakeFind(hit)})()
+        self.Content = _FakeContent(hit)
 
     def Range(self, start, end):    # noqa: N802
         self.range_calls.append((start, end))

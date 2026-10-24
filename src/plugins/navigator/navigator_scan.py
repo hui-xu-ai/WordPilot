@@ -20,6 +20,23 @@ logger = logging.getLogger(__name__)
 class ScanMixin:
     """扫描与缓存相关方法。"""
 
+    def _apply_chapter_tags(self) -> None:
+        """COM 扫描补出页码/跳转引用后，把离线扫描的章节信息续回条目上。
+
+        否则"离线先出列表（有章节）→ 点刷新走 COM（有页码）"这一步会把章节抹掉，
+        章节下拉退化成只有"全部章节"（用户实测反馈）。
+        """
+        chapter_map = getattr(self, "_chapter_map", None)
+        if not chapter_map:
+            return
+        from plugins.navigator.offline_scan import chapter_key
+
+        for captions in (self.table_captions, self.figure_captions):
+            for item in captions:
+                key = chapter_key(item.display)
+                if key in chapter_map:
+                    item.chapter = chapter_map[key]
+
     def _try_offline_scan(self, full_path: str) -> bool:
         """离线快速刷新：解析 docx 拿章节与题注，成功则直接渲染列表并返回 True。
 
@@ -40,6 +57,10 @@ class ScanMixin:
             return False        # 没有可识别题录时交给 COM 再试一次（可能用了不常见的样式）
 
         self._chapters = list(result.chapters)
+        from plugins.navigator.offline_scan import chapter_key
+
+        # 题录文本 → 章节下标：COM 路径补页码后据此把章节信息"续"回去
+        self._chapter_map = {chapter_key(i.text): i.chapter for i in result.items}
         self.table_captions = [CaptionItem(display=i.text, chapter=i.chapter)
                                for i in result.table_items()]
         self.figure_captions = [CaptionItem(display=i.text, chapter=i.chapter)
@@ -292,9 +313,10 @@ class ScanMixin:
                 else:
                     self._new_figure.append(item)
 
-            # 3. 更新实例数据源
+            # 3. 更新实例数据源（把离线章节信息续上）
             self.table_captions = self._new_table
             self.figure_captions = self._new_figure
+            self._apply_chapter_tags()
 
             # 4. 刷新界面列表
             self.filter_lists()
@@ -350,6 +372,7 @@ class ScanMixin:
             
         self.table_captions = self._new_table
         self.figure_captions = self._new_figure
+        self._apply_chapter_tags()
         self.filter_lists()
         # 恢复标签页
         if self.last_tab_index == 1 and self.figure_list.count() > 0:
