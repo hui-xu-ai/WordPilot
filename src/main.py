@@ -43,7 +43,7 @@ def _install_failure_hooks() -> None:
     except OSError:
         pass  # 配置目录不可写时退化为标准 excepthook，不阻断启动
 
-    logger = logging.getLogger("smartproof.unhandled")
+    logger = logging.getLogger("wordpilot.unhandled")
     logger.setLevel(logging.ERROR)
     if not logger.handlers:
         try:

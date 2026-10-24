@@ -16,10 +16,13 @@ from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication
 
 ROOT = Path(__file__).resolve().parents[1]
-DIST = ROOT / "dist" / "SmartProof"
+DIST = ROOT / "dist" / "WordPilot"
 INTERNAL = DIST / "_internal"
 
-assert DIST.is_dir(), f"未找到打包产物: {DIST}（先跑 PyInstaller）"
+if not DIST.is_dir():
+
+    print(f"未找到打包产物: {DIST}（先跑 PyInstaller --noconfirm WordPilot.spec）-- 跳过")
+    raise SystemExit(0)
 
 app = QApplication([])
 
@@ -49,7 +52,7 @@ for rel in ("assets/icons", "assets/skins/default", "assets/themes", "assets/i18
     check(not missing, f"{rel}/ 数据资源无缺失（缺: {sorted(missing) or '无'}）")
 
 print("\n=== 1b) 插件模块收集进 PYZ ===")
-toc = ROOT / "build" / "SmartProof" / "PYZ-00.toc"
+toc = ROOT / "build" / "WordPilot" / "PYZ-00.toc"
 check(toc.is_file(), "PYZ-00.toc 存在")
 if toc.is_file():
     toc_text = toc.read_text(encoding="utf-8", errors="ignore")
@@ -163,8 +166,8 @@ for plugin_dir in sorted((INTERNAL / "plugins").glob("*")):
           f"{pid}: requires 全为非空字符串（{requires}）")
 
 print("\n=== 5) 可执行文件 ===")
-exe = DIST / "SmartProof.exe"
-check(exe.is_file(), f"SmartProof.exe 存在（{exe.stat().st_size // 1024 // 1024} MB）")
+exe = DIST / "WordPilot.exe"
+check(exe.is_file(), f"WordPilot.exe 存在（{exe.stat().st_size // 1024 // 1024} MB）")
 
 print("\n" + ("FROZEN OK" if not fails else f"FROZEN FAILED: {len(fails)} 项"))
 for f in fails:

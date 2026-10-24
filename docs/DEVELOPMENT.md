@@ -1,6 +1,6 @@
 # 开发与更新规范 · DEVELOPMENT
 
-本文件约定 SmartProof 的协作方式：代码规范、Git 工作流、隐私红线、版本发布与更新流程。目标是让项目能安全、可持续地推送到 GitHub 并长期维护。
+本文件约定 WordPilot 的协作方式：代码规范、Git 工作流、隐私红线、版本发布与更新流程。目标是让项目能安全、可持续地推送到 GitHub 并长期维护。
 
 ## 1. 隐私红线（最高优先级）
 
@@ -27,7 +27,7 @@
 - 源码：`src/`
 - 文档：`docs/`
 - 运行时隐私数据：`src/config/`（已 gitignore，仅提交 `*.example.json`）
-- 打包配置：根目录 `SmartProof.spec`
+- 打包配置：根目录 `WordPilot.spec`
 
 ## 4. Git 工作流（GitHub 规范）
 

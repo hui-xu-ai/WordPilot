@@ -1,4 +1,4 @@
-# SmartProof · Word 智能伴侣
+# WordPilot
 
 面向中文毕业论文 / 科技论文写作场景的 Microsoft Word 桌面辅助工具。基于 **PySide6 + pywin32(COM)**，通过 **DeepSeek API** 提供智能纠错能力，并内置题录导航、图片无损裁剪等论文写作实用工具。
 
@@ -55,7 +55,7 @@ python src\main.py
 ## 项目结构（分层 + 微内核 + 插件化）
 
 ```
-SmartProof/
+WordPilot/
 ├── src/                     # 全部源码（以 src/ 为 import 根）
 │   ├── __version__.py       # 应用名/版本号/作者的唯一来源
 │   ├── main.py              # 入口：建内核→建外壳→挂 UI→加载插件（无业务装配）
@@ -84,7 +84,7 @@ SmartProof/
 │   └── config/              # 运行时数据目录（隐私文件已 gitignore）
 ├── docs/                    # ARCHITECTURE / PLUGIN_GUIDE / DEVELOPMENT / BUILD
 ├── requirements.txt
-├── SmartProof.spec          # PyInstaller 打包配置（显式收集各插件包）
+├── WordPilot.spec          # PyInstaller 打包配置（显式收集各插件包）
 └── .gitignore
 ```
 

@@ -5,8 +5,8 @@
 插件自身版本以各插件的 plugin.json 为准，与本文件无关。
 """
 
-APP_NAME = "Word智能伴侣"
-__version__ = "3.0"
+APP_NAME = "WordPilot"
+__version__ = "3.1"
 AUTHOR = "Xu Hui"
 
 # 标题栏只显示软件名（版本/作者移到设置 →「关于」，避免更新后标题里版本没跟着变）

@@ -1,9 +1,9 @@
-# SmartProof 模块架构模型（事实源：本文件 + 各文件头 docstring）
+# WordPilot 模块架构模型（事实源：本文件 + 各文件头 docstring）
 # public 为空 = 不限制跨模块 import；填了则只允许 import 这些路径
 # entrypoints = 该模块的入口/公开面（供 AI 与面板展示）
 
 [project]
-title = "SmartProof"
+title = "WordPilot"
 python_roots = ["src"]
 max_lines_warn = 400
 max_lines_fail = 600

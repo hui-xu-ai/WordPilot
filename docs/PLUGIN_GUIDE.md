@@ -1,6 +1,6 @@
 # 插件开发指南 · PLUGIN GUIDE
 
-SmartProof 采用**微内核 + 插件**架构：内核只提供生命周期与基础服务，
+WordPilot 采用**微内核 + 插件**架构：内核只提供生命周期与基础服务，
 所有具体功能（`proofread` / `navigator` / `image_toolbox` / `reference` …）
 都是 `plugins/` 下的独立包。
 
@@ -177,7 +177,7 @@ ctx.events.emit("my_feature.done", payload)
 
 插件入口是**动态 import**，PyInstaller 静态扫描不到，新增插件时必须：
 
-1. 在 `SmartProof.spec` 的 `hiddenimports` 里加 `plugins.<id>.plugin`；
+1. 在 `WordPilot.spec` 的 `hiddenimports` 里加 `plugins.<id>.plugin`；
 2. spec 已自动逐文件收集 `plugins/*/plugin.json`、`plugins/*/i18n/*.json`、
    `assets/themes/*`、`assets/i18n/*.json`、`assets/skins/*/*`（**一律逐文件展开**，
    禁止目录级 datas，否则同名文件会互相覆盖只剩最后一份）；

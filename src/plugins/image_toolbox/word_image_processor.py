@@ -372,7 +372,7 @@ class WordImageProcessor:
             doc = self.word_app.ActiveDocument
             try:
                 undo = self.word_app.UndoRecord
-                undo.StartCustomRecord("SmartProof 图片处理")
+                undo.StartCustomRecord("WordPilot 图片处理")
             except Exception:
                 undo = None
 

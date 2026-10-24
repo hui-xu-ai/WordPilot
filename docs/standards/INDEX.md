@@ -1,4 +1,4 @@
-# SmartProof 标准与门索引
+# WordPilot 标准与门索引
 
 > 生命周期门（G0–G6）与 `STD-*` 的**全局定义**在 pydev 预设 `docs/standards/INDEX.md`；
 > 本文件只列**本项目**特有的规则与机械检查，不重复全局正文。

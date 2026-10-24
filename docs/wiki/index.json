@@ -5,9 +5,9 @@
   "entries": [
     {
       "path": "AGENTS.md",
-      "title": "SmartProof 工作区（pydev 预设）",
+      "title": "WordPilot 工作区（pydev 预设）",
       "headings": [
-        "SmartProof 工作区（pydev 预设）",
+        "WordPilot 工作区（pydev 预设）",
         "会话开始",
         "事实",
         "红线",
@@ -15,8 +15,8 @@
         "预设维护"
       ],
       "tags": [],
-      "bytes": 2607,
-      "mtime": "2026-10-23T15:45:55.855752+00:00",
+      "bytes": 2603,
+      "mtime": "2026-10-24T05:10:06.501793+00:00",
       "archive": false
     },
     {
@@ -90,15 +90,15 @@
         "8. GUI 重设计要点（P1~P5 已落地）"
       ],
       "tags": [],
-      "bytes": 13389,
-      "mtime": "2026-10-24T03:42:21.133345+00:00",
+      "bytes": 13388,
+      "mtime": "2026-10-24T05:10:06.504793+00:00",
       "archive": false
     },
     {
       "path": "docs/architecture/CODE_MAP.md",
-      "title": "SmartProof · 代码地图（CODE_MAP）",
+      "title": "WordPilot · 代码地图（CODE_MAP）",
       "headings": [
-        "SmartProof · 代码地图（CODE_MAP）",
+        "WordPilot · 代码地图（CODE_MAP）",
         "app（8 文件）",
         "core（26 文件）",
         "infra（3 文件）",
@@ -107,8 +107,8 @@
       "tags": [
         "architecture"
       ],
-      "bytes": 6113,
-      "mtime": "2026-10-23T09:24:41.443463+00:00",
+      "bytes": 6112,
+      "mtime": "2026-10-24T05:11:15.037104+00:00",
       "archive": false
     },
     {
@@ -175,15 +175,15 @@
         "建议使用独立虚拟环境打包，避免污染开发环境",
         "生成 Word COM 类型库（修复智能提示/常量报错）",
         "打包",
-        "标准打包（使用项目根目录的 SmartProof.spec）",
+        "标准打包（使用项目根目录的 WordPilot.spec）",
         "若 UPX 未加入 PATH，指定 UPX 目录以压缩体积",
-        "spec 要点（SmartProof.spec）",
+        "spec 要点（WordPilot.spec）",
         "运行前置条件",
         "分发注意"
       ],
       "tags": [],
-      "bytes": 2209,
-      "mtime": "2026-10-13T17:25:10.232653+00:00",
+      "bytes": 2203,
+      "mtime": "2026-10-24T05:10:06.506793+00:00",
       "archive": false
     },
     {
@@ -201,8 +201,8 @@
         "8. 待办 / 技术债（Backlog）"
       ],
       "tags": [],
-      "bytes": 5516,
-      "mtime": "2026-10-16T16:09:38.791683+00:00",
+      "bytes": 5514,
+      "mtime": "2026-10-24T05:10:06.508794+00:00",
       "archive": false
     },
     {
@@ -227,8 +227,8 @@
         "7. 现成范例"
       ],
       "tags": [],
-      "bytes": 9210,
-      "mtime": "2026-10-24T04:33:22.857651+00:00",
+      "bytes": 9208,
+      "mtime": "2026-10-24T05:10:06.512794+00:00",
       "archive": false
     },
     {
@@ -259,24 +259,24 @@
     },
     {
       "path": "docs/standards/INDEX.md",
-      "title": "SmartProof 标准与门索引",
+      "title": "WordPilot 标准与门索引",
       "headings": [
-        "SmartProof 标准与门索引",
+        "WordPilot 标准与门索引",
         "一、项目红线（STD-SP）",
         "二、门产物约定（本项目）"
       ],
       "tags": [
         "standards"
       ],
-      "bytes": 1884,
-      "mtime": "2026-10-23T04:38:27.695687+00:00",
+      "bytes": 1883,
+      "mtime": "2026-10-24T05:11:15.065525+00:00",
       "archive": false
     },
     {
       "path": "README.md",
-      "title": "SmartProof · Word 智能伴侣",
+      "title": "WordPilot",
       "headings": [
-        "SmartProof · Word 智能伴侣",
+        "WordPilot",
         "功能特性",
         "快速开始",
         "1. 创建并激活虚拟环境",
@@ -289,8 +289,8 @@
         "许可"
       ],
       "tags": [],
-      "bytes": 6066,
-      "mtime": "2026-10-22T09:32:58.408748+00:00",
+      "bytes": 6042,
+      "mtime": "2026-10-24T05:10:27.351996+00:00",
       "archive": false
     }
   ]

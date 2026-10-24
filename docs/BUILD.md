@@ -30,16 +30,16 @@ python -c "from win32com.client import gencache; gencache.EnsureModule('{0002090
 ## 打包
 
 ```bash
-# 标准打包（使用项目根目录的 SmartProof.spec）
-pyinstaller --clean SmartProof.spec
+# 标准打包（使用项目根目录的 WordPilot.spec）
+pyinstaller --clean WordPilot.spec
 
 # 若 UPX 未加入 PATH，指定 UPX 目录以压缩体积
-pyinstaller --upx-dir "D:\Tool\upx" --clean SmartProof.spec
+pyinstaller --upx-dir "D:\Tool\upx" --clean WordPilot.spec
 ```
 
-产物在 `dist/SmartProof/`（`SmartProof.exe` + `_internal/`）。`build/` 为中间产物，二者均已 gitignore。
+产物在 `dist/WordPilot/`（`WordPilot.exe` + `_internal/`）。`build/` 为中间产物，二者均已 gitignore。
 
-## spec 要点（SmartProof.spec）
+## spec 要点（WordPilot.spec）
 
 - 入口 `src/main.py`，`pathex=['src']`。
 - 打包资源：`icon_float.png`、`tray_icon.png`、`config/MWindow_config.json`、`config/navigator_config.json`。

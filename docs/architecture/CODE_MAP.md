@@ -1,4 +1,4 @@
-# SmartProof · 代码地图（CODE_MAP）
+# WordPilot · 代码地图（CODE_MAP）
 
 > 由 `proj arch map` 从**文件头 docstring**生成；改职责请改文件头，不要改本文件。
 
