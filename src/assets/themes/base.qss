@@ -427,8 +427,9 @@ QLabel#pluginName {
 
 /* ---------- 自绘标题栏（无边框窗口） ---------- */
 QWidget#titleBar {
-    background-color: @color.bg.rail;
-    border-bottom: 1px solid @color.border;
+    /* 比侧栏再深一档：无边框窗口在白色背景上没有系统边框，靠分区色区分边界 */
+    background-color: @color.bg.titlebar;
+    border-bottom: 1px solid @color.border.strong;
 }
 QLabel#titleBarTitle {
     font-weight: bold;

@@ -7,14 +7,15 @@
   "color.on_accent": "#1b1b1b",
 
   "color.bg.window": "#202020",
-  "color.bg.rail": "#262626",
+  "color.bg.rail": "#26262c",
+  "color.bg.titlebar": "#1d1d23",
   "color.bg.card": "#2b2b2b",
   "color.bg.subtle": "#252525",
-  "color.bg.hover": "#343434",
-  "color.bg.selected": "#3d3d3d",
+  "color.bg.hover": "#34343c",
+  "color.bg.selected": "#3f3f48",
   "color.bg.disabled": "#2a2a2a",
 
-  "color.border": "#3d3d3d",
+  "color.border": "#4a4a55",
   "color.border.strong": "#555555",
   "color.border.focus": "#4cc2ff",
 
