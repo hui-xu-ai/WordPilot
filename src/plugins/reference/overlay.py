@@ -28,6 +28,7 @@ AUTOSAVE_MS = 800
 MAX_VISIBLE = 8
 WIDTH = 360
 MAX_HEIGHT = 520
+MIN_HEIGHT = 84
 
 
 @dataclass
@@ -105,8 +106,7 @@ class _EntryCard(QFrame):
         self.note_edit = QTextEdit()
         self.note_edit.setObjectName("referenceNote")
         self.note_edit.setPlainText(entry.note)
-        self.note_edit.setMinimumHeight(40)
-        self.note_edit.setMaximumHeight(80)
+        self.note_edit.setFixedHeight(46)      # 大约两行文字，用户预设够用
         self.note_edit.setPlaceholderText(tr("overlay.note_placeholder"))
         layout.addWidget(self.note_edit)
         self.note_edit.textChanged.connect(self._on_text_changed)
@@ -179,9 +179,9 @@ class ReferenceOverlay(QWidget):
         header.setContentsMargins(8, 4, 6, 2)
         header.setSpacing(0)
         header.addStretch(1)
-        self.close_btn = QPushButton("✕")
+        self.close_btn = QPushButton("❌")
         self.close_btn.setObjectName("referenceOverlayClose")
-        self.close_btn.setFixedSize(22, 22)
+        self.close_btn.setFixedSize(24, 22)
         self.close_btn.setCursor(Qt.PointingHandCursor)
         self.close_btn.setToolTip(self._tr("overlay.close_tip"))
         self.close_btn.clicked.connect(self._on_close_clicked)
@@ -207,13 +207,25 @@ class ReferenceOverlay(QWidget):
             self.hide_overlay()
             return
         self._rebuild(visible)
+        self._fit_height()
         self.adjustSize()
-        self.setMaximumHeight(MAX_HEIGHT)
         area = self._work_area(anchor)
         x, y = place_near(anchor[0], anchor[1], self.width(), self.height(), area)
         self.move(x, y)
         self.show()
         self.raise_()
+
+    def _fit_height(self) -> None:
+        """按内容定高：单条文献不留空白，多条才封顶到 MAX_HEIGHT 走滚动。
+
+        直接累加每张卡片的 sizeHint（备注框是固定两行高），不依赖滚动区的 sizeHint 刷新时机。
+        """
+        self._body_layout.activate()
+        cards = sum(card.sizeHint().height() for card in self._cards)
+        gaps = max(0, len(self._cards) - 1) * self._body_layout.spacing()
+        chrome = self.title_bar_host.height() + 16      # 顶部细条 + 内外边距
+        content = cards + gaps + 8
+        self.setFixedHeight(max(MIN_HEIGHT, min(content + chrome, MAX_HEIGHT)))
 
     def hide_overlay(self) -> None:
         for card in self._cards:

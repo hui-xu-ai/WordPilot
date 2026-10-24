@@ -146,3 +146,29 @@ def test_force_edit_entry_shows_note_editor(overlay):
                          force_edit=True)
     widget.show_entries([entry], (300, 200))
     assert hasattr(widget._cards[0], "note_edit"), "已建/已绑的条目要能直接写备注"
+
+def test_note_box_is_two_lines_high(overlay):
+    """备注框固定两行高（用户预设最多两行）。"""
+    widget, _store = overlay
+    widget.show_entries([_entry("zotero:1", "1")], (300, 200))
+    assert widget._cards[0].note_edit.height() == 46
+
+
+def test_close_button_shows_cross_glyph(overlay):
+    widget, _store = overlay
+    widget.show_entries([_entry("zotero:1", "1")], (300, 200))
+    assert widget.close_btn.text() == "❌"
+
+
+def test_single_entry_height_is_compact(overlay):
+    """单条文献不留大空白：高度随内容，多条才封顶。"""
+    widget, _store = overlay
+    widget.show_entries([_entry("zotero:1", "1")], (300, 200))
+    single = widget.height()
+
+    widget.show_entries([_entry(f"zotero:{i}", str(i)) for i in range(1, 5)], (300, 200))
+    multi = widget.height()
+
+    assert single < multi, "单条应比多条矮"
+    assert single <= 200, f"单条高度不该留大空白，实际 {single}"
+    assert multi <= 520
