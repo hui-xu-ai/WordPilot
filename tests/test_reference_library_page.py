@@ -139,3 +139,38 @@ def test_counts_reflect_notes_and_orphans(page):
     text = widget.status_label.text()
     assert "total=2" in text or "{total}" not in text
     assert widget.orphan_list.count() == 1
+
+def test_translations_are_resolved_not_raw_keys(qapp, tmp_path: Path):
+    """回归：界面里不能再出现 `reference.xxx` 这种原始键名（曾经双前缀导致满屏键名）。"""
+    from plugins.reference.library_page import LibraryPage
+    from plugins.reference.reference_index import ReferenceIndex
+    from plugins.reference.reference_store import ReferenceStore
+
+    class _I18n:
+        """模拟真实 ctx.tr：自动加插件前缀，并在字典里查词。"""
+
+        _DICT = {
+            "page_label": "参考文献助手",
+            "search.placeholder": "搜索…",
+            "action.new": "新建", "action.import": "导入", "action.export": "导出",
+            "action.open_dir": "打开目录", "action.save": "保存", "action.delete": "删除",
+            "action.bind_orphan": "绑定", "field.key": "身份键", "field.note": "备注",
+        }
+
+        def __call__(self, key, /, **params):
+            return self._DICT.get(key, f"MISSING:{key}")
+
+    class _CtxWithI18n:
+        def tr(self, key, /, **params):
+            return _I18n()(key, **params)
+
+    store = ReferenceStore(directory=tmp_path)
+    index = ReferenceIndex(db_path=tmp_path / "index.db")
+    try:
+        page = LibraryPage(_CtxWithI18n(), store, index)
+        assert page.title_label.text() == "参考文献助手"
+        assert page.new_btn.text() == "新建"
+        assert not page.search_edit.placeholderText().startswith("MISSING")
+    finally:
+        index.close()
+        page.deleteLater()

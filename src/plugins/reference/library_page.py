@@ -48,8 +48,13 @@ class LibraryPage(QWidget):
 
     # ---------------- 文案 ----------------
     def tr(self, key: str, /, **params) -> str:
+        """`ctx.tr()` **已经**自动加 `<plugin_id>.` 前缀，这里绝不能再加一次。
+
+        曾经写成 `f"{PLUGIN_ID}.{key}"` ⇒ 界面全是 `reference.reference.page_label`
+        这类键名（用户看到的就是一屏拉丁字母），属于低级错误，测试已钉住。
+        """
         try:
-            return self._ctx.tr(f"{PLUGIN_ID}.{key}", **params)
+            return self._ctx.tr(key, **params)
         except Exception:
             return key
 
