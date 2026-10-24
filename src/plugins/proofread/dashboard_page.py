@@ -202,6 +202,11 @@ class DashboardPage(QWidget):
             "proof_prompt": self.proof_prompt_edit.toPlainText(),
         }
         if self._config.update(payload):
+            # 透明度/字号立即生效（不必等下一句建议）
+            pet = getattr(self._plugin, "floating_btn", None)
+            bubble = getattr(pet, "bubble", None) if pet is not None else None
+            if bubble is not None and hasattr(bubble, "apply_style"):
+                bubble.apply_style(self._config)
             self._plugin.ctx.events.emit("settings.saved", None)
             self.status_label.setText(self.tr("settings.saved"))
         else:

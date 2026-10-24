@@ -573,6 +573,7 @@ QWidget#suggestionPill {
 }
 QWidget#suggestionPill QPushButton {
     min-height: 22 px;
+    outline: none;      /* 去掉点击后那圈虚线焦点框（用户反馈"红色虚线"） */
     border: none;
     border-radius: 11 px;
     padding: 2 px 12 px;

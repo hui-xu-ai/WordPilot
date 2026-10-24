@@ -95,24 +95,20 @@ class SuggestionCard(QWidget):
         self.diff_layout.setSpacing(2)
         container_layout.addWidget(self.diff_widget)
 
-        # 按钮行（确认 / 忽略）：右对齐、小尺寸，别占半屏
+        # 按钮行（确认 / 忽略）：左右各占一半，对齐更稳
         self.btn_container = QWidget()
         btn_layout = QHBoxLayout(self.btn_container)
         btn_layout.setContentsMargins(0, 0, 0, 0)
-        btn_layout.setSpacing(6)
-        btn_layout.addStretch(1)
+        btn_layout.setSpacing(8)
         self.accept_btn = QPushButton(self.tr("bubble.accept"))
         self.ignore_btn = QPushButton(self.tr("bubble.ignore"))
         self.accept_btn.setProperty("accent", True)
         for button in (self.accept_btn, self.ignore_btn):
             button.setCursor(Qt.PointingHandCursor)
             button.setFixedHeight(26)
-            button.setMinimumWidth(58)
-            button.setMaximumWidth(96)      # 字体缺失/长文案时也不要撑满整行
-            # 固定宽度，否则按钮会把整行撑满（QPushButton 默认会随布局扩展）
-            button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        btn_layout.addWidget(self.accept_btn)
-        btn_layout.addWidget(self.ignore_btn)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        btn_layout.addWidget(self.accept_btn, 1)
+        btn_layout.addWidget(self.ignore_btn, 1)
         container_layout.addWidget(self.btn_container)
 
         # 信号连接（保持不变）
@@ -147,6 +143,33 @@ class SuggestionCard(QWidget):
             if widget:
                 widget.deleteLater()
         self._perfect_label = None
+
+    def apply_style(self, config) -> None:
+        """应用"透明度 / 字号"两项动态样式（设置保存后需立即生效）。
+
+        - 透明度量的是**整个桌宠窗口**（气泡是它的子部件，`setWindowOpacity` 只对顶层窗口有效）；
+        - 字号作用在气泡自身与差异行标签上，避免只改容器不传子控件。
+        """
+        from PySide6.QtGui import QFont
+
+        try:
+            opacity = float(config.get("suggestion_opacity", 0.95))
+        except (TypeError, ValueError):
+            opacity = 0.95
+        window = self.window()
+        if window is not None:
+            window.setWindowOpacity(max(0.2, min(1.0, opacity)))
+
+        try:
+            size = int(config.get("suggestion_font_size", 13))
+        except (TypeError, ValueError):
+            size = 13
+        font = QFont(self.font())
+        font.setPointSize(max(8, min(36, size)))
+        self.setFont(font)
+        for label in self.diff_widget.findChildren(QLabel):
+            label.setFont(font)
+        self.adjustSize()
 
     def show_suggestion(self, original, corrected, anchor_point=None, config=None, start=None, end=None):
         self.original_text = original
@@ -250,10 +273,9 @@ class SuggestionCard(QWidget):
             self.diff_layout.addWidget(no_error)
             self.btn_container.setVisible(False)
 
-        # ---- 仅保留与主题无关的动态项：窗口透明度 ----
-        # 颜色一律跟随主题（原 suggestion_bg_color / font_color 已由主题令牌取代）
+        # ---- 动态项：透明度与字号（保存设置后也要能立即生效，见 apply_style）----
         if config:
-            self.setWindowOpacity(config.get("suggestion_opacity", 0.95))
+            self.apply_style(config)
 
         # 重新确定大小
         self.adjustSize()

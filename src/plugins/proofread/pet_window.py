@@ -333,8 +333,16 @@ class PetWindow(QWidget):
         单一事实源是「宠物矩形」（`_pet_anchor`）：布局变化后用"宠物应该在哪"反推窗口左上角，
         而不是像旧实现那样补偿"上一次的窗口底边"——后者会随每次补偿累积误差，
         表现为显隐几次之后宠物慢慢漂移。
+
+        另外整段重排**关闭重绘**后再一次性打开：分层窗口（半透明）在"先按新尺寸画一帧、再 move"
+        的中间态会被用户看成"闪一下"，用一个几何变更代替两次重绘即可消掉。
         """
-        self._reflow_keeping_pet()
+        self.setUpdatesEnabled(False)
+        try:
+            self._reflow_keeping_pet()
+        finally:
+            self.setUpdatesEnabled(True)
+        self.update()
         self.bubbleToggled.emit(self.bubble.isVisible())
 
     # ---------- 宠物定位（锚定宠物矩形，不依赖窗口底边） ----------

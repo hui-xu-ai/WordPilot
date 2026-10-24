@@ -176,3 +176,17 @@ def test_window_grows_upward_when_bubble_appears(qapp):
     assert abs(pet.frameGeometry().bottom() - bottom_before) <= 2, "窗口底边应基本不动"
     pet.close()
 
+
+def test_apply_style_sets_opacity_and_font(qapp):
+    """保存设置后透明度/字号必须立刻生效（用户反馈"没生效"）。"""
+    pet = _make_pet()
+    config = pet.config
+    config["suggestion_opacity"] = 0.55
+    config["suggestion_font_size"] = 21
+
+    pet.bubble.show_suggestion("原句", "改句", None, config)
+    pet.bubble.apply_style(config)
+
+    assert abs(pet.window().windowOpacity() - 0.55) < 0.01
+    assert pet.bubble.font().pointSize() == 21
+    pet.close()
