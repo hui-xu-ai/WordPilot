@@ -1,8 +1,11 @@
 # tests/test_reference_word_watch.py
 """选区识别规则：只认"文献类引用"，图注/编号域绝不触发。
 
-用户实测反馈两件事：① 点导航跳到**图注**会误弹窗；② EndNote 插入的引用（域里没有数据）
-点了没反应。这两个都已用测试钉住。
+用户实测反馈三件事，都已用测试钉住：
+① 点导航跳到**图注**会误弹窗；
+② EndNote 插入的引用（域里没有元数据）点了没反应；
+③ **单击**引用（折叠光标，`Selection.Text` 为空）时也必须有反应 —— 编号要从
+   `Field.Result.Text` 取，而不是从选区文本取。
 """
 from __future__ import annotations
 
@@ -12,18 +15,25 @@ from plugins.reference.docx_scan import footnote_anchor
 from plugins.reference.word_watch import resolve_selection, screen_point
 
 
+class _Code:
+    def __init__(self, text: str):
+        self.Text = text
+
+
 class _Field:
-    def __init__(self, code: str):
-        self.Code = type("Code", (), {"Text": code})()
+    def __init__(self, code: str, result: str = ""):
+        self.Code = _Code(code)
+        self.Result = type("R", (), {"Text": result})()
 
 
 class _Fields:
-    def __init__(self, codes: list[str]):
-        self._codes = codes
-        self.Count = len(codes)
+    def __init__(self, fields: list[tuple[str, str]]):
+        self._fields = fields
+        self.Count = len(fields)
 
     def __call__(self, index):
-        return _Field(self._codes[index - 1])
+        code, result = self._fields[index - 1]
+        return _Field(code, result)
 
 
 class _Notes:
@@ -59,6 +69,10 @@ class _Selection:
         self.Information = _Information()
         self.Start = 10
         self.End = 14
+        self.Document = self
+
+    def Range(self, start, end):
+        return type("R", (), {"Fields": self.Fields})()
 
 
 class _Window:
@@ -88,7 +102,7 @@ ZOTERO_CODE = (
 
 
 def test_resolves_zotero_field():
-    payload = resolve_selection(_Word(_Selection(fields=[ZOTERO_CODE])))
+    payload = resolve_selection(_Word(_Selection(fields=[(ZOTERO_CODE, "[1]")])))
     assert payload is not None
     assert payload["doc_name"] == "论文.docx"
     item = payload["items"][0]
@@ -98,38 +112,53 @@ def test_resolves_zotero_field():
 
 def test_cross_reference_field_never_triggers():
     """图注/编号项交叉引用（REF _Ref…）不再弹窗 —— 用户点导航跳图注时被误触发过。"""
-    assert resolve_selection(_Word(_Selection(fields=[" REF _Ref225454536 \\h "], text="图 1"))) is None
+    selection = _Selection(fields=[(" REF _Ref225454536 \\h ", "图 1")], text="图 1")
+    assert resolve_selection(_Word(selection)) is None
 
 
 @pytest.mark.parametrize("code", [" SEQ 图 \\* ARABIC ", " STYLEREF 1 \\s ", " REF _Ref1 \\h "])
 def test_numbering_fields_never_trigger(code):
-    assert resolve_selection(_Word(_Selection(fields=[code], text="图 1"))) is None
+    assert resolve_selection(_Word(_Selection(fields=[(code, "图 1")], text="图 1"))) is None
 
 
 @pytest.mark.parametrize("style", ["题注", "Caption", "caption 1"])
 def test_caption_paragraph_never_triggers(style):
-    selection = _Selection(fields=[ZOTERO_CODE], style=style)
+    selection = _Selection(fields=[(ZOTERO_CODE, "[1]")], style=style)
     assert resolve_selection(_Word(selection)) is None, "题注段落里的任何位置都不弹"
 
 
 def test_endnote_shell_field_triggers_unbound_anchor():
     """EndNote 只写了域壳（无数据）时也要弹，锚点退回文档编号。"""
-    payload = resolve_selection(_Word(_Selection(fields=[" ADDIN EN.JS.CITE "], text="[3]")))
+    payload = resolve_selection(_Word(_Selection(fields=[(" ADDIN EN.JS.CITE ", "[3]")])))
     assert payload is not None
     item = payload["items"][0]
     assert item["anchor_key"] == "doc:论文.docx:cite:3"
     assert item["reference"] is None, "没有元数据 → 由用户绑定/新建"
 
 
+def test_collapsed_caret_click_uses_field_result_text():
+    """**单击**引用（没有选中任何文字）时，编号要从 Field.Result.Text 取。
+
+    这是"点了没反应"的真正原因：旧实现只看 `Selection.Text`，折叠光标下它是空串。
+    """
+    selection = _Selection(fields=[(" ADDIN EN.JS.CITE ", "[1]")], text="")
+    payload = resolve_selection(_Word(selection))
+    assert payload is not None
+    assert payload["items"][0]["anchor_key"] == "doc:论文.docx:cite:1"
+    assert payload["items"][0]["label"] == "1"
+
+
 def test_endnote_data_field_also_triggers():
-    payload = resolve_selection(_Word(_Selection(fields=[" ADDIN EN.CITE.DATA "], text="[7]")))
+    payload = resolve_selection(_Word(_Selection(fields=[(" ADDIN EN.CITE.DATA ", "[7]")])))
     assert payload is not None
     assert payload["items"][0]["anchor_key"] == "doc:论文.docx:cite:7"
 
 
-def test_endnote_shell_without_label_is_ignored():
-    """连编号都取不到时无法确定身份，宁可不弹也不要弹一个空壳。"""
-    assert resolve_selection(_Word(_Selection(fields=[" ADDIN EN.JS.CITE "], text=""))) is None
+def test_endnote_shell_without_label_falls_back_to_result_hash():
+    """连编号都取不到时也不能"点了没反应"：用域结果文本哈希兜底，先弹出来让用户绑。"""
+    payload = resolve_selection(_Word(_Selection(fields=[(" ADDIN EN.JS.CITE ", "")], text="")))
+    assert payload is not None
+    assert payload["items"][0]["anchor_key"].startswith("doc:论文.docx:cite:")
 
 
 def test_resolves_footnote_by_text_hash():

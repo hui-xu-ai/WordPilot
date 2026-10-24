@@ -43,13 +43,48 @@ def _hash_text(text: str) -> str:
 
 
 def _field_code(selection) -> str:
+    """兼容旧调用：只要域指令文本。"""
+    return _field_info(selection)[0]
+
+
+def _field_info(selection) -> tuple[str, str]:
+    """返回 (域指令, 域结果文本)。
+
+    用户"只点一下"引用时选区是折叠光标，`Selection.Fields` 有时为空，但
+    `Selection.Range.Fields` 或"前后各扩一个字符"的 Range 仍能找到该域；
+    这里按这三条路径依次尝试，避免"点了没反应"。
+    """
+    candidates = []
     try:
-        fields = selection.Fields
-        if fields is not None and fields.Count >= 1:
-            return (fields(1).Code.Text or "").strip()
+        candidates.append(selection.Fields)
     except Exception:                      # noqa: BLE001
         pass
-    return ""
+    try:
+        candidates.append(selection.Range.Fields)
+    except Exception:                      # noqa: BLE001
+        pass
+    try:
+        start = int(selection.Start)
+        end = int(selection.End)
+        document = selection.Document
+        candidates.append(document.Range(max(0, start - 1), end + 1).Fields)
+    except Exception:                      # noqa: BLE001
+        pass
+
+    for fields in candidates:
+        try:
+            if fields is None or fields.Count < 1:
+                continue
+            field = fields(1)
+            code = (field.Code.Text or "").strip()
+            try:
+                result = (field.Result.Text or "").strip()
+            except Exception:              # noqa: BLE001
+                result = ""
+            return code, result
+        except Exception:                  # noqa: BLE001
+            continue
+    return "", ""
 
 
 def _is_caption_paragraph(selection) -> bool:
@@ -85,25 +120,33 @@ def resolve_selection(word) -> dict | None:
         return None
 
     items: list[dict] = []
-    code = _field_code(selection)
+    code, result_text = _field_info(selection)
     if code and _NUMBER_FIELD.match(code):
-        code = ""                          # 图/表/章节号 → 不是文献引用
+        code, result_text = "", ""         # 图/表/章节号 → 不是文献引用
+
+    selection_text = ""
+    try:
+        selection_text = getattr(selection, "Text", "") or ""
+    except Exception:                      # noqa: BLE001
+        selection_text = ""
 
     if code:
         reference = parse_csl_citation(code) or parse_endnote_cite(code)
+        label = _first_label(result_text, selection_text, code)
         if reference is not None:
-            label = _first_label(getattr(selection, "Text", ""))
             items.append({"anchor_key": reference.ref_key, "label": label,
                           "reference": reference, "doc_name": doc_name})
         elif _ENDNOTE_SHELL.match(code):
             # EndNote 只写了域壳（数据在 .Data 文件里或在库里）：按文档编号建锚点，
             # 弹「未绑定」卡片让用户绑到库里的文献（比"点了没反应"好）。
-            label = _first_label(getattr(selection, "Text", ""), code)
-            if label:
-                items.append({
-                    "anchor_key": f"doc:{doc_name}:cite:{label}",
-                    "label": label, "reference": None, "doc_name": doc_name,
-                })
+            identity = label or _hash_text(result_text or code)
+            items.append({
+                "anchor_key": f"doc:{doc_name}:cite:{identity}",
+                "label": label, "reference": None, "doc_name": doc_name,
+            })
+            logger.debug("识别到 EndNote 空壳域：label=%r 结果文本=%r", label, result_text[:60])
+        else:
+            logger.debug("未识别的域指令（不弹窗）：%r", code[:80])
 
     if not items:
         try:
