@@ -135,7 +135,7 @@ class DeepSeekClient:
 
         result = self._call_api(messages)
         tokens = self.last_usage or {"prompt": 0, "completion": 0, "total": 0}
-        log_api_call("proof", text, result or "", tokens, bool(result))
+        log_api_call("proof", text, result or "", tokens, bool(result), latency_ms=self.last_latency_ms)
         if result is None:
             return None
         result = result.strip()
@@ -155,7 +155,7 @@ class DeepSeekClient:
         ]
         result = self._call_api(messages)
         tokens = self.last_usage or {"prompt": 0, "completion": 0, "total": 0}
-        log_api_call("translate", text, result or "", tokens, bool(result))
+        log_api_call("translate", text, result or "", tokens, bool(result), latency_ms=self.last_latency_ms)
         return None if result is None else result.strip()
 
     def rewrite(self, text: str, style: str = "更流畅") -> str | None:
@@ -171,7 +171,7 @@ class DeepSeekClient:
         ]
         result = self._call_api(messages)
         tokens = self.last_usage or {"prompt": 0, "completion": 0, "total": 0}
-        log_api_call("rewrite", text, result or "", tokens, bool(result))
+        log_api_call("rewrite", text, result or "", tokens, bool(result), latency_ms=self.last_latency_ms)
         return None if result is None else result.strip()
 
     def clipboard_proof(self, text: str) -> str | None:

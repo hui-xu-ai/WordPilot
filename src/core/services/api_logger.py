@@ -21,7 +21,12 @@ def _normalize_tokens(tokens):
         total = prompt + completion
     return {"prompt": prompt, "completion": completion, "total": total}
 
-def log_api_call(action, input_text, output_text, tokens, success):
+def log_api_call(action, input_text, output_text, tokens, success, latency_ms=None):
+    """追加一条调用记录。
+
+    `latency_ms`：本次请求的真实往返耗时（ms），用于事后判断"慢在网络还是慢在生成"；
+    `tokens` 里的 `prompt_cache_hit_tokens` 可看出提示词前缀缓存是否命中。
+    """
     entry = {
         # "time": datetime.now().isoformat(),
         "time": datetime.now().strftime("%Y-%m-%d | %H:%M:%S"),
@@ -31,6 +36,8 @@ def log_api_call(action, input_text, output_text, tokens, success):
         "tokens": _normalize_tokens(tokens),
         "success": success
     }
+    if latency_ms is not None:
+        entry["latency_ms"] = int(latency_ms)
     try:
         with _write_lock:   # 新增：确保同一时间只有一个线程写入     --修改16 
             with open(LOG_FILE, "a", encoding="utf-8") as f:
