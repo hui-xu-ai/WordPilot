@@ -75,3 +75,12 @@ def test_switching_content_keeps_previous_widget_alive(host):
     assert first is not None
     assert first.parent() is None
     assert first.isHidden() is True
+
+
+def test_host_paints_stylesheet_background(qapp):
+    """QWidget 子类必须开 WA_StyledBackground，否则 QSS 背景在真机上不绘制。"""
+    from PySide6.QtCore import Qt
+
+    from app.side_panel import SidePanelHost
+
+    assert SidePanelHost(width=300).testAttribute(Qt.WA_StyledBackground)

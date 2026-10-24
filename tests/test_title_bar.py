@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+import pytest
+
 from app.title_bar import restored_position
 
 
@@ -42,3 +44,31 @@ def test_zero_title_width_does_not_divide_by_zero():
     x, _y = restored_position(point_x=10, point_y=10, title_width=0,
                               normal_width=900, title_height=36)
     assert isinstance(x, int)
+
+
+# ── 分区背景必须真的画出来（回归「标题栏与侧边栏分不清」）────────────────
+@pytest.fixture(scope="module")
+def qapp():
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])
+
+
+def test_title_bar_paints_stylesheet_background(qapp):
+    """QWidget 子类默认不绘制 QSS 背景 ⇒ 必须显式开启属性。"""
+    from PySide6.QtCore import Qt
+
+    from app.title_bar import TitleBar
+
+    assert TitleBar(None).testAttribute(Qt.WA_StyledBackground)
+
+
+def test_injected_title_bar_color_is_painted(qapp):
+    """不加载 QSS，只用注入色抓图：自绘这条路必须能画出来。"""
+    from app.title_bar import TitleBar
+
+    bar = TitleBar(None)
+    bar.set_colors("#bfc3d1", "#c6c6cf")
+    img = bar.grab().toImage()
+    color = img.pixelColor(img.width() // 2, img.height() // 2).name()
+    assert color == "#bfc3d1", f"标题栏自绘颜色应为 #bfc3d1，实际 {color}"
