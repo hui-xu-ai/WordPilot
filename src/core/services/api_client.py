@@ -60,6 +60,23 @@ class DeepSeekClient:
         self.last_error = ""
         #: 最近一次真实网络往返耗时（ms）；命中本地缓存时不更新
         self.last_latency_ms = 0
+        self._warm_up_connection()
+
+    def _warm_up_connection(self) -> None:
+        """后台预热连接：首个校对请求省掉 TLS 握手（约 100~300ms）。
+
+        只对 API 主机发一个 HEAD（不消耗 token）；失败静默——离线/被墙时不该影响启动。
+        """
+        if not self.api_key:
+            return
+
+        def _warm() -> None:
+            try:
+                _session().head("https://api.deepseek.com", timeout=3)
+            except Exception:  # noqa: BLE001  预热失败不影响真正请求
+                logger.debug("API 预连接失败（忽略）", exc_info=True)
+
+        threading.Thread(target=_warm, name="api-warmup", daemon=True).start()
 
     # 新增辅助方法：判断文本是否包含占位符(如[IMG0]、[EQ1])
     def _has_placeholders(self, text: str) -> bool:

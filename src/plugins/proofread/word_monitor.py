@@ -460,10 +460,15 @@ class WordMonitor(QThread):
                                         if pure is not None:
                                             self.last_marked_text = pure
                                             self.suggestion_ready.emit(pure, corrected, start_pos, end_pos)
+                                            latency = getattr(self.api, "last_latency_ms", 0) if self.api else 0
                                             if corrected != pure:
-                                                self.status_update.emit(self.tr("monitor.suggestion_ready"))
+                                                self.status_update.emit(self.tr("monitor.suggestion_ready_latency",
+                                                                                ms=latency) if latency
+                                                                        else self.tr("monitor.suggestion_ready"))
                                             else:
-                                                self.status_update.emit(self.tr("monitor.no_error"))
+                                                self.status_update.emit(self.tr("monitor.no_error_latency",
+                                                                                ms=latency) if latency
+                                                                        else self.tr("monitor.no_error"))
                                         else:
                                             self.status_update.emit(self.tr("monitor.too_short"))
 

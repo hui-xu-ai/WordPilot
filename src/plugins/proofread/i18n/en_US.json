@@ -43,6 +43,8 @@
   "monitor.open_word": "Please open a Word document",
   "monitor.proofing_selection": "Sentence selected, proofreading…",
   "monitor.suggestion_ready": "Suggestion ready",
+  "monitor.suggestion_ready_latency": "Suggestion ready ({ms} ms)",
+  "monitor.no_error_latency": "No issues found ({ms} ms)",
   "monitor.no_error": "No issues found",
   "monitor.selection_failed": "Failed to proofread the selection: {error}",
   "monitor.sentence_detected": "Detected a just-finished sentence, proofreading…",

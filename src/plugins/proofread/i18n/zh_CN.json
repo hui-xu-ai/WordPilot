@@ -43,6 +43,8 @@
   "monitor.open_word": "请打开word文档",
   "monitor.proofing_selection": "选中句子，正在校对句子…",
   "monitor.suggestion_ready": "校对建议已生成",
+  "monitor.suggestion_ready_latency": "发现可改进之处（{ms} ms）",
+  "monitor.no_error_latency": "未发现问题（{ms} ms）",
   "monitor.no_error": "未发现错误",
   "monitor.selection_failed": "选中句子校对失败: {error}",
   "monitor.sentence_detected": "检测到刚完成的句子，正在校对…",

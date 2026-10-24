@@ -86,7 +86,7 @@ class ConfigManager:
         config.setdefault("translate_prompt", "")
         config.setdefault("rewrite_prompt", "")
 
-        config.setdefault("debounce_ms", 500)
+        config.setdefault("debounce_ms", 300)
         config.setdefault("context_before", 1)
         config.setdefault("context_after", 1)
         config.setdefault("hotkeys", {

@@ -135,7 +135,7 @@ class DashboardPage(QWidget):
         debounce_row = QHBoxLayout()
         self.debounce_slider = QSlider(Qt.Horizontal)
         self.debounce_slider.setRange(200, 5000)
-        self.debounce_slider.setValue(int(self._config.get("debounce_ms", 500)))
+        self.debounce_slider.setValue(int(self._config.get("debounce_ms", 300)))
         self.debounce_value = QLabel(f"{self.debounce_slider.value()} ms")
         self.debounce_slider.valueChanged.connect(self._on_debounce_changed)
         debounce_row.addWidget(self.debounce_slider, 1)
