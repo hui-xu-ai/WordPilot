@@ -565,18 +565,19 @@ QFrame#navDropIndicator {
 }
 
 /* ---------- 校对建议卡片（proofread 插件） ---------- */
-QWidget#suggestion_container {
-    background: transparent;
-    border: none;
-}
-QWidget#diff_row {
+/* 桌宠建议气泡：整块一张卡片，行内不再重复画框 */
+QWidget#suggestionCard {
     background-color: @color.bg.card;
     border: 1px solid @color.border;
-    border-radius: @radius.md px;
-    padding: @spacing.sm px;
+    border-radius: @radius.lg px;
+}
+QWidget#diff_row {
+    background: transparent;
+    border: none;
+    padding: 0;
 }
 QWidget#diff_row:hover {
-    background-color: @color.bg.hover;
+    background-color: transparent;
 }
 QLabel#diffArrow {
     color: @color.text.secondary;

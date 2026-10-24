@@ -9,18 +9,25 @@ from __future__ import annotations
 from core.services import api_client as api_mod
 
 
+class _FakeSession:
+    """替换 `api_mod._session()`：客户端改为复用 requests.Session（keep-alive）。"""
+
+    def __init__(self, post):
+        self.post = post
+
+
 def test_proof_text_returns_none_when_api_fails(api_client, monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("network down")
 
-    monkeypatch.setattr(api_mod.requests, "post", boom)
+    monkeypatch.setattr(api_mod, "_session", lambda: _FakeSession(boom))
     assert api_client.proof_text("原句") is None
     assert api_client.last_error
 
 
 def test_proof_text_never_returns_error_message(api_client, monkeypatch):
-    monkeypatch.setattr(api_mod.requests, "post",
-                        lambda *a, **k: type("R", (), {"status_code": 500, "text": "boom"})())
+    monkeypatch.setattr(api_mod, "_session", lambda: _FakeSession(
+        lambda *a, **k: type("R", (), {"status_code": 500, "text": "boom"})()))
     result = api_client.proof_text("原句")
     assert result is None, f"错误文案不得当内容返回，实际={result!r}"
     assert "500" in api_client.last_error
@@ -35,7 +42,7 @@ def test_translate_uses_language_pack_default_when_config_blank(api_client, monk
         return type("R", (), {"status_code": 200,
                               "json": lambda self=None: {"choices": [{"message": {"content": "译文"}}]}})()
 
-    monkeypatch.setattr(api_mod.requests, "post", fake_post)
+    monkeypatch.setattr(api_mod, "_session", lambda: _FakeSession(fake_post))
     assert api_client.translate("原文") == "译文"
     assert "原文" in seen["prompt"]
 

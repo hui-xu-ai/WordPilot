@@ -78,31 +78,38 @@ class SuggestionCard(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ---- 内部容器（透明无边框）----
+        # ---- 内部容器：整块就是一张卡片（边框/圆角/底色由主题 #suggestionCard 提供）----
         self.container = QWidget()
-        self.container.setObjectName("suggestion_container")
+        self.container.setObjectName("suggestionCard")
         main_layout.addWidget(self.container)
 
         # 容器内部垂直布局
         container_layout = QVBoxLayout(self.container)
-        container_layout.setContentsMargins(0, 0, 0, 0)  # 无边距，让行直接贴边
-        container_layout.setSpacing(6)
+        container_layout.setContentsMargins(10, 8, 10, 8)
+        container_layout.setSpacing(8)
 
         # 差异片段显示区域
         self.diff_widget = QWidget()
         self.diff_layout = QVBoxLayout(self.diff_widget)
-        self.diff_layout.setContentsMargins(4, 2, 4, 2)   # 行两侧留一点呼吸空间
-        self.diff_layout.setSpacing(4)
+        self.diff_layout.setContentsMargins(0, 0, 0, 0)
+        self.diff_layout.setSpacing(2)
         container_layout.addWidget(self.diff_widget)
 
-        # 按钮行（确认 / 忽略）
+        # 按钮行（确认 / 忽略）：右对齐、小尺寸，别占半屏
         self.btn_container = QWidget()
         btn_layout = QHBoxLayout(self.btn_container)
-        btn_layout.setContentsMargins(4, 2, 4, 0)       #       左上右下间距
-        btn_layout.setSpacing(8)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(6)
+        btn_layout.addStretch(1)
         self.accept_btn = QPushButton(self.tr("bubble.accept"))
         self.ignore_btn = QPushButton(self.tr("bubble.ignore"))
         self.accept_btn.setProperty("accent", True)
+        for button in (self.accept_btn, self.ignore_btn):
+            button.setCursor(Qt.PointingHandCursor)
+            button.setFixedHeight(26)
+            button.setMinimumWidth(58)
+            # 固定宽度，否则按钮会把整行撑满（QPushButton 默认会随布局扩展）
+            button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         btn_layout.addWidget(self.accept_btn)
         btn_layout.addWidget(self.ignore_btn)
         container_layout.addWidget(self.btn_container)
@@ -178,34 +185,26 @@ class SuggestionCard(QWidget):
                 pre_s = escape_vis(corrected[max(0, sstart - ctx_pre):sstart])
                 post_s = escape_vis(corrected[send:min(send + ctx_post, len(corrected))])
 
-                # ---------- 原文列（左侧） ----------
+                # ---------- 原文列（左侧）：只展示被删除片段（删除线），不再塞"插入/删除"标签 ----------
                 mono = "font-family:Consolas,monospace;"
                 if tag == 'insert':
-                    left_display = (
-                        f"<span style='color:{muted}; {mono}'>{pre_o}</span>"
-                        f"<span style='color:{del_text}; background:{del_bg}; font-weight:bold; padding:1px 4px; border-radius:4px;'>{self.tr('bubble.insert')}</span>"
-                        f"<span style='color:{muted}; {mono}'>{post_o}</span>"
-                    )
+                    left_display = f"<span style='color:{muted}; {mono}'>{pre_o}{post_o}</span>"
                 else:
                     org_frag = escape_vis(original[ostart:oend])
                     left_display = (
                         f"<span style='color:{muted}; {mono}'>{pre_o}</span>"
-                        f"<span style='color:{del_text}; font-weight:bold; text-decoration:line-through; background:{del_bg}; padding:0 2px; border-radius:3px; {mono}'>{org_frag}</span>"
+                        f"<span style='color:{del_text}; text-decoration:line-through; {mono}'>{org_frag}</span>"
                         f"<span style='color:{muted}; {mono}'>{post_o}</span>"
                     )
 
-                # ---------- 建议列（右侧） ----------
+                # ---------- 建议列（右侧）：只展示被插入片段（浅色高亮），保持单行可读 ----------
                 if tag == 'delete':
-                    right_display = (
-                        f"<span style='color:{muted}; {mono}'>{pre_s}</span>"
-                        f"<span style='color:{ins_text}; background:{ins_bg}; font-weight:bold; padding:1px 4px; border-radius:4px;'>{self.tr('bubble.delete')}</span>"
-                        f"<span style='color:{muted}; {mono}'>{post_s}</span>"
-                    )
+                    right_display = f"<span style='color:{muted}; {mono}'>{pre_s}{post_s}</span>"
                 else:
                     sug_frag = escape_vis(corrected[sstart:send])
                     right_display = (
                         f"<span style='color:{muted}; {mono}'>{pre_s}</span>"
-                        f"<span style='color:{ins_text}; font-weight:bold; background:{ins_bg}; padding:0 2px; border-radius:3px; {mono}'>{sug_frag}</span>"
+                        f"<span style='color:{ins_text}; background:{ins_bg}; padding:0 2px; border-radius:3px; {mono}'>{sug_frag}</span>"
                         f"<span style='color:{muted}; {mono}'>{post_s}</span>"
                     )
 

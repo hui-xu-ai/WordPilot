@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
+import time
 from pathlib import Path
 
 import requests
@@ -19,6 +21,26 @@ from core.services.proof_cache import get_default_cache
 logger = logging.getLogger(__name__)
 
 LOG_FILE = Path(__file__).parent / "api_calls.log"
+
+_SESSION_LOCK = threading.Lock()
+_SESSION: requests.Session | None = None
+
+
+def _session() -> requests.Session:
+    """进程内复用的 HTTP 会话（keep-alive）。
+
+    每次 `requests.post` 都会新建连接（DNS + TCP + TLS 握手），实测多出 100~300ms；
+    校对是"一句话一次请求"的高频短请求，复用连接收益明显。
+    """
+    global _SESSION
+    with _SESSION_LOCK:
+        if _SESSION is None:
+            session = requests.Session()
+            adapter = requests.adapters.HTTPAdapter(pool_connections=4, pool_maxsize=8)
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
+            _SESSION = session
+        return _SESSION
 
 
 class DeepSeekClient:
@@ -36,6 +58,8 @@ class DeepSeekClient:
         self.last_usage = None
         self.last_api_success = False
         self.last_error = ""
+        #: 最近一次真实网络往返耗时（ms）；命中本地缓存时不更新
+        self.last_latency_ms = 0
 
     # 新增辅助方法：判断文本是否包含占位符(如[IMG0]、[EQ1])
     def _has_placeholders(self, text: str) -> bool:
@@ -151,14 +175,18 @@ class DeepSeekClient:
             "thinking": {"type": "disabled"}   # 强制禁用思考
         }
 
+        started = time.perf_counter()
         try:
-            resp = requests.post(self.base_url, json=payload, headers=headers, timeout=30)
+            # 复用 Session：省掉每次请求的 DNS/TCP/TLS 握手（实测每次新建连接多 100~300ms）
+            resp = _session().post(self.base_url, json=payload, headers=headers, timeout=30)
         except Exception as exc:  # noqa: BLE001  网络/SSL/代理都可能抛不同异常，统一转成失败信号
             self.last_usage = None
             self.last_api_success = False
+            self.last_latency_ms = int((time.perf_counter() - started) * 1000)
             self.last_error = f"请求异常: {exc}"
             logger.warning("API 调用失败: %s", exc)
             return None
+        self.last_latency_ms = int((time.perf_counter() - started) * 1000)
 
         if resp.status_code != 200:
             self.last_usage = None

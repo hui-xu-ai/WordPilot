@@ -293,8 +293,12 @@ class PetWindow(QWidget):
             self._theme = theme
             self.bubble._theme = theme
         self.canvas.set_services(skins, theme)
+        center = self._pet_center_x()
         self.adjustSize()
-        self._keep_bottom_anchor()
+        self.layout().activate()
+        self._move_clamped(self.x() + (center - self._pet_center_x()),
+                           self._bottom_anchor - self.frameGeometry().height()
+                           if self._bottom_anchor is not None else self.y())
 
     # ---------------- 气泡 ----------------
     def set_suggestion(self, original, corrected, start=-1, end=-1) -> None:
@@ -329,17 +333,34 @@ class PetWindow(QWidget):
         self._after_bubble_change()
 
     def _after_bubble_change(self) -> None:
+        """气泡显隐后重新布局，并把**桌宠本体**钉在原处。
+
+        历史实现只钉"窗口底边"：气泡出现时窗口宽度从桌宠宽（~90px）变成气泡宽（~300px），
+        而桌宠在布局里是水平居中的 ⇒ 窗口变宽的同时桌宠被重新居中，看起来"瞬移"了一段距离。
+        现在同时钉住桌宠的水平中心与窗口底边，气泡只会向上/向两侧展开。
+        """
+        center = self._pet_center_x()
         self.adjustSize()
-        self._keep_bottom_anchor()
+        self.layout().activate()
+        left = self.x() + (center - self._pet_center_x())
+        bottom = self._bottom_anchor if self._bottom_anchor is not None else self.frameGeometry().bottom()
+        self._move_clamped(left, bottom - self.frameGeometry().height())
         self.bubbleToggled.emit(self.bubble.isVisible())
 
-    def _keep_bottom_anchor(self) -> None:
-        """气泡显隐会改变窗口高度，统一把窗口底边钉在原处（向上生长）。"""
-        bottom = self._bottom_anchor
-        if bottom is None:
-            self._bottom_anchor = self.frameGeometry().bottom()
-            return
-        self.move(self.x(), bottom - self.frameGeometry().height())
+    def _pet_center_x(self) -> int:
+        """桌宠在窗口坐标系里的水平中心（用 mapTo 避开布局尚未生效的时刻）。"""
+        rect = self.canvas.rect()
+        return self.canvas.mapTo(self, rect.center()).x()
+
+    def _move_clamped(self, x: int, y: int) -> None:
+        """移动并夹到当前屏幕可用区域内，避免气泡超出屏幕后桌宠跑出可视范围。"""
+        screen = QApplication.screenAt(self.pos()) or QApplication.primaryScreen()
+        area = screen.availableGeometry()
+        width = self.frameGeometry().width()
+        height = self.frameGeometry().height()
+        x = max(area.left(), min(int(x), area.right() - width))
+        y = max(area.top(), min(int(y), area.bottom() - height))
+        self.move(x, y)
 
     # ---------------- 位置 ----------------
     def _apply_position(self) -> None:
