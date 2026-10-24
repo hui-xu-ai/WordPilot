@@ -60,9 +60,11 @@
 | `core/services/ignore_cache.py` | 忽略句子库（存 sha256 哈希） | 已修悬空调用 |
 | `core/services/hotkey_service.py` | `keyboard` 库全局热键，插件按需注册 | 依赖管理员权限时行为需注意 |
 | `core/services/word_constants.py` | Word COM 常量字典 | |
-| `app/main_window.py` | 外壳：无边框（自绘标题栏）+ 左侧导航 + QStackedWidget 内容区 + 状态栏 | 关闭窗口默认最小化到托盘 |
-| `app/ui_registry.py` | 收集插件的界面入口（工具 / 托盘 / 页面）并供外壳渲染 | label 存 i18n key |
-| `app/settings_page.py` | 设置页（主窗口内置页：API、提示词、界面、外观 四个分区） | 界面语言与提示词语言分离 |
+| `app/main_window.py` | 外壳：无边框（自绘标题栏）+ 左侧导航 + QStackedWidget 内容区 + 右侧抽屉 + 状态栏 | 关闭窗口默认最小化到托盘 |
+| `app/pages_mixin.py` | 外壳的页面/导航/抽屉逻辑（插件页惰性构造、导航轨重建、切页） | 从 main_window 拆出以控制文件长度 |
+| `app/side_panel.py` | 内容区右侧「次要界面」抽屉容器（ADR-002） | 目前只有智能纠错插件在用 |
+| `app/ui_registry.py` | 收集插件的界面入口（工具 / 托盘 / 页面 / 次要面板）并供外壳渲染 | label 存 i18n key |
+| `app/settings_page.py` | 设置页（主窗口内置页：API、提示词、界面、外观、关于 五个分区） | 界面语言与提示词语言分离 |
 | `core/widgets/` | 通用 Qt 控件库（Switch / MonitorPanel），外壳与插件共用 | 插件不可 import app 层，故下沉到 core |
 | `plugins/proofread/` | 智能纠错：监控线程 + 桌宠窗口 + 替换逻辑 + 热键 + 纠错主页 | 桌宠见 §8，纠错见 §4 |
 | `plugins/navigator/` | 题录导航：主界面内容页（`add_page`）扫描 SEQ 域→列表→跳转/返回 | 见 §5 性能问题；P10 起不再是独立浮窗 |

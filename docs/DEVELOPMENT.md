@@ -85,6 +85,7 @@ type 取值：`feat / fix / refactor / perf / docs / test / chore`。subject 用
 - [ ] API Key 加密路径接通或明确弃用（security）
 - [ ] 校对缓存从 `api_calls.log` 剥离到独立 SQLite（perf/正确性）
 - [ ] 清理冗余文件与 `--修改N` 批注（chore）
-- [ ] 统一版本号来源（chore）
+- [x] ~~统一版本号来源（chore）~~ → `src/__version__.py` 为唯一来源；窗口标题只显示软件名，
+      版本/作者在「设置 → 关于」，改版本只改一处（现 3.1）
 - [x] ~~补 LICENSE（推送前必须）~~ → 采用 MIT（根目录 `LICENSE`，© 2026 Xu Hui）
 - [ ] 核对 `ignore_cache.py` 第 72 行 `self._save_cache()` 悬空调用（bug）

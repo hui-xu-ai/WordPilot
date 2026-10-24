@@ -9,8 +9,10 @@
 |---|---|
 | `src/app/__init__.py` | （未写） |
 | `src/app/icon_factory.py` | SVG 图标工厂。 |
-| `src/app/main_window.py` | 应用外壳（前端）。 |
+| `src/app/main_window.py` | 应用外壳（前端）：窗口骨架 / 托盘 / 主题 / 生命周期。 |
 | `src/app/nav_rail.py` | 可折叠图标导航轨（NavRail）。 |
+| `src/app/pages_mixin.py` | 外壳的页面与导航能力（插件页工厂、导航轨重建、切页、右侧抽屉联动）。 |
+| `src/app/side_panel.py` | 内容区右侧「次要界面」抽屉容器（ADR-002）。 |
 | `src/app/plugin_manager_page.py` | 插件管理面板（内置页，卡片网格风格）。 |
 | `src/app/settings_page.py` | 设置页（主窗口内置页面，取代原先的模态对话框）。 |
 | `src/app/title_bar.py` | 自绘标题栏（无边框窗口用，Fluent 风格）。 |
