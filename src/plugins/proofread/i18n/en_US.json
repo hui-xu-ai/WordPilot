@@ -52,5 +52,15 @@
   "monitor.too_short": "Sentence too short, skipping",
   "prompt.placeholder_notice": "Please proofread the text below. Tags such as [IMG0] and [EQ1] stand for images or formulas; keep them exactly as they are and fix text errors only:\n",
   "pet.menu.plugins": "Plugins",
-  "pet.state.ok": "Looks good"
+  "pet.state.ok": "Looks good",
+  "settings.pet_group": "Desk pet & suggestion card",
+  "settings.show_floating": "Enable floating button",
+  "settings.auto_show": "Pop up automatically on new suggestions",
+  "settings.suggestion_opacity": "Opacity:",
+  "settings.suggestion_font": "Font size:",
+  "settings.prompt.proof": "Proofreading prompt ({text} = original text)",
+  "settings.prompt.hint": "Never ask the model to rewrite placeholders like [IMG0] / [EQ1]; they stand for figures and equations and are preserved automatically.",
+  "settings.save": "Save",
+  "settings.saved": "Saved",
+  "settings.save_failed": "Save failed"
 }

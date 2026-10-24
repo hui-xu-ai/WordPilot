@@ -16,8 +16,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QFormLayout, QHBoxLayout, QLabel, QMessageBox,
-                               QPushButton, QSlider, QSpinBox,
+from PySide6.QtWidgets import (QCheckBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
+                               QPushButton, QSlider, QSpinBox, QTextEdit,
                                QVBoxLayout, QWidget)
 from core.services.api_logger import clear_api_log
 from core.widgets import MonitorPanel, Switch
@@ -108,8 +108,10 @@ class DashboardPage(QWidget):
 
     # ---------------- 次要界面（右侧抽屉） ----------------
     def build_secondary_panel(self) -> QWidget:
-        """校对参数 + 缓存清洗 + API 监控；由外壳放进右侧抽屉，默认收起。
+        """插件自己的设置 + 缓存清洗；由外壳放进右侧抽屉，默认收起。
 
+        设置解构（用户要求）：桌宠/建议窗口、校对提示词这类**插件专属**配置挪到本插件的抽屉里，
+        主界面「设置」只保留全局项（API Key/模型/主题/语言/皮肤）。
         幂等：外壳按插件缓存一次，重复调用返回同一控件。
         """
         existing = getattr(self, "_secondary_panel", None)
@@ -120,11 +122,91 @@ class DashboardPage(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(14)
         lay.addWidget(self._build_params_card())
+        lay.addWidget(self._build_pet_settings_card())
+        lay.addWidget(self._build_prompt_card())
         lay.addWidget(self._build_cleanup_card())
         lay.addStretch(1)
         self._secondary_panel = panel
         self.retranslateUi()
         return panel
+
+    def _build_pet_settings_card(self) -> QWidget:
+        """桌宠与建议窗口（原来是主界面「设置 → 界面」里的内容）。"""
+        card, lay = self._card()
+        self.pet_settings_title = self._card_title(lay)
+
+        self.show_floating_check = QCheckBox()
+        self.show_floating_check.setChecked(bool(self._config.get("show_floating_button", True)))
+        lay.addWidget(self.show_floating_check)
+        self.auto_popup_check = QCheckBox()
+        self.auto_popup_check.setChecked(bool(self._config.get("auto_show_suggestion", True)))
+        lay.addWidget(self.auto_popup_check)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+        opacity_row = QHBoxLayout()
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(20, 100)
+        self.opacity_slider.setValue(int(float(self._config.get("suggestion_opacity", 0.95)) * 100))
+        self.opacity_value = QLabel(f"{self.opacity_slider.value()}%")
+        self.opacity_slider.valueChanged.connect(
+            lambda v: self.opacity_value.setText(f"{v}%"))
+        opacity_row.addWidget(self.opacity_slider, 1)
+        opacity_row.addWidget(self.opacity_value)
+        self.opacity_label = QLabel()
+        form.addRow(self.opacity_label, opacity_row)
+
+        self.font_size_spin = QSpinBox()
+        self.font_size_spin.setRange(8, 36)
+        self.font_size_spin.setValue(int(self._config.get("suggestion_font_size", 13)))
+        self.font_size_label = QLabel()
+        form.addRow(self.font_size_label, self.font_size_spin)
+        lay.addLayout(form)
+
+        self.save_pet_settings_btn = QPushButton()
+        self.save_pet_settings_btn.clicked.connect(self.save_plugin_settings)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(self.save_pet_settings_btn)
+        lay.addLayout(row)
+        return card
+
+    def _build_prompt_card(self) -> QWidget:
+        """校对提示词（{text} 为正文占位符）——只属于本插件，故从主设置页搬来。"""
+        card, lay = self._card()
+        self.prompt_card_title = self._card_title(lay)
+        self.prompt_hint = QLabel()
+        self.prompt_hint.setObjectName("hintLabel")
+        self.prompt_hint.setWordWrap(True)
+        lay.addWidget(self.prompt_hint)
+        self.proof_prompt_edit = QTextEdit()
+        self.proof_prompt_edit.setMinimumHeight(88)
+        self.proof_prompt_edit.setPlainText(str(self._config.get("proof_prompt", "") or ""))
+        lay.addWidget(self.proof_prompt_edit)
+
+        self.save_prompt_btn = QPushButton()
+        self.save_prompt_btn.clicked.connect(self.save_plugin_settings)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(self.save_prompt_btn)
+        lay.addLayout(row)
+        return card
+
+    def save_plugin_settings(self) -> None:
+        """把本插件的设置一次写盘，然后广播 `settings.saved`（内核据此重建客户端等）。"""
+        payload = {
+            "show_floating_button": self.show_floating_check.isChecked(),
+            "auto_show_suggestion": self.auto_popup_check.isChecked(),
+            "suggestion_opacity": max(20, min(100, self.opacity_slider.value())) / 100.0,
+            "suggestion_font_size": self.font_size_spin.value(),
+            "proof_prompt": self.proof_prompt_edit.toPlainText(),
+        }
+        if self._config.update(payload):
+            self._plugin.ctx.events.emit("settings.saved", None)
+            self.status_label.setText(self.tr("settings.saved"))
+        else:
+            self.status_label.setText(self.tr("settings.save_failed"))
+
 
     def _build_params_card(self) -> QWidget:
         card, lay = self._card()
@@ -243,6 +325,16 @@ class DashboardPage(QWidget):
         self.monitor_card_title.setText(self._app_tr("app.nav.monitor"))
         self.monitor_widget.retranslateUi()
         # 以下控件在次要面板里，面板未构造时跳过
+        if getattr(self, "pet_settings_title", None) is not None:
+            self.pet_settings_title.setText(self.tr("settings.pet_group"))
+            self.show_floating_check.setText(self.tr("settings.show_floating"))
+            self.auto_popup_check.setText(self.tr("settings.auto_show"))
+            self.opacity_label.setText(self.tr("settings.suggestion_opacity"))
+            self.font_size_label.setText(self.tr("settings.suggestion_font"))
+            self.save_pet_settings_btn.setText(self.tr("settings.save"))
+            self.prompt_card_title.setText(self.tr("settings.prompt.proof"))
+            self.prompt_hint.setText(self.tr("settings.prompt.hint"))
+            self.save_prompt_btn.setText(self.tr("settings.save"))
         if getattr(self, "params_card_title", None) is not None:
             self.params_card_title.setText(self.tr("dashboard.params"))
             self.debounce_label.setText(self._app_tr("app.proof.debounce_label"))
