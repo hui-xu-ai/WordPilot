@@ -191,3 +191,27 @@ def test_panel_width_is_400(page):
     widget, _store, _index = page
     panel = widget.panel_stack.parentWidget()
     assert panel.minimumWidth() == 400 and panel.maximumWidth() == 400, "用户指定右栏 400px"
+
+def test_status_bar_keeps_last_three_lines(page):
+    widget, _store, _index = page
+    for index in range(5):
+        widget.append_status(f"事件 {index}")
+    lines = widget.footer_label.text().splitlines()
+    assert len(lines) == 3
+    assert lines[-1] == "事件 4"
+
+
+def test_scan_controls_start_idle(page):
+    """扫描按钮默认可用、进度条默认隐藏（用户要看见"扫描"入口与进度）。"""
+    widget, _store, _index = page
+    assert widget.scan_btn.isEnabled()
+    assert widget.progress.isVisible() is False
+    assert widget.progress.minimum() == 0 and widget.progress.maximum() == 0
+
+
+def test_right_panel_labels_are_translated(page):
+    """右栏字段名不能再显示 cite_label/title 这种英文键。"""
+    widget, _store, _index = page
+    labels = [label.text() for label in widget.read_labels.values()]
+    assert all("cite_label" not in text for text in labels)
+    assert widget.read_labels["title"].text() == ""

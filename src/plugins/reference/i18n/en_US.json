@@ -72,5 +72,13 @@
   "panel.no_note": "(no note yet)",
   "panel.orphan_hint": "This citation exists in the document but no matching reference is in the library. Switch to \"All\" on the left, select a reference, then come back and click Bind.",
   "panel.bind_hint": "Select a reference under \"All\" first, then bind",
-  "col.doi": "DOI"
+  "col.doi": "DOI",
+  "action.scan": "Scan document",
+  "status.scanning": "Scanning the active document…",
+  "status.scan_done": "Scan finished: {doc} · {bibliography} bibliography entries · {provider} citations with data · {imported} imported · {anchors} anchors",
+  "status.scan_failed": "Scan failed: {error}",
+  "watch.starting": "Starting selection watcher…",
+  "watch.no_word": "Word not connected (will reconnect automatically)",
+  "watch.scanning": "Building citation index…",
+  "watch.scanned": "Citation index ready: {count} anchors"
 }

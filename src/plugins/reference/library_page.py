@@ -22,10 +22,11 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QFileDialog, QFormLayout, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QSplitter,
+                               QHeaderView, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSplitter,
                                QStackedWidget, QTableWidget, QTableWidgetItem, QTextEdit,
                                QToolButton, QVBoxLayout, QWidget)
 
+from plugins.reference.page_scan import ScanMixin
 from plugins.reference.reference_store import (Anchor, Reference, ReferenceStore,
                                                ReferenceStoreError)
 
@@ -42,15 +43,18 @@ _FILTERS = (("all", "filter.all"), ("note", "filter.note"), ("star", "filter.sta
             ("meta", "filter.meta"), ("orphan", "filter.orphan"))
 
 
-class LibraryPage(QWidget):
+class LibraryPage(ScanMixin, QWidget):
     """文献库管理页。"""
 
     def __init__(self, ctx: "PluginContext", store: ReferenceStore,
-                 index: "ReferenceIndex", parent: QWidget | None = None) -> None:
+                 index: "ReferenceIndex", parent: QWidget | None = None,
+                 plugin=None) -> None:
         super().__init__(parent)
         self._ctx = ctx
         self._store = store
         self._index = index
+        self._plugin = plugin
+        self._auto_scanned = False
         self._current_key = ""
         self._mode = "refs"                      # refs | orphans
         self._orphan: Anchor | None = None
@@ -92,6 +96,10 @@ class LibraryPage(QWidget):
             toolbar.addWidget(button)
         self.filter_buttons["all"].setChecked(True)
 
+        self.scan_btn = QPushButton()
+        self.scan_btn.clicked.connect(self.scan_document)
+        toolbar.addWidget(self.scan_btn)
+
         self.open_csv_btn = QPushButton()
         self.open_csv_btn.clicked.connect(self.open_csv)
         toolbar.addWidget(self.open_csv_btn)
@@ -107,6 +115,13 @@ class LibraryPage(QWidget):
         self.more_btn.setMenu(self.menu)
         toolbar.addWidget(self.more_btn)
         layout.addLayout(toolbar)
+
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)          # 不确定态：扫描时长取决于文档大小
+        self.progress.setTextVisible(False)
+        self.progress.setFixedHeight(4)
+        self.progress.setVisible(False)
+        layout.addWidget(self.progress)
 
         self.status_label = QLabel("")
         self.status_label.setObjectName("hintLabel")
@@ -132,6 +147,11 @@ class LibraryPage(QWidget):
         splitter.setStretchFactor(1, 0)
         splitter.setSizes([720, PANEL_WIDTH])
         layout.addWidget(splitter, 1)
+
+        self.footer_label = QLabel("")
+        self.footer_label.setObjectName("hintLabel")
+        self.footer_label.setWordWrap(True)
+        layout.addWidget(self.footer_label)
 
         self.retranslateUi()
 
@@ -162,7 +182,7 @@ class LibraryPage(QWidget):
             value.setWordWrap(True)
             value.setTextInteractionFlags(Qt.TextSelectableByMouse)
             self.read_labels[key] = value
-            form_read.addRow(QLabel(key), value)
+            form_read.addRow(QLabel(self.tr(f"field.{key}")), value)
         read_layout.addLayout(form_read)
         self.read_note_title = QLabel("")
         self.read_note_title.setObjectName("hintLabel")
@@ -240,6 +260,7 @@ class LibraryPage(QWidget):
         for name, key in _FILTERS:
             self.filter_buttons[name].setText(self.tr(key))
         self.filter_buttons["orphan"].setText(self.tr("filter.orphan"))
+        self.scan_btn.setText(self.tr("action.scan"))
         self.open_csv_btn.setText(self.tr("action.open_csv"))
         self.more_btn.setText("⋯")
         self.more_btn.setToolTip(self.tr("action.more"))

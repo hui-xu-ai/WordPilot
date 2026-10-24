@@ -72,5 +72,13 @@
   "panel.no_note": "（还没有备注）",
   "panel.orphan_hint": "这条引用在文档里存在，但库里没有对应文献。先在左侧切回「全部」选一条文献，再回来点「绑定」。",
   "panel.bind_hint": "先在左侧「全部」里选中一条文献，再点这里绑定",
-  "col.doi": "DOI"
+  "col.doi": "DOI",
+  "action.scan": "扫描本文",
+  "status.scanning": "正在扫描当前文档…",
+  "status.scan_done": "扫描完成：{doc} · 参考文献 {bibliography} 条 · 带数据引用 {provider} 条 · 入库 {imported} 条 · 锚点 {anchors} 个",
+  "status.scan_failed": "扫描失败：{error}",
+  "watch.starting": "监听启动中…",
+  "watch.no_word": "未连接 Word（打开 Word 后会自动重连）",
+  "watch.scanning": "正在建立引用索引…",
+  "watch.scanned": "引用索引就绪：{count} 个锚点"
 }

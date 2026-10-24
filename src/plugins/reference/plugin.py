@@ -66,7 +66,7 @@ class ReferencePlugin(PluginBase):
 
     def _build_page(self):
         if self._page is None:
-            self._page = LibraryPage(self.ctx, self._store, self._index)
+            self._page = LibraryPage(self.ctx, self._store, self._index, plugin=self)
         return self._page
 
     # ---------------- 选区监听 ----------------
@@ -76,6 +76,7 @@ class ReferencePlugin(PluginBase):
         self._watch = WordWatch()
         self._watch.citationFound.connect(self._on_citation_found)
         self._watch.citationCleared.connect(self._on_citation_cleared)
+        self._watch.statusChanged.connect(self._on_watch_status)
         self._watch.start()
 
     def _ensure_overlay(self) -> ReferenceOverlay:
@@ -96,6 +97,9 @@ class ReferencePlugin(PluginBase):
         label = item.get("label") or _label_from_key(anchor_key)
 
         reference = store.get(anchor_key)
+        if (reference is None and item.get("kind") == "label_fallback"
+                and item.get("reference") is None):
+            return None                    # 编号兜底只对"库里已有这条文献"的情况弹窗
         if reference is None and item.get("reference") is not None:
             try:                                   # 域里带元数据 → 顺手入库
                 reference = store.upsert(item["reference"])
@@ -182,6 +186,29 @@ class ReferencePlugin(PluginBase):
             logger.info("从文末参考文献列表补入 %d 条元数据（%s）", imported,
                         doc_name or os.path.basename(doc_path))
 
+    def _on_watch_status(self, code: str) -> None:
+        """监听线程的连接/扫描状态 → 页面底部状态栏（用户要求"看得见"）。"""
+        text = self._watch_status_text(code)
+        if self._page is not None:
+            try:
+                self._page.append_status(text)
+            except Exception:              # noqa: BLE001 - 页面可能还没建好
+                pass
+        try:
+            self.ctx.ui.status(text, 2000)
+        except Exception:                  # noqa: BLE001
+            pass
+
+    def _watch_status_text(self, code: str) -> str:
+        if code.startswith("watch.scanned:"):
+            return self.tr("watch.scanned", count=code.split(":", 1)[1])
+        mapping = {
+            "watch.starting": "watch.starting",
+            "watch.no_word": "watch.no_word",
+            "watch.scanning": "watch.scanning",
+        }
+        return self.tr(mapping.get(code, code))
+
     def _on_citation_cleared(self) -> None:
         if self._overlay is not None:
             self._overlay.hide_overlay()
@@ -219,6 +246,42 @@ class ReferencePlugin(PluginBase):
             self.ctx.ui.status(str(exc), 4000)
             return
         self._reshow(anchor_key, doc_name, label)
+
+    # ---------------- 扫描（手动 + 打开页面自动） ----------------
+    def scan_active_document(self) -> dict:
+        """扫描当前 Word 文档：导入"参考文献列表"与带元数据的引用，并重建点击查表索引。
+
+        返回统计字典（供页面状态栏显示）：文档名、列表条目数、域引用数、入库条数、锚点数。
+        失败时抛异常，由调用方（工作线程）转成状态栏提示。
+        """
+        from plugins.reference.docx_scan import scan_docx
+        from core.services.word_bridge import get_word_app
+
+        word = get_word_app()
+        document = word.ActiveDocument
+        path = document.FullName
+        name = document.Name
+        stats: dict = {"doc_name": name, "doc_path": path, "bibliography": 0,
+                       "provider": 0, "imported": 0, "anchors": 0}
+
+        result = scan_docx(path, name)
+        stats["bibliography"] = len(result.references)
+        stats["provider"] = len(result.provider_citations)
+
+        candidates = list(result.references)
+        candidates.extend(citation.reference for citation in result.provider_citations
+                          if citation.reference is not None)
+        for reference in candidates:
+            try:
+                self._store.upsert(reference)          # 保留用户已有备注
+                stats["imported"] += 1
+            except ReferenceStoreError as exc:
+                logger.warning("扫描入库失败（%s）：%s", reference.ref_key, exc)
+        self._bib_cache[path] = 0.0                    # 已手工扫过，避免再次全量导入
+
+        if self._watch is not None:
+            stats["anchors"] = self._watch.rescan_index(word)
+        return stats
 
     def _reshow(self, anchor_key: str, doc_name: str, label: str) -> None:
         """绑定/新建之后，用库里最新数据把悬浮窗重画一次（用户不用挪光标）。"""

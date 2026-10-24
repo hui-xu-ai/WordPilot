@@ -198,3 +198,39 @@ def test_screen_point_falls_back_when_api_missing():
 
     x, y = screen_point(NoWindow(), _Selection())
     assert isinstance(x, int) and isinstance(y, int)
+
+def test_label_fallback_reads_number_near_caret():
+    """域索引没命中时，光标旁的 `[12]` 也要能兜底（EndNote 常把引用显示成文本）。"""
+    class _Doc:
+        Name = "论文.docx"
+
+        def Range(self, start, end):
+            return type("R", (), {"Text": "测试[12]"})
+
+    selection = _Selection(fields=[], text="[12]")
+    selection.Start = 5
+    selection.End = 5
+    word = type("W", (), {})()
+    word.Selection = selection
+    word.ActiveDocument = _Doc()
+    word.ActiveWindow = _Window()
+
+    from plugins.reference.word_watch import WordWatch
+
+    watch = WordWatch()
+    payload = watch._label_fallback_payload(word, "论文.docx")
+    assert payload is not None
+    assert payload["items"][0]["anchor_key"] == "doc:论文.docx:cite:12"
+    assert payload["items"][0]["kind"] == "label_fallback"
+
+
+def test_label_fallback_ignores_text_without_number():
+    selection = _Selection(fields=[], text="普通正文")
+    word = type("W", (), {})()
+    word.Selection = selection
+    word.ActiveDocument = type("D", (), {"Name": "论文.docx", "Range": lambda *a: type("R", (), {"Text": "普通正文"})()})()
+    word.ActiveWindow = _Window()
+
+    from plugins.reference.word_watch import WordWatch
+
+    assert WordWatch()._label_fallback_payload(word, "论文.docx") is None

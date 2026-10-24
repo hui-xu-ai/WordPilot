@@ -191,6 +191,7 @@ class WordWatch(QThread):
 
     citationFound = Signal(object)         # dict，见 resolve_selection
     citationCleared = Signal()
+    statusChanged = Signal(str)            # 连接状态/扫描进度（供页面状态栏显示）
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -213,6 +214,7 @@ class WordWatch(QThread):
         pythoncom.CoInitialize()
         try:
             from core.services.word_bridge import get_word_app
+            self._emit_status("watch.starting")
 
             while self._running:
                 started = time.perf_counter()
@@ -223,13 +225,16 @@ class WordWatch(QThread):
                     word, doc_name = None, ""
 
                 if word is None:
+                    self._emit_status("watch.no_word")
                     self._handle_miss()
                     self.msleep(RETRY_AFTER_MS)
                     continue
 
                 # 换文档/首次：扫一次域表（1~3 s），之后点击只查表
                 if self._index.needs_rescan(doc_name):
-                    self._index.rescan(word)
+                    self._emit_status("watch.scanning")
+                    count = self._index.rescan(word)
+                    self._emit_status(f"watch.scanned:{count}")
                     self._handle_miss()
                     self.msleep(POLL_MS)
                     continue
@@ -249,7 +254,8 @@ class WordWatch(QThread):
                     self._last_hit_at = time.perf_counter()
                     self.citationFound.emit(self._anchor_payload(word, anchor, doc_name))
                 else:
-                    payload = self._footnote_payload(word, doc_name)
+                    payload = (self._footnote_payload(word, doc_name)
+                               or self._label_fallback_payload(word, doc_name))
                     if payload is not None:
                         self._cleared = False
                         self._last_hit_at = time.perf_counter()
@@ -266,6 +272,16 @@ class WordWatch(QThread):
                 pass
 
     # ---------------- 内部 ----------------
+    def rescan_index(self, word) -> int:
+        """手动扫描后重建点击查表索引（供页面「扫描本文」调用）。"""
+        self._index.clear()
+        return self._index.rescan(word)
+
+    def _emit_status(self, text: str) -> None:
+        if text != self._last_status:
+            self._last_status = text
+            self.statusChanged.emit(text)
+
     def _handle_miss(self) -> None:
         if not self._cleared and (
                 (time.perf_counter() - self._last_hit_at) * 1000 >= CLEAR_AFTER_MS):
@@ -288,6 +304,36 @@ class WordWatch(QThread):
             "point": point,
             "items": [{"anchor_key": anchor.anchor_key, "label": anchor.label,
                        "reference": None, "doc_name": doc_name, "kind": anchor.kind}],
+        }
+
+    def _label_fallback_payload(self, word, doc_name: str) -> dict | None:
+        """域索引没命中时，看光标旁边是不是 `[12]` 这类编号（EndNote 常把引用显示成文本）。
+
+        只有插件能在库里解析到该编号时才真的弹窗（见 `plugin._entry_for_item`）。
+        """
+        try:
+            selection = word.Selection
+            text = (selection.Text or "").strip()
+            if not text:
+                # 折叠光标：取前后各 3 个字符看看
+                start = int(selection.Start)
+                text = (selection.Document.Range(max(0, start - 3), start + 3).Text or "").strip()
+        except Exception:                  # noqa: BLE001
+            return None
+        labels = parse_citation_labels(text)
+        if not labels:
+            return None
+        try:
+            point = screen_point(word, word.Selection)
+        except Exception:                  # noqa: BLE001
+            point = (200, 200)
+        return {
+            "doc_name": doc_name,
+            "doc_path": "",
+            "point": point,
+            "items": [{"anchor_key": f"doc:{doc_name}:cite:{label}", "label": label,
+                       "reference": None, "doc_name": doc_name, "kind": "label_fallback"}
+                      for label in labels],
         }
 
     def _footnote_payload(self, word, doc_name: str) -> dict | None:
