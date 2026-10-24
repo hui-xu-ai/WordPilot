@@ -64,7 +64,7 @@
 - 清理冗余：`word_image_processor_1.py`、`word_image_processor_备份.py`、`src/test.py`、`--修改N` 批注。
 - 统一版本号来源（现 main.py / 主窗口标题 / 导航"关于" 各写一份）。
 - 核对 `ignore_cache.py` 第 72 行 `self._save_cache()` 悬空调用。
-- 推送 GitHub 前补 LICENSE。
+- ~~推送 GitHub 前补 LICENSE~~ → 已完成：MIT（见根目录 `LICENSE`）。
 - 提交遵循 `docs/DEVELOPMENT.md` 的 Conventional Commits + 分支/PR 规范。
 
 ## 建议顺序

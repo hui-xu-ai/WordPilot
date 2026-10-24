@@ -85,6 +85,7 @@ WordPilot/
 ├── docs/                    # ARCHITECTURE / PLUGIN_GUIDE / DEVELOPMENT / BUILD
 ├── requirements.txt
 ├── WordPilot.spec          # PyInstaller 打包配置（显式收集各插件包）
+├── LICENSE                 # MIT
 └── .gitignore
 ```
 
@@ -92,4 +93,4 @@ WordPilot/
 
 ## 许可
 
-待定（推送 GitHub 前请补充 LICENSE）。
+[MIT](LICENSE) © 2026 Xu Hui

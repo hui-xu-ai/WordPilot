@@ -4,14 +4,14 @@
 
 ## .
 - [WordPilot 工作区（pydev 预设）](AGENTS.md) — 2603 B
-- [WordPilot](README.md) — 6042 B
+- [WordPilot](README.md) — 6063 B
 
 ## docs
 - [架构说明 · ARCHITECTURE](docs/ARCHITECTURE.md) — 13388 B
 - [打包与运行 · BUILD](docs/BUILD.md) — 2203 B
-- [开发与更新规范 · DEVELOPMENT](docs/DEVELOPMENT.md) — 5514 B
+- [开发与更新规范 · DEVELOPMENT](docs/DEVELOPMENT.md) — 5575 B
 - [插件开发指南 · PLUGIN GUIDE](docs/PLUGIN_GUIDE.md) — 9208 B
-- [路线图 · ROADMAP](docs/ROADMAP.md) — 4427 B
+- [路线图 · ROADMAP](docs/ROADMAP.md) — 4479 B
 - [ADR-001 采用 pydev 项目布局与记忆分离](docs/adr/001-onboarding-layout.md) — 1964 B
 - [ADR-002 插件次要界面：全局右侧可折叠抽屉](docs/adr/002-side-panel.md) — 4695 B
 - [ADR 索引](docs/adr/INDEX.md) — 538 B
