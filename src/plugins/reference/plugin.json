@@ -1,11 +1,11 @@
 {
   "id": "reference",
   "name": "参考文献助手",
-  "version": "0.1.0",
-  "description": "识别 EndNote / Zotero 等文献管理软件插入的域代码，建立参考文献的身份笔记（验证基准：work/EndNote文献论文测试.docx、work/Zotero文献论文测试.docx）",
+  "version": "0.2.0",
+  "description": "把 Word 里的引用（Zotero/EndNote 域、脚注尾注、REF 交叉引用）与本地 CSV 文献库绑定，显示并编辑备注；CSV 可由用户自行维护",
   "author": "Xu Hui",
   "entry": "plugin:ReferencePlugin",
-  "requires": ["config"],
+  "requires": ["config", "word_bridge"],
   "deps": [],
-  "enabled_by_default": false
+  "enabled_by_default": true
 }

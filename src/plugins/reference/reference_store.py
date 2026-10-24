@@ -360,6 +360,40 @@ class ReferenceStore:
         self._flush_refs()
         return True
 
+    def replace_from_file(self, source: str | Path) -> None:
+        """用户整份替换主表（"导入自己的 CSV"）：先备份现有文件，再原样替换并重载。
+
+        原样替换（而不是解析后重写）是为了保留用户自加的列、列顺序与格式。
+        """
+        source_path = Path(source)
+        if not source_path.exists():
+            raise ReferenceStoreError(f"文件不存在：{source_path}")
+        self.ensure_directory()
+        self._backup(self.refs_path)
+        try:
+            data = source_path.read_bytes()
+        except OSError as exc:
+            raise ReferenceStoreError(f"读取 {source_path.name} 失败：{exc}") from exc
+        try:
+            with open(self.refs_path, "wb") as handle:
+                handle.write(data)
+        except OSError as exc:
+            raise ReferenceStoreError(f"写入 {self.refs_path.name} 失败：{exc}") from exc
+        self.load(force=True)
+
+    def export_to_file(self, target: str | Path) -> None:
+        """把当前主表复制到用户指定位置（导出备份/分享）。"""
+        target_path = Path(target)
+        try:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_bytes(self.refs_path.read_bytes() if self.refs_path.exists() else b"")
+        except OSError as exc:
+            raise ReferenceStoreError(f"导出失败：{exc}") from exc
+
+    def orphan_anchors(self) -> list[Anchor]:
+        """锚点指向的文献不在主表里（用户换了 CSV / 文献被删）。"""
+        return [anchor for anchor in self._anchors if self.resolve_key(anchor.anchor_key) is None]
+
     # ---------------- 锚点 ----------------
     def anchors(self, doc_name: str | None = None) -> list[Anchor]:
         if doc_name is None:
