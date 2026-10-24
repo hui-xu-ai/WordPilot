@@ -99,3 +99,6 @@ src/config/user.qss
 
 # Word 打开文件时生成的锁文件（~$xxx.docx），不该入库
 src/config/~$*
+
+# 参考文献助手的用户数据（CSV 库 + 派生索引），属于用户数据不入库
+src/config/references/
