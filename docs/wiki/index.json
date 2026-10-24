@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root": "D:\\Python\\Project\\SmartProof",
-  "count": 14,
+  "count": 15,
   "entries": [
     {
       "path": "AGENTS.md",
@@ -39,6 +39,27 @@
       "archive": false
     },
     {
+      "path": "docs/adr/002-side-panel.md",
+      "title": "ADR-002 插件次要界面：全局右侧可折叠抽屉",
+      "headings": [
+        "ADR-002 插件次要界面：全局右侧可折叠抽屉",
+        "背景",
+        "备选",
+        "备选 A：全局单抽屉 + SDK 贡献点（选中）",
+        "备选 B：每个插件页自带右侧栏（插件内部实现）",
+        "备选 C：页内手风琴 / QToolBox 折叠",
+        "备选 D：QDockWidget 原生停靠",
+        "决策",
+        "后果"
+      ],
+      "tags": [
+        "adr"
+      ],
+      "bytes": 4676,
+      "mtime": "2026-10-24T04:17:04.276417+00:00",
+      "archive": false
+    },
+    {
       "path": "docs/adr/INDEX.md",
       "title": "ADR 索引",
       "headings": [
@@ -47,8 +68,8 @@
       "tags": [
         "adr"
       ],
-      "bytes": 345,
-      "mtime": "2026-10-23T03:13:16.550204+00:00",
+      "bytes": 519,
+      "mtime": "2026-10-24T04:17:09.496896+00:00",
       "archive": false
     },
     {
