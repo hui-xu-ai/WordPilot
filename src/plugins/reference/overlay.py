@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 
 AUTOSAVE_MS = 800
 MAX_VISIBLE = 8
-WIDTH = 340
+WIDTH = 360
+MAX_HEIGHT = 520
 
 
 @dataclass
@@ -104,21 +105,11 @@ class _EntryCard(QFrame):
         self.note_edit = QTextEdit()
         self.note_edit.setObjectName("referenceNote")
         self.note_edit.setPlainText(entry.note)
-        self.note_edit.setMinimumHeight(46)
-        self.note_edit.setMaximumHeight(96)
+        self.note_edit.setMinimumHeight(40)
+        self.note_edit.setMaximumHeight(80)
         self.note_edit.setPlaceholderText(tr("overlay.note_placeholder"))
         layout.addWidget(self.note_edit)
         self.note_edit.textChanged.connect(self._on_text_changed)
-
-        self.save_btn = QPushButton(tr("overlay.save"))
-        self.save_btn.setObjectName("referenceSave")
-        self.save_btn.setFixedHeight(22)
-        self.save_btn.setCursor(Qt.PointingHandCursor)
-        self.save_btn.clicked.connect(self.flush)
-        row = QHBoxLayout()
-        row.addStretch(1)
-        row.addWidget(self.save_btn)
-        layout.addLayout(row)
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -146,6 +137,7 @@ class ReferenceOverlay(QWidget):
     dismissed = Signal(str)                # 用户点 ✕（本次不再自动弹出的 anchor_key）
     bindRequested = Signal(str, str)       # (anchor_key, doc_name)
     createRequested = Signal(str, str)     # (anchor_key, doc_name)
+    noteSaved = Signal(str)                # 备注已落盘（anchor_key），供页面刷新
 
     def __init__(self, store, tr, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -179,19 +171,19 @@ class ReferenceOverlay(QWidget):
         frame_layout.setContentsMargins(0, 0, 0, 8)
         frame_layout.setSpacing(6)
 
-        # 标题条（拖动 + 关闭）
+        # 顶部细条：整条可拖动，只有右上角一个 ✕（不再放"参考文献"标题，省空间）
         self.title_bar_host = QWidget()
         self.title_bar_host.setObjectName("referenceOverlayBar")
+        self.title_bar_host.setFixedHeight(16)
         header = QHBoxLayout(self.title_bar_host)
-        header.setContentsMargins(10, 6, 6, 6)
-        header.setSpacing(6)
-        self.title_bar = QLabel(self._tr("overlay.title"))
-        self.title_bar.setObjectName("referenceOverlayTitle")
-        header.addWidget(self.title_bar, 1)
+        header.setContentsMargins(0, 0, 2, 0)
+        header.setSpacing(0)
+        header.addStretch(1)
         self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("referenceOverlayClose")
-        self.close_btn.setFixedSize(20, 20)
+        self.close_btn.setFixedSize(16, 16)
         self.close_btn.setCursor(Qt.PointingHandCursor)
+        self.close_btn.setToolTip(self._tr("overlay.close_tip"))
         self.close_btn.clicked.connect(self._on_close_clicked)
         header.addWidget(self.close_btn, 0, Qt.AlignTop)
         self.title_bar_host.installEventFilter(self)
@@ -216,6 +208,7 @@ class ReferenceOverlay(QWidget):
             return
         self._rebuild(visible)
         self.adjustSize()
+        self.setMaximumHeight(MAX_HEIGHT)
         area = self._work_area(anchor)
         x, y = place_near(anchor[0], anchor[1], self.width(), self.height(), area)
         self.move(x, y)
@@ -248,6 +241,7 @@ class ReferenceOverlay(QWidget):
     def _save_note(self, anchor_key: str, text: str) -> None:
         try:
             self._store.set_note(anchor_key, note=text)
+            self.noteSaved.emit(anchor_key)
         except Exception as exc:                     # noqa: BLE001 - 保存失败不能崩悬浮窗
             logger.warning("悬浮窗保存备注失败（%s）：%s", anchor_key, exc)
 

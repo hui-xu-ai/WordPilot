@@ -29,6 +29,7 @@ _DICT = {
     "status.need_title": "标题或备注至少填一项", "status.saved": "已保存",
     "status.deleted": "已删除", "new.hint": "（新条目）",
     "status.counts": "共 {total} 条 · 有备注 {with_note} · 孤立锚点 {orphans}",
+    "status.reloaded": "已刷新",
 }
 
 
@@ -215,3 +216,25 @@ def test_right_panel_labels_are_translated(page):
     labels = [label.text() for label in widget.read_labels.values()]
     assert all("cite_label" not in text for text in labels)
     assert widget.read_labels["title"].text() == ""
+
+def test_refresh_button_is_visible(page):
+    """刷新按钮要直接露在工具栏（之前藏在 ⋯ 菜单里，用户点不到）。"""
+    widget, _store, _index = page
+    assert widget.refresh_btn.text() != ""
+    assert widget.refresh_btn.isVisibleTo(widget)
+    widget.append_status("x")
+    widget.reload_now()
+    assert widget.footer_label.text().endswith("已刷新")
+
+
+def test_auto_refresh_picks_up_external_csv_edits(page, tmp_path):
+    """外部（Excel/悬浮窗）改了 CSV，页面不重启也能看到。"""
+    widget, store, _index = page
+    store.upsert(Reference(ref_key="zotero:1", cite_label="1", title="旧标题"))
+    widget.reload()
+
+    store.upsert(Reference(ref_key="zotero:2", cite_label="2", title="外部新增"))
+    widget._auto_sync()
+
+    assert widget.table.rowCount() == 2, "同进程写入后页面应自动刷新"
+    assert "有备注" in widget.status_label.text()

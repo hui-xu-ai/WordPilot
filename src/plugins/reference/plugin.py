@@ -85,6 +85,7 @@ class ReferencePlugin(PluginBase):
             self._overlay.dismissed.connect(self._on_overlay_dismissed)
             self._overlay.bindRequested.connect(self._on_bind_requested)
             self._overlay.createRequested.connect(self._on_create_requested)
+            self._overlay.noteSaved.connect(lambda _key: self.refresh_page())
         return self._overlay
 
     def _entry_for_item(self, item: dict) -> OverlayEntry | None:
@@ -214,6 +215,14 @@ class ReferencePlugin(PluginBase):
             self._overlay.hide_overlay()
         self._dismissed.clear()        # 光标离开后允许再次弹出
         self._shown_signature = ()
+
+    def refresh_page(self) -> None:
+        """悬浮窗写完备注后刷新页面（用户反馈"表格更新不及时"）。"""
+        if self._page is not None:
+            try:
+                self._page.reload()
+            except Exception:              # noqa: BLE001
+                pass
 
     def _on_overlay_dismissed(self, anchor_key: str) -> None:
         if anchor_key:

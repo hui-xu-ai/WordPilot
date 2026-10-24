@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QFileDialog, QFormLayout
                                QStackedWidget, QTableWidget, QTableWidgetItem, QTextEdit,
                                QToolButton, QVBoxLayout, QWidget)
 
+from plugins.reference.page_panel import PANEL_WIDTH, build_panel
 from plugins.reference.page_scan import ScanMixin
 from plugins.reference.reference_store import (Anchor, Reference, ReferenceStore,
                                                ReferenceStoreError)
@@ -36,7 +37,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PANEL_WIDTH = 400
 _TABLE_COLUMNS = ("cite_label", "title", "authors", "year", "container", "doi", "tags", "note")
 _ORPHAN_COLUMNS = ("doc_name", "cite_label", "anchor_key")
 _FILTERS = (("all", "filter.all"), ("note", "filter.note"), ("star", "filter.star"),
@@ -55,11 +55,17 @@ class LibraryPage(ScanMixin, QWidget):
         self._index = index
         self._plugin = plugin
         self._auto_scanned = False
+        self._refresh_timer = None
         self._current_key = ""
         self._mode = "refs"                      # refs | orphans
         self._orphan: Anchor | None = None
         self._build_ui()
         self.reload()
+        self.start_auto_refresh()
+        try:                               # 同进程写入（悬浮窗/本页保存）立即刷新
+            self._store.subscribe(self._on_store_changed)
+        except Exception:                  # noqa: BLE001
+            pass
 
     # ---------------- 文案 ----------------
     def tr(self, key: str, /, **params) -> str:
@@ -99,6 +105,10 @@ class LibraryPage(ScanMixin, QWidget):
         self.scan_btn = QPushButton()
         self.scan_btn.clicked.connect(self.scan_document)
         toolbar.addWidget(self.scan_btn)
+
+        self.refresh_btn = QPushButton()
+        self.refresh_btn.clicked.connect(self.reload_now)
+        toolbar.addWidget(self.refresh_btn)
 
         self.open_csv_btn = QPushButton()
         self.open_csv_btn.clicked.connect(self.open_csv)
@@ -156,104 +166,7 @@ class LibraryPage(ScanMixin, QWidget):
         self.retranslateUi()
 
     def _build_panel(self) -> QWidget:
-        panel = QWidget()
-        panel.setMinimumWidth(PANEL_WIDTH)
-        panel.setMaximumWidth(PANEL_WIDTH)
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(16, 0, 0, 0)
-        layout.setSpacing(8)
-
-        self.panel_title = QLabel("")
-        self.panel_title.setObjectName("cardTitle")
-        self.panel_title.setWordWrap(True)
-        layout.addWidget(self.panel_title)
-
-        self.panel_stack = QStackedWidget()
-
-        # --- 只读视图 ---
-        read = QWidget()
-        read_layout = QVBoxLayout(read)
-        read_layout.setContentsMargins(0, 0, 0, 0)
-        form_read = QFormLayout()
-        form_read.setSpacing(8)
-        self.read_labels: dict[str, QLabel] = {}
-        for key in ("cite_label", "title", "authors", "year", "container", "doi", "type", "tags"):
-            value = QLabel("")
-            value.setWordWrap(True)
-            value.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            self.read_labels[key] = value
-            form_read.addRow(QLabel(self.tr(f"field.{key}")), value)
-        read_layout.addLayout(form_read)
-        self.read_note_title = QLabel("")
-        self.read_note_title.setObjectName("hintLabel")
-        read_layout.addWidget(self.read_note_title)
-        self.read_note = QLabel("")
-        self.read_note.setWordWrap(True)
-        self.read_note.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.read_note.setMinimumHeight(80)
-        self.read_note.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        read_layout.addWidget(self.read_note, 1)
-        actions = QHBoxLayout()
-        actions.addStretch(1)
-        self.edit_btn = QPushButton()
-        self.edit_btn.clicked.connect(self.start_edit)
-        self.bind_btn = QPushButton()
-        self.bind_btn.clicked.connect(self.bind_orphan)
-        actions.addWidget(self.bind_btn)
-        actions.addWidget(self.edit_btn)
-        read_layout.addLayout(actions)
-        self.panel_stack.addWidget(read)
-
-        # --- 编辑视图 ---
-        edit = QWidget()
-        edit_layout = QVBoxLayout(edit)
-        edit_layout.setContentsMargins(0, 0, 0, 0)
-        form = QFormLayout()
-        form.setSpacing(6)
-        self.key_label = QLabel("")
-        self.key_label.setObjectName("hintLabel")
-        self.key_label.setWordWrap(True)
-        form.addRow(self.tr("field.key"), self.key_label)
-        self.label_edit = QLineEdit()
-        self.title_edit = QLineEdit()
-        self.authors_edit = QLineEdit()
-        self.year_edit = QLineEdit()
-        self.container_edit = QLineEdit()
-        self.doi_edit = QLineEdit()
-        self.type_edit = QLineEdit()
-        self.tags_edit = QLineEdit()
-        for widget, key in ((self.label_edit, "field.label"), (self.title_edit, "field.title"),
-                            (self.authors_edit, "field.authors"), (self.year_edit, "field.year"),
-                            (self.container_edit, "field.container"), (self.doi_edit, "field.doi"),
-                            (self.type_edit, "field.type"), (self.tags_edit, "field.tags")):
-            widget.setPlaceholderText(self.tr(key))
-            form.addRow(self.tr(key), widget)
-        self.starred_check = QCheckBox(self.tr("field.starred"))
-        form.addRow("", self.starred_check)
-        edit_layout.addLayout(form)
-
-        self.note_edit = QTextEdit()
-        self.note_edit.setPlaceholderText(self.tr("field.note"))
-        self.note_edit.setMinimumHeight(90)
-        edit_layout.addWidget(self.note_edit, 1)
-
-        edit_actions = QHBoxLayout()
-        edit_actions.addStretch(1)
-        self.cancel_btn = QPushButton()
-        self.cancel_btn.clicked.connect(self.cancel_edit)
-        self.save_btn = QPushButton()
-        self.save_btn.setProperty("accent", True)
-        self.save_btn.clicked.connect(self.save_current)
-        self.delete_btn = QPushButton()
-        self.delete_btn.clicked.connect(self.delete_current)
-        edit_actions.addWidget(self.delete_btn)
-        edit_actions.addWidget(self.cancel_btn)
-        edit_actions.addWidget(self.save_btn)
-        edit_layout.addLayout(edit_actions)
-        self.panel_stack.addWidget(edit)
-
-        layout.addWidget(self.panel_stack, 1)
-        return panel
+        return build_panel(self)
 
     def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
         self.search_edit.setPlaceholderText(self.tr("search.placeholder"))
@@ -261,6 +174,7 @@ class LibraryPage(ScanMixin, QWidget):
             self.filter_buttons[name].setText(self.tr(key))
         self.filter_buttons["orphan"].setText(self.tr("filter.orphan"))
         self.scan_btn.setText(self.tr("action.scan"))
+        self.refresh_btn.setText(self.tr("action.reload"))
         self.open_csv_btn.setText(self.tr("action.open_csv"))
         self.more_btn.setText("⋯")
         self.more_btn.setToolTip(self.tr("action.more"))
@@ -279,6 +193,37 @@ class LibraryPage(ScanMixin, QWidget):
         self._refresh_panel_title()
 
     # ---------------- 数据 ----------------
+    def reload_now(self) -> None:
+        """手动刷新（工具栏按钮）：重读 CSV 并重建索引。"""
+        self.reload()
+        self.append_status(self.tr("status.reloaded"))
+
+    def start_auto_refresh(self) -> None:
+        """页面可见时定时同步：CSV 被外部改动、悬浮窗写完备注都能及时反映。"""
+        from PySide6.QtCore import QTimer
+
+        if self._refresh_timer is not None:
+            return
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(2000)
+        self._refresh_timer.timeout.connect(self._auto_sync)
+        self._refresh_timer.start()
+
+    def _on_store_changed(self) -> None:
+        """库在本进程内被写盘（悬浮窗存备注、本页保存）→ 立刻刷新表格与统计。"""
+        self._refresh_table()
+        self._update_status()
+
+    def _auto_sync(self) -> None:
+        """定时同步：靠文件指纹判断，没变时几乎零开销。"""
+        try:
+            changed = self._store.reload_if_changed()
+        except Exception:                  # noqa: BLE001 - 自动刷新失败不打扰用户
+            return
+        if changed:
+            self._refresh_table()
+            self._update_status()
+
     def reload(self) -> None:
         try:
             self._store.reload_if_changed()

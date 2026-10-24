@@ -19,7 +19,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Callable, Iterable, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +177,7 @@ class ReferenceStore:
         self._anchors: list[Anchor] = []
         self._refs_fp: tuple[int, int, str] | None = None
         self._anchors_fp: tuple[int, int, str] | None = None
+        self._listeners: list[Callable[[], None]] = []
         self.load(force=True)
 
     # ---------------- 路径 ----------------
@@ -256,6 +257,17 @@ class ReferenceStore:
 
     def reload_if_changed(self) -> bool:
         return self.load(force=False)
+
+    def subscribe(self, listener: Callable[[], None]) -> None:
+        """订阅"本进程内写盘完成"事件（页面据此即时刷新，不必等定时器）。"""
+        self._listeners.append(listener)
+
+    def _notify(self) -> None:
+        for listener in list(self._listeners):
+            try:
+                listener()
+            except Exception:              # noqa: BLE001 - 监听者出错不能影响写盘
+                logger.debug("文献库变更回调失败", exc_info=True)
 
     def source_signature(self) -> str:
         """两个 CSV 的指纹串（派生索引用它判断是否需要重建）。"""
@@ -441,11 +453,13 @@ class ReferenceStore:
     def _flush_refs(self) -> None:
         self._write_csv(self.refs_path, REF_COLUMNS, [ref.to_row() for ref in self._refs.values()])
         self._refs_fp = self._fingerprint(self.refs_path)
+        self._notify()
 
     def _flush_anchors(self) -> None:
         self._write_csv(self.anchors_path, ANCHOR_COLUMNS,
                         [anchor.to_row() for anchor in self._anchors])
         self._anchors_fp = self._fingerprint(self.anchors_path)
+        self._notify()
 
     def _write_csv(self, path: Path, columns: tuple[str, ...], rows: list[dict[str, str]]) -> None:
         """原子写：先写临时文件再替换；落盘前留一份备份。"""

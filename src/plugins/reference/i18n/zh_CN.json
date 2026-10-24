@@ -80,5 +80,7 @@
   "watch.starting": "监听启动中…",
   "watch.no_word": "未连接 Word（打开 Word 后会自动重连）",
   "watch.scanning": "正在建立引用索引…",
-  "watch.scanned": "引用索引就绪：{count} 个锚点"
+  "watch.scanned": "引用索引就绪：{count} 个锚点",
+  "overlay.close_tip": "关闭",
+  "status.reloaded": "已刷新"
 }
