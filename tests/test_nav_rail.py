@@ -46,6 +46,18 @@ def test_injected_rail_color_is_painted(qapp):
     assert color == rail_color, f"侧栏自绘颜色应为 {rail_color}，实际 {color}"
 
 
+def test_no_structural_divider_when_border_is_none(qapp):
+    """极淡分层：border 传 None 时侧栏右边不应出现分割线（用户要求去掉这条线）。"""
+    from app.nav_rail import NavRail
+
+    rail = NavRail()
+    rail.set_colors("#f7f8fa", None)
+    rail.resize(60, 400)
+    img = rail.grab().toImage()
+    edge = img.pixelColor(img.width() - 1, img.height() // 2).name()
+    assert edge == "#f7f8fa", f"右侧最后 1 列应仍是底色，实际 {edge}"
+
+
 def test_titlebar_and_rail_tokens_differ():
     """两个分区必须来自不同令牌，相同就会重现"分不清"。"""
     from core.services.theme_service import ThemeService

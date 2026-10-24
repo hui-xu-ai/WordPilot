@@ -81,3 +81,14 @@ def test_injected_title_bar_color_is_painted(qapp):
     img = bar.grab().toImage()
     color = img.pixelColor(img.width() // 2, img.height() // 2).name()
     assert color == bar_color, f"标题栏自绘颜色应为 {bar_color}，实际 {color}"
+
+
+def test_no_bottom_line_when_border_is_none(qapp):
+    """极淡分层：border 传 None 时标题栏底边不画分割线。"""
+    from app.title_bar import TitleBar
+
+    bar = TitleBar(None)
+    bar.set_colors("#eff1f5", None)
+    img = bar.grab().toImage()
+    last_row = img.pixelColor(img.width() // 2, img.height() - 1).name()
+    assert last_row == "#eff1f5", f"最后一行应仍是底色，实际 {last_row}"

@@ -377,11 +377,10 @@ QToolButton#toolbarBtn:checked {
     border-color: @color.accent;
 }
 
-/* 图标导航轨（Codex 风格：侧栏与标题栏分区，与白色内容区形成边界） */
+/* 图标导航轨（极淡分层：只靠底色区分，不画结构分割线） */
 QWidget#navRail {
     background-color: @color.bg.rail;
     border: none;
-    border-right: 1px solid @color.border.strong;
 }
 QToolButton#navButton,
 QToolButton#navAction {
@@ -427,9 +426,9 @@ QLabel#pluginName {
 
 /* ---------- 自绘标题栏（无边框窗口） ---------- */
 QWidget#titleBar {
-    /* 比侧栏再深一档：无边框窗口在白色背景上没有系统边框，靠分区色区分边界 */
+    /* 靠底色区分层级，不加底边分割线（用户要求：极淡过渡，去掉边界线） */
     background-color: @color.bg.titlebar;
-    border-bottom: 1px solid @color.border.strong;
+    border: none;
 }
 /* 右侧「次要界面」抽屉（ADR-002）：分隔线用浅色令牌，不要系统默认的深色线 */
 QWidget#sidePanelHost {

@@ -11,8 +11,8 @@
   "color.bg.titlebar": "#eff1f5",
   "color.bg.card": "#ffffff",
   "color.bg.subtle": "#f6f7f9",
-  "color.bg.hover": "#f2f3f6",
-  "color.bg.selected": "#edf0f5",
+  "color.bg.hover": "#eef0f4",
+  "color.bg.selected": "#e2e6ec",
   "color.bg.disabled": "#f7f8fa",
 
   "color.border": "#e9ebef",

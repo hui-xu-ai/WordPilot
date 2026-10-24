@@ -539,12 +539,12 @@ class MainWindow(QMainWindow):
                 icon_factory.icon("win-close", secondary))
             self._sync_max_icon()
         # 分区色自绘注入（不依赖 QSS 是否给 QWidget 子类绘制背景，见 title_bar.set_colors）
-        strong = self._theme_token("color.border.strong", "#c6c6cf")
+        # border 传 None：极淡分层下不再画标题栏底边 / 侧栏右边的结构线，只靠底色区分
         if hasattr(self, "title_bar"):
             self.title_bar.set_colors(
-                self._theme_token("color.bg.titlebar", "#bfc3d1"), strong)
+                self._theme_token("color.bg.titlebar", "#eff1f5"), None)
         if hasattr(self, "nav"):
-            self.nav.set_colors(self._theme_token("color.bg.rail", "#e9e9ef"), strong)
+            self.nav.set_colors(self._theme_token("color.bg.rail", "#f7f8fa"), None)
 
     def register_to_window_manager(self):
         """把主窗口纳入窗口治理（在 kernel.attach_ui 之后调用）。"""
