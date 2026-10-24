@@ -273,10 +273,12 @@ class PluginManager:
                 windows.close_owner(plugin_id)
         except Exception:
             logger.exception("插件 [%s] 的窗口清理失败", plugin_id)
-        try:
-            record.instance.deactivate()
-        except Exception:
-            logger.exception("插件 [%s] 停用异常", plugin_id)
+        instance = getattr(record, "instance", None)
+        if instance is not None:
+            try:
+                instance.deactivate()
+            except Exception:
+                logger.exception("插件 [%s] 停用异常", plugin_id)
         i18n = self.kernel.services.get("i18n")
         if i18n is not None:
             i18n.unregister_namespace(plugin_id)

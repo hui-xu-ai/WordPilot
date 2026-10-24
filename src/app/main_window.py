@@ -330,7 +330,11 @@ class MainWindow(QMainWindow):
         self.nav.set_toggle_icon(self._nav_icon("menu", checkable=False),
                                  self.tr("app.nav.expand"))
         # 重建后保持当前页：优先用户显式选择的，其次第一个插件页，最后「插件管理」
+        # 可用页 = 插件页 + 内置页（`plugins` / `settings` 在 bottom 里）。
+        # 历史实现只统计插件页 ⇒ 内置页永远被判"不可用"，于是每次 plugins.changed
+        # （点一次启停开关、改排序、装插件）都把用户从插件管理页弹回插件页。
         available = [entry["id"] for entry in pages if entry.get("id")]
+        available += [entry["id"] for entry in bottom if entry.get("id")]
         current = self._explicit_page
         if current not in available:
             current = self._default_page()

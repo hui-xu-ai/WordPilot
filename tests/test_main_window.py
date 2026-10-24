@@ -79,3 +79,37 @@ def test_quit_app_is_idempotent(shell, monkeypatch):
 
     assert len(events) == 1, f"kernel.shutdown 只应广播一次，实际 {len(events)} 次"
     assert len(quits) == 1, f"QApplication.quit 只应调用一次，实际 {len(quits)} 次"
+
+
+def _register_demo_plugin_page(shell):
+    """注册一个"已激活插件"的页面，让默认页逻辑真的会指向插件页。
+
+    没有插件页时 `_default_page()` 恰好也返回 "plugins"，测试会假通过。
+    """
+    from PySide6.QtWidgets import QLabel
+
+    from core.plugin_manager import PluginRecord, PluginState
+    from core.sdk.plugin_base import PluginManifest
+
+    shell.kernel.plugins.records["demo"] = PluginRecord(
+        manifest=PluginManifest(id="demo"), state=PluginState.ACTIVE)
+    shell.ui.add_page("demo_label", lambda: QLabel("demo"), plugin_id="demo")
+    shell.build_extension_menus()
+
+
+@pytest.mark.parametrize("builtin_page", ["plugins", "settings"])
+def test_plugin_toggle_does_not_jump_away_from_builtin_page(shell, builtin_page):
+    """在「插件管理」/「设置」页切换插件开关时，外壳重建导航不得把用户弹走。
+
+    回归：`_rebuild_nav` 的 `available` 只统计**插件页**，内置页永远被判"不可用"
+    ⇒ 每次 `plugins.changed`（=点一次启停开关）都跳回默认插件页。
+    """
+    _register_demo_plugin_page(shell)
+    shell._on_page_requested(builtin_page)
+    assert shell.stack.currentWidget() is shell._page_widgets[builtin_page]
+
+    shell.kernel.events.emit("plugins.changed", "demo")     # 等价于点一次启停开关
+
+    assert shell.stack.currentWidget() is shell._page_widgets[builtin_page], \
+        f"重建导航后应仍停在 {builtin_page} 页"
+    assert shell._explicit_page == builtin_page
