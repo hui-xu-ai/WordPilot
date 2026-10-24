@@ -122,11 +122,15 @@ class MyFeaturePlugin(PluginBase):
 ctx.ui.add_tool("tool_label", self.open, order=100, plugin_id=ctx.id)
 ctx.ui.add_tray_action("tray_label", self.open, order=100, plugin_id=ctx.id)
 ctx.ui.add_page("page_label", self._build_page, order=100, icon="🧩")  # 主界面导航页
+# 次要界面：进内容区右侧的可折叠抽屉（默认收起，见 docs/adr/002-side-panel.md）
+ctx.ui.add_side_panel("panel_label", self._build_side_panel, width=380, plugin_id=ctx.id)
 ctx.ui.status(self.tr("status.done"))   # 写入主窗口状态栏
 ```
 
-- 主界面信息架构：顶部工具栏 + 左侧导航 + QStackedWidget 内容区 + 状态栏；
-  `add_tool` 的入口落在「插件」页与托盘菜单，`add_page` 独占一个导航页。
+- 主界面信息架构：顶部工具栏 + 左侧导航 + QStackedWidget 内容区 + 右侧可折叠抽屉 + 状态栏；
+  `add_tool` 的入口落在「插件」页与托盘菜单，`add_page` 独占一个导航页，
+  `add_side_panel` 提供**本插件页专属**的次要界面（参数/监控/清洗之类），切页时自动换内容，
+  没有注册次要界面的页不会出现抽屉；`Ctrl+Shift+B` 展开/收起，展开状态记在 `ui.side_panel.open`。
 - `order` 越小越靠前；现有取值：navigator `10`、image_toolbox `20`、API 监控 `50`、reference `60`。
 - 卸载插件时，内核会自动清理该 `plugin_id` 注册的全部菜单项与页面。
 - 无界面环境（单测 / 冒烟）下 `ctx.ui` 是 `NullUiRegistry`，所有调用静默生效。

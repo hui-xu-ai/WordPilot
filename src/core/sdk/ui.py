@@ -47,6 +47,16 @@ class UiRegistry:
         """
         raise NotImplementedError
 
+    def add_side_panel(self, label: str, factory: Callable, width: int = 360,
+                       plugin_id: str | None = None) -> None:
+        """注册该插件页的「次要界面」：显示在内容区右侧的可折叠抽屉里。
+
+        factory() -> QWidget（惰性创建，切到本插件页时构建）；
+        抽屉展开状态与宽度由外壳记忆（配置 `ui.side_panel.open` / `ui.side_panel.width`）。
+        见 `docs/adr/002-side-panel.md`。
+        """
+        raise NotImplementedError
+
     def remove_plugin(self, plugin_id: str) -> None:
         raise NotImplementedError
 
@@ -58,6 +68,10 @@ class UiRegistry:
     def pages(self) -> list:
         """[(已翻译名称, 页面工厂, 图标, plugin_id)]，按 order 升序。"""
         return []
+
+    def side_panels(self) -> dict:
+        """{plugin_id: (已翻译标题, 工厂, 宽度)}，供外壳按当前页取次要面板。"""
+        return {}
 
     def tray_actions(self) -> list:
         """[(已翻译名称, 回调)]，按 order 升序。"""
@@ -74,6 +88,9 @@ class NullUiRegistry(UiRegistry):
         return None
 
     def add_page(self, *args, **kwargs) -> None:
+        return None
+
+    def add_side_panel(self, *args, **kwargs) -> None:
         return None
 
     def remove_plugin(self, *args, **kwargs) -> None:

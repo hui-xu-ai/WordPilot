@@ -104,6 +104,9 @@ class ProofreadPlugin(PluginBase):
         # 「智能纠错」主页面 + 托盘直达：随插件启停自动上轨/消失（P9 解耦）
         ctx.ui.add_page("nav.page", self._build_dashboard_page,
                         order=10, icon="dashboard", plugin_id="proofread")
+        # ADR-002：参数/缓存清洗/API 监控属于次要界面，进右侧可折叠抽屉（默认收起）
+        ctx.ui.add_side_panel("dashboard.side_label", self._build_side_panel,
+                              width=380, plugin_id="proofread")
         ctx.ui.add_tray_action("nav.monitor", self._open_dashboard_page,
                                order=50, plugin_id="proofread")
 
@@ -162,6 +165,13 @@ class ProofreadPlugin(PluginBase):
         from plugins.proofread.dashboard_page import DashboardPage
         self._dashboard_page = DashboardPage(self)
         return self._dashboard_page
+
+    def _build_side_panel(self):
+        """右侧抽屉内容工厂（外壳按插件缓存）：页面必须先构造好才有控件可搬。"""
+        page = self._dashboard_page
+        if page is None:
+            return None
+        return page.build_secondary_panel()
 
     def _open_dashboard_page(self) -> None:
         """托盘「API 监控」-> 抬出主窗口并切到智能纠错页。"""

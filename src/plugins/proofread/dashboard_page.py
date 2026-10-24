@@ -1,11 +1,12 @@
 # plugins/proofread/dashboard_page.py
-"""「智能纠错」插件页：校对状态 + 参数 + 缓存清洗 + API 监控。
+"""「智能纠错」插件页：主区只放校对状态，其余进右侧「次要界面」抽屉。
 
 由主窗口内置仪表盘下沉而来（P9 解耦）：
 - 页面随插件注册/注销，禁用插件后侧边栏入口随之消失；
 - 状态区用「状态点 + 文字 + Switch」表达，不再用大号文字标题；
-- 两列布局：左列校对状态与缓存清洗，右列 API 监控吃剩余空间，
-  避免三卡片垂直堆叠造成的空间浪费。
+- ADR-002：**校对参数 / 缓存清洗 / API 监控**属于次要界面，经
+  `ctx.ui.add_side_panel(...)` 注册到内容区右侧的可折叠抽屉，默认收起；
+  主区只留状态与开关，主次分离。
 
 词条来源：通用词条直接用内核语言包（app.proof.* / app.cleanup.* / monitor.*），
 本页专属词条在插件语言包（proofread.dashboard.*）。
@@ -18,7 +19,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QFormLayout, QHBoxLayout, QLabel, QMessageBox,
                                QPushButton, QScrollArea, QSlider, QSpinBox,
                                QVBoxLayout, QWidget)
-
 from core.services.api_logger import clear_api_log
 from core.widgets import MonitorPanel, Switch
 
@@ -45,20 +45,13 @@ class DashboardPage(QWidget):
 
         page = QWidget()
         scroll.setWidget(page)
-        columns = QHBoxLayout(page)
+        columns = QVBoxLayout(page)
         columns.setContentsMargins(24, 20, 24, 20)
         columns.setSpacing(14)
 
-        # ---- 左列：校对状态 + 缓存清洗 ----
-        left = QVBoxLayout()
-        left.setSpacing(14)
-        left.addWidget(self._build_status_card())
-        left.addWidget(self._build_cleanup_card())
-        left.addStretch(1)
-        columns.addLayout(left, 2)
-
-        # ---- 右列：API 监控（吃剩余空间） ----
-        columns.addWidget(self._build_monitor_card(), 3)
+        # 主区只放状态卡（参数/清洗/监控已下沉到右侧抽屉，见 build_secondary_panel）
+        columns.addWidget(self._build_status_card())
+        columns.addStretch(1)
 
         # 初始状态 + 外部开关（桌宠/热键）同步
         self.proof_switch.setChecked(self._plugin.is_enabled())
@@ -120,8 +113,32 @@ class DashboardPage(QWidget):
         self.pet_hint.setObjectName("hintLabel")
         self.pet_hint.setWordWrap(True)
         lay.addWidget(self.pet_hint)
+        return card
 
-        # 参数
+    # ---------------- 次要界面（右侧抽屉） ----------------
+    def build_secondary_panel(self) -> QWidget:
+        """校对参数 + 缓存清洗 + API 监控；由外壳放进右侧抽屉，默认收起。
+
+        幂等：外壳按插件缓存一次，重复调用返回同一控件。
+        """
+        existing = getattr(self, "_secondary_panel", None)
+        if existing is not None:
+            return existing
+        panel = QWidget()
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(14)
+        lay.addWidget(self._build_params_card())
+        lay.addWidget(self._build_cleanup_card())
+        lay.addWidget(self._build_monitor_card())
+        lay.addStretch(1)
+        self._secondary_panel = panel
+        self.retranslateUi()
+        return panel
+
+    def _build_params_card(self) -> QWidget:
+        card, lay = self._card()
+        self.params_card_title = self._card_title(lay)
         params = QFormLayout()
         params.setSpacing(10)
         params.setHorizontalSpacing(16)
@@ -232,14 +249,17 @@ class DashboardPage(QWidget):
         self.status_card_title.setText(self._app_tr("app.proof.group"))
         self.pet_hint.setText(self.tr("dashboard.pet_hint"))
         self.proof_switch.setToolTip(self.tr("dashboard.toggle_tip"))
-        self.debounce_label.setText(self._app_tr("app.proof.debounce_label"))
-        self.context_label.setText(self._app_tr("app.proof.context_label"))
-        self.cleanup_card_title.setText(self._app_tr("app.cleanup.group"))
-        self.cleanup_ignore_btn.setText(self._app_tr("app.cleanup.ignore_short"))
-        self.cleanup_log_btn.setText(self._app_tr("app.cleanup.log_short"))
-        self.cleanup_all_btn.setText(self._app_tr("app.cleanup.all_short"))
-        self.monitor_card_title.setText(self._app_tr("app.nav.monitor"))
-        self.monitor_widget.retranslateUi()
+        # 以下控件在次要面板里，面板未构造时跳过
+        if getattr(self, "params_card_title", None) is not None:
+            self.params_card_title.setText(self.tr("dashboard.params"))
+            self.debounce_label.setText(self._app_tr("app.proof.debounce_label"))
+            self.context_label.setText(self._app_tr("app.proof.context_label"))
+            self.cleanup_card_title.setText(self._app_tr("app.cleanup.group"))
+            self.cleanup_ignore_btn.setText(self._app_tr("app.cleanup.ignore_short"))
+            self.cleanup_log_btn.setText(self._app_tr("app.cleanup.log_short"))
+            self.cleanup_all_btn.setText(self._app_tr("app.cleanup.all_short"))
+            self.monitor_card_title.setText(self._app_tr("app.nav.monitor"))
+            self.monitor_widget.retranslateUi()
         self._sync_state(self._plugin.is_enabled())
 
     def refresh_theme(self) -> None:

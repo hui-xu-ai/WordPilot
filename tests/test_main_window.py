@@ -113,3 +113,49 @@ def test_plugin_toggle_does_not_jump_away_from_builtin_page(shell, builtin_page)
     assert shell.stack.currentWidget() is shell._page_widgets[builtin_page], \
         f"重建导航后应仍停在 {builtin_page} 页"
     assert shell._explicit_page == builtin_page
+
+
+# ── ADR-002：右侧「次要界面」抽屉 ───────────────────────────────────
+def _register_demo_side_panel(shell):
+    from PySide6.QtWidgets import QLabel
+
+    shell.ui.add_side_panel("demo.panel", lambda: QLabel("次要"), width=300, plugin_id="demo")
+    shell.build_extension_menus()
+
+
+def test_side_panel_hidden_for_page_without_panel(shell):
+    _register_demo_plugin_page(shell)
+    shell._on_page_requested("plugin:demo")
+    # 主窗口在测试里没有 show()，所以看 isHidden() 而不是 isVisible()
+    assert shell.side_panel.isHidden() is True, "没注册次要界面的页不该出现折叠条"
+
+
+def test_side_panel_appears_collapsed_for_registered_page(shell):
+    _register_demo_plugin_page(shell)
+    _register_demo_side_panel(shell)
+    shell._on_page_requested("plugin:demo")
+
+    assert shell.side_panel.isHidden() is False, "注册了次要界面就要露出折叠条"
+    assert shell.side_panel.is_open() is False, "默认收起，主区保持简洁"
+
+
+def test_toggle_side_panel_persists_state(shell):
+    _register_demo_plugin_page(shell)
+    _register_demo_side_panel(shell)
+    shell._on_page_requested("plugin:demo")
+
+    shell.toggle_side_panel()
+    assert shell.side_panel.is_open() is True
+    assert shell.config.get("ui.side_panel.open") is True
+
+    shell.toggle_side_panel()
+    assert shell.side_panel.is_open() is False
+    assert shell.config.get("ui.side_panel.open") is False
+
+
+def test_toggle_side_panel_reports_when_unavailable(shell):
+    _register_demo_plugin_page(shell)
+    shell._on_page_requested("plugin:demo")     # 该页没有次要界面
+    before = shell.statusbar.currentMessage()
+    shell.toggle_side_panel()
+    assert shell.statusbar.currentMessage() != before, "没有次要界面时应给一句提示，不能静默"

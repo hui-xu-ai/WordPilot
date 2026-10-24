@@ -42,10 +42,17 @@ for c in cards:
     g = c.geometry()
     print(f"  卡片 pos=({g.x()},{g.y()}) size={g.width()}x{g.height()}")
 
-# 左列 / 右列判定：卡片横向位置
+# 布局判定（ADR-002 之后主区只有状态卡：一列；参数/清洗/监控已进右侧抽屉）
 xs = sorted({c.geometry().x() for c in cards})
 print("不同列起点 x:", xs)
-assert len(xs) == 2, f"期望两列布局，实际列起点 {xs}"
+assert len(xs) == 1, f"主区应为单列（次要界面已进右侧抽屉），实际列起点 {xs}"
+
+print("=== 右侧抽屉 ===")
+panel = dash.build_secondary_panel()
+print("次要面板:", type(panel).__name__, "| 抽屉可见:", not mw.side_panel.isHidden(),
+      "| 默认展开:", mw.side_panel.is_open())
+assert panel is not None, "智能纠错必须提供次要界面（参数/清洗/监控）"
+assert mw.side_panel.is_open() is False, "抽屉默认收起，主区保持简洁"
 
 # 底部不越界
 for c in cards:

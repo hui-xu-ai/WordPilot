@@ -33,7 +33,7 @@
 import logging
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMainWindow, QMenu,
                                QSizeGrip, QStackedWidget, QSystemTrayIcon,
                                QVBoxLayout, QWidget)
@@ -184,6 +184,22 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         body.addWidget(self.stack, 1)
 
+        # 右侧「次要界面」抽屉（ADR-002）：默认收起，只留 36px 竖条
+        from app.side_panel import DEFAULT_WIDTH, SidePanelHost
+
+        self.side_panel = SidePanelHost(
+            self,
+            width=int(self.config.get("ui.side_panel.width", DEFAULT_WIDTH)),
+            opened=bool(self.config.get("ui.side_panel.open", False)),
+        )
+        self.side_panel.toggled.connect(
+            lambda opened: self.config.set("ui.side_panel.open", bool(opened)))
+        body.addWidget(self.side_panel)
+        self._side_panel_widgets: dict[str, QWidget] = {}
+
+        shortcut = QShortcut(QKeySequence("Ctrl+Shift+B"), self)
+        shortcut.activated.connect(self.toggle_side_panel)
+
         # 内置页：插件管理 + 设置（功能页全部由插件经贡献点注册）
         self._add_builtin_page("plugins", PluginManagerPage(
             self.kernel, parent=None, i18n=self.i18n))
@@ -236,6 +252,13 @@ class MainWindow(QMainWindow):
         active_ids = {pid for pid, rec in self.kernel.plugins.records.items()
                       if rec.state == PluginState.ACTIVE}
         self.ui.retain_only(active_ids)
+        # 次要面板缓存同步收敛：不再注册的插件把缓存控件丢掉
+        live_panels = set(self.ui.side_panels())
+        for pid in list(self._side_panel_widgets):
+            if pid not in live_panels:
+                widget = self._side_panel_widgets.pop(pid)
+                widget.hide()
+                widget.deleteLater()
         for label, factory, _icon, plugin_id in self.ui.pages():
             self._plugin_factories[f"plugin:{plugin_id}"] = (factory, False)
         for page_id in [pid for pid in self._page_widgets if pid.startswith("plugin:")]:
@@ -367,6 +390,42 @@ class MainWindow(QMainWindow):
             return
         self.nav.set_current_page(page_id)
         self.stack.setCurrentWidget(widget)
+        self._sync_side_panel(page_id)
+
+    # ---------------- 右侧「次要界面」抽屉（ADR-002） ----------------
+    @staticmethod
+    def _plugin_id_of(page_id: str) -> str | None:
+        return page_id.split(":", 1)[1] if page_id.startswith("plugin:") else None
+
+    def _sync_side_panel(self, page_id: str) -> None:
+        """按当前页切换抽屉内容；该页没有注册次要界面时整块隐藏。"""
+        plugin_id = self._plugin_id_of(page_id)
+        entry = self.ui.side_panel_for(plugin_id) if plugin_id else None
+        if entry is None:
+            self.side_panel.set_content(None)
+            return
+        title, factory, width = entry
+        widget = self._side_panel_widgets.get(plugin_id)
+        if widget is None:
+            try:
+                widget = factory()
+            except Exception:
+                logger.exception("次要面板构造失败: %s", plugin_id)
+                self.side_panel.set_content(None)
+                return
+            if widget is None:
+                self.side_panel.set_content(None)
+                return
+            self._side_panel_widgets[plugin_id] = widget
+        self.side_panel.set_content(widget, title)
+        self.side_panel.set_content_width(width)
+
+    def toggle_side_panel(self) -> None:
+        """展开/收起抽屉（Ctrl+Shift+B）；当前页没有次要界面时给一句提示。"""
+        if not self.side_panel.has_content():
+            self.statusBar().showMessage(self.tr("app.nav.page_unavailable"), 3000)
+            return
+        self.side_panel.toggle()
 
     def _on_page_requested(self, page_id: str) -> None:
         """用户点击导航或外部直达：记住显式选择后再切页。"""

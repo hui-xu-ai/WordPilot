@@ -30,6 +30,8 @@ class QtUiRegistry(UiRegistry):
         self._tray: list[tuple[int, str, Callable, str | None]] = []
         # (order, label_key, factory, icon, plugin_id) —— 主界面「导航+内容页」贡献点
         self._pages: list[tuple[int, str, Callable, Any, str | None]] = []
+        # (label_key, factory, width, plugin_id) —— 当前插件页的「次要界面」抽屉
+        self._side_panels: list[tuple[str, Callable, int, str | None]] = []
 
     def bind_i18n(self, i18n) -> None:
         """由主窗口注入 i18n 服务，供渲染时现场查词。"""
@@ -74,11 +76,27 @@ class QtUiRegistry(UiRegistry):
         return [(self._text(label, pid), factory, icon, pid)
                 for _o, label, factory, icon, pid in self._pages]
 
+    # ---- 次要界面抽屉（ADR-002）----
+    def add_side_panel(self, label: str, factory: Callable, width: int = 360,
+                       plugin_id: str | None = None) -> None:
+        self._side_panels.append((label, factory, int(width), plugin_id))
+
+    def side_panels(self) -> dict:
+        """{plugin_id: (已翻译标题, 工厂, 宽度)}；同一插件多次注册时以最后一次为准。"""
+        return {pid: (self._text(label, pid), factory, width)
+                for label, factory, width, pid in self._side_panels if pid}
+
+    def side_panel_for(self, plugin_id: str | None):
+        if not plugin_id:
+            return None
+        return self.side_panels().get(plugin_id)
+
     def remove_plugin(self, plugin_id: str) -> None:
         """插件卸载时清理它注册的全部界面入口。"""
         self._tools = [item for item in self._tools if item[4] != plugin_id]
         self._tray = [item for item in self._tray if item[3] != plugin_id]
         self._pages = [item for item in self._pages if item[4] != plugin_id]
+        self._side_panels = [item for item in self._side_panels if item[3] != plugin_id]
 
     def retain_only(self, active_ids) -> None:
         """只保留属于 active_ids 的贡献点（含无归属的孤儿）。
@@ -91,3 +109,4 @@ class QtUiRegistry(UiRegistry):
         self._tools = [item for item in self._tools if item[4] in keep]
         self._tray = [item for item in self._tray if item[3] in keep]
         self._pages = [item for item in self._pages if item[4] in keep]
+        self._side_panels = [item for item in self._side_panels if item[3] in keep]

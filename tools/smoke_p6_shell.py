@@ -70,16 +70,16 @@ mw.nav.set_collapsed(True)
 assert mw.nav.width() == 52
 assert mw.nav.is_collapsed() is True, "折叠状态应记录在 NavRail 上"
 
-print("\n=== 6) 动作型入口（导航助手） ===")
-tools = mw.ui.tools()
-print("tools:", [(t[0], t[2]) for t in tools])
-# 冒烟不得假设用户启停了哪个插件：navigator 被禁用时该入口本就不应存在（HANDOFF「冒烟污染」坑）
+print("\n=== 6) 插件页入口（导航助手已页面化） ===")
+nav_page_ids = list(mw.nav._pages.keys())
+print("nav pages:", nav_page_ids)
+# 冒烟不得假设用户启停了哪个插件：navigator 被禁用时该页本就不存在（HANDOFF「冒烟污染」坑）
 plugins_cfg = kernel.config.get("plugins", {}) or {}
 if "navigator" in (plugins_cfg.get("disabled") or []):
-    print("  navigator 在用户配置里被禁用 -> 跳过该入口断言")
-    assert not any("导航" in t[0] for t in tools), "禁用后不应残留导航入口"
+    print("  navigator 在用户配置里被禁用 -> 断言该页不存在")
+    assert "plugin:navigator" not in nav_page_ids, "禁用后不应残留导航页"
 else:
-    assert any("导航" in t[0] or "Navigator" in t[0] for t in tools), "导航助手入口缺失"
+    assert "plugin:navigator" in nav_page_ids, "导航页缺失（应像其它插件一样挂在侧边栏）"
 
 print("\n=== 7) 语言热切换（轨道重建、页面状态保留） ===")
 clipboard_page = None

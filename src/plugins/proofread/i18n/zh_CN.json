@@ -5,6 +5,8 @@
   "nav.monitor": "API 监控",
   "dashboard.pet_hint": "桌宠的颜色实时反映校对状态（绿=无错 / 红=有错 / 黄=校对中 / 灰=未启用）。",
   "dashboard.toggle_tip": "开启 / 暂停智能纠错",
+  "dashboard.params": "校对参数",
+  "dashboard.side_label": "校对参数与监控",
   "bubble.accept": "✔ 确认",
   "bubble.ignore": "✘ 忽略",
   "status.api_missing": "AI 服务未就绪，请先在设置里填写 API Key",
