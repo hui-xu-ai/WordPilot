@@ -6,6 +6,7 @@
   "tray_label": "Word Navigator",
   "window.title": "Word Navigator - Xu Hui",
   "com_error": "COM initialization failed, cannot connect to Word",
+  "btn.refresh.tip": "Full scan: re-read captions and refresh page numbers (via Word COM, slower)",
   "btn.refresh": "🔄 Refresh",
   "btn.font": "🔤 Font",
   "btn.about": "ℹ️ About",

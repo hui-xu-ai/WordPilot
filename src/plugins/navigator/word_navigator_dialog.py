@@ -131,18 +131,20 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
+        # 一行放「刷新列表」与「返回上一位置」：原来各占一行，竖向空间浪费
         toolbar = QHBoxLayout()
         self.btn_refresh = QPushButton(self.tr("btn.refresh"))
-        self.btn_refresh.clicked.connect(self.load_captions)
+        self.btn_refresh.setToolTip(self.tr("btn.refresh.tip"))
+        # 手动刷新 = 全量扫描（走 COM，会更新页码）；平时的自动刷新走离线解析、不动页码
+        self.btn_refresh.clicked.connect(lambda: self.load_captions(force_com=True))
         toolbar.addWidget(self.btn_refresh)
-        toolbar.addStretch()
-        layout.addLayout(toolbar)
 
         self.btn_return = QPushButton(self.tr("btn.return"))
         # 样式交给主题（base.qss 里的 QPushButton#navReturnBtn）
         self.btn_return.setObjectName("navReturnBtn")
         self.btn_return.clicked.connect(self.go_back)
-        layout.addWidget(self.btn_return)
+        toolbar.addWidget(self.btn_return, 1)
+        layout.addLayout(toolbar)
 
         search_layout = QHBoxLayout()
         search_layout.addWidget(QLabel(self.tr("search.label")))
@@ -156,6 +158,8 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         self.chapter_combo.addItem(self.tr("chapter.all"), -1)
         self.chapter_combo.setEnabled(False)
         self.chapter_combo.currentIndexChanged.connect(self.filter_lists)
+        # 点「全部章节」时索引常常没变（本来就是 0），只有 activated 才会发出 ⇒ 两个信号都接
+        self.chapter_combo.activated.connect(self.filter_lists)
         search_layout.addWidget(self.chapter_combo)
         layout.addLayout(search_layout)
 
@@ -236,16 +240,21 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
             self._stop_save_monitor()
 
     def _auto_refresh(self):
-        """Word保存后自动刷新：更新文本和页码，静默执行"""
+        """Word 保存后自动刷新：只走离线解析（快、不动页码、不占 COM）。"""
         if self._closing:
             return
         if self.isVisible() and not self._scanning:
-            self._refresh_captions(update_pages=True, silent=True)
+            self._refresh_captions(force_com=False, silent=True)
 
     # ---------- 刷新入口 ----------
-    def load_captions(self):
-        """手动刷新：更新文本，不更新页码"""
-        self._refresh_captions(update_pages=False, silent=False)
+    def load_captions(self, force_com: bool = False):
+        """刷新题录。
+
+        - 默认（打开软件时的首次扫描、Word 保存后的自动刷新）：**离线解析**，
+          只更新章节与题录文本，不碰页码 ⇒ 不再每次启动都触发全量 COM 扫描；
+        - `force_com=True`（工具栏「刷新列表」）：走 COM 全量扫描并刷新页码。
+        """
+        self._refresh_captions(force_com=force_com, silent=False)
 
 
     # ---------- 过滤列表（不再自动切换标签页）----------

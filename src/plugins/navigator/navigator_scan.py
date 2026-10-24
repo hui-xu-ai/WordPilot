@@ -70,7 +70,13 @@ class ScanMixin:
                                           tables=len(self.table_captions),
                                           figures=len(self.figure_captions)))
         return True
-    def _refresh_captions(self, update_pages=True, silent=False):       #  2026.05.18
+    def _refresh_captions(self, force_com=False, silent=False):       #  2026.05.18
+        """刷新题录。
+
+        `force_com=False`（默认：首次打开、保存后自动刷新）→ 只走离线解析：快、不动页码；
+        `force_com=True`（工具栏「刷新列表」）→ 走 COM 全量扫描并更新页码。
+        离线失败（文件不可读、没有可识别题录）时才退回 COM，保证功能不丢。
+        """
         self._captions_cache_data = []   # 每次刷新前都重置，保证属性存在
         word, doc, full_path = self._get_word_document()
         if not doc:
@@ -79,9 +85,9 @@ class ScanMixin:
         if self._scanning:
             self.status_label.setText(self.tr("status.scanning"))
             return
-        # ---------- 快速路径：直接解析 .docx（不占 GUI 线程、不走 COM，实测 40MB 样本 ~70ms vs COM ~1.3s） ----------
-        if update_pages and self._try_offline_scan(full_path):
+        if not force_com and self._try_offline_scan(full_path):
             return
+        update_pages = force_com        # 页码只在显式全量刷新时更新
         
         # ---------- 缓存优先 ----------
         fingerprint = self.cache.get_document_fingerprint(full_path)

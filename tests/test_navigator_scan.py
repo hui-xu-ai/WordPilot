@@ -177,3 +177,62 @@ def test_empty_result_falls_back(tmp_path):
 
     panel = _panel()
     assert panel._try_offline_scan(str(path)) is False
+
+
+# ── 刷新策略：默认离线（不动页码），只有「刷新列表」走 COM ─────────────────
+class _FakeCache:
+    def get_document_fingerprint(self, _path):
+        return None
+
+    def get_document_cache(self, _fingerprint):
+        return None
+
+
+class _PolicyPanel:
+    def __init__(self):
+        self.calls: list[str] = []
+        self._captions_cache_data = []
+        self._scanning = False
+        self.status_label = _FakeLabel()
+        self.cache = _FakeCache()
+
+    def tr(self, key, /, **_params):
+        return key
+
+
+def _policy_panel(offline_ok: bool = True):
+    """只替换取文档/离线扫描/全量扫描三处，其余用真实 ScanMixin 逻辑。"""
+    from plugins.navigator.navigator_scan import ScanMixin
+
+    cls = type("PolicyPanel", (ScanMixin, _PolicyPanel), {})
+    panel = cls()
+    panel._get_word_document = lambda: (object(), object(), "C:/fake/doc.docx")
+
+    def _offline(_path):
+        panel.calls.append("offline")
+        return offline_ok
+
+    panel._try_offline_scan = _offline
+    panel._do_full_scan = lambda *_args: panel.calls.append("com")
+    return panel
+
+
+def test_default_refresh_uses_offline_scan_only():
+    """打开软件/保存后自动刷新：只走离线解析，不触发 COM（不再每次启动全量扫描）。"""
+    panel = _policy_panel()
+    panel._refresh_captions(force_com=False)
+    assert panel.calls == ["offline"]
+
+
+def test_refresh_button_triggers_com_full_scan():
+    """工具栏「刷新列表」才走 COM 全量扫描并更新页码。"""
+    panel = _policy_panel()
+    panel._refresh_captions(force_com=True)
+    assert panel.calls == ["com"]
+
+
+def test_offline_failure_falls_back_to_com():
+    """离线解析失败时仍要能刷新（先试离线，失败再走 COM）。"""
+    panel = _policy_panel(offline_ok=False)
+    panel._refresh_captions(force_com=False)
+    assert panel.calls == ["offline", "com"]
