@@ -234,3 +234,13 @@ def test_label_fallback_ignores_text_without_number():
     from plugins.reference.word_watch import WordWatch
 
     assert WordWatch()._label_fallback_payload(word, "论文.docx") is None
+
+def test_watch_has_index_and_status_signal():
+    """回归：扫描按钮依赖 `WordWatch._index`/`rescan_index`，缺一项就会「扫描失败」。"""
+    from plugins.reference.doc_index import DocIndex
+    from plugins.reference.word_watch import WordWatch
+
+    watch = WordWatch()
+    assert isinstance(watch._index, DocIndex)
+    assert callable(watch.rescan_index)
+    assert hasattr(watch, "statusChanged")

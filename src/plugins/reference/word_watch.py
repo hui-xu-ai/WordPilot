@@ -199,6 +199,9 @@ class WordWatch(QThread):
         self._last_signature: tuple[str, int, int] | None = None
         self._last_hit_at = 0.0
         self._cleared = True
+        self._index = DocIndex()
+        self._last_anchor = ""
+        self._last_status = ""
 
     def stop(self) -> None:
         self._running = False
