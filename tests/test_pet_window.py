@@ -100,3 +100,79 @@ def test_no_diff_clears_pending(pet_cls):
     pet.set_suggestion("原句", "原句", -1, -1)
     assert pet._pending_suggestion is None
     assert pet.bubble.isVisible() is False
+
+
+# ── 定位：气泡显隐后宠物不能漂移（G5：并入本模块）───────────────
+
+@pytest.fixture(scope="module")
+def qapp():
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])
+
+
+class _Cfg(dict):
+    def get(self, key, default=None):
+        return dict.get(self, key, default)
+
+    def set(self, key, value):
+        self[key] = value
+
+
+def _make_pet():
+    from plugins.proofread.pet_window import PetWindow
+
+    return PetWindow(_Cfg({"auto_show_suggestion": True}))
+
+
+def test_pet_rect_unchanged_when_bubble_toggles(qapp):
+    pet = _make_pet()
+    pet.set_suggestion("如图1b所示", "如图2b所示")
+    pet.show()
+    qapp.processEvents()
+    pet._remember_pet_anchor()
+    before = pet._pet_rect()
+
+    for _ in range(3):          # 反复显隐，漂移会累积
+        pet.toggle_bubble()
+        qapp.processEvents()
+        pet.toggle_bubble()
+        qapp.processEvents()
+
+    after = pet._pet_rect()
+    assert (after.x(), after.y()) == (before.x(), before.y()), \
+        f"宠物位置漂移了：{before.topLeft()} → {after.topLeft()}"
+    pet.close()
+
+
+def test_pet_rect_unchanged_after_relayout(qapp):
+    """字号/服务重载这类"没有气泡变化"的重排也不能挪动宠物。"""
+    pet = _make_pet()
+    pet.show()
+    qapp.processEvents()
+    pet._remember_pet_anchor()
+    before = pet._pet_rect()
+
+    pet._reflow_keeping_pet()
+    qapp.processEvents()
+
+    after = pet._pet_rect()
+    assert (after.x(), after.y()) == (before.x(), before.y())
+    pet.close()
+
+
+def test_window_grows_upward_when_bubble_appears(qapp):
+    """气泡出现在宠物**上方**：窗口顶边上移、底边基本不动。"""
+    pet = _make_pet()
+    pet.show()
+    qapp.processEvents()
+    pet._remember_pet_anchor()
+    top_before, bottom_before = pet.y(), pet.frameGeometry().bottom()
+
+    pet.set_suggestion("原始句子内容", "修改后的句子内容")
+    qapp.processEvents()
+
+    assert pet.y() <= top_before, "出现气泡后窗口应向上扩展"
+    assert abs(pet.frameGeometry().bottom() - bottom_before) <= 2, "窗口底边应基本不动"
+    pet.close()
+

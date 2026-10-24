@@ -21,7 +21,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import (QEasingCurve, QPoint, QRectF, Qt, QTimer,
+from PySide6.QtCore import (QEasingCurve, QPoint, QRect, QRectF, Qt, QTimer,
                             QVariantAnimation, Signal)
 from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
@@ -234,7 +234,7 @@ class PetWindow(QWidget):
         self._drag_pos: QPoint | None = None
         self._dragged = False
         self._state = "idle"
-        self._bottom_anchor: int | None = None
+        self._pet_anchor = None            # 宠物在屏幕上的矩形（QRect），布局变化的唯一锚点
 
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -293,12 +293,7 @@ class PetWindow(QWidget):
             self._theme = theme
             self.bubble._theme = theme
         self.canvas.set_services(skins, theme)
-        center = self._pet_center_x()
-        self.adjustSize()
-        self.layout().activate()
-        self._move_clamped(self.x() + (center - self._pet_center_x()),
-                           self._bottom_anchor - self.frameGeometry().height()
-                           if self._bottom_anchor is not None else self.y())
+        self._reflow_keeping_pet()
 
     # ---------------- 气泡 ----------------
     def set_suggestion(self, original, corrected, start=-1, end=-1) -> None:
@@ -333,24 +328,39 @@ class PetWindow(QWidget):
         self._after_bubble_change()
 
     def _after_bubble_change(self) -> None:
-        """气泡显隐后重新布局，并把**桌宠本体**钉在原处。
+        """气泡显隐后重新布局，让**桌宠本体**在屏幕上的位置保持不变。
 
-        历史实现只钉"窗口底边"：气泡出现时窗口宽度从桌宠宽（~90px）变成气泡宽（~300px），
-        而桌宠在布局里是水平居中的 ⇒ 窗口变宽的同时桌宠被重新居中，看起来"瞬移"了一段距离。
-        现在同时钉住桌宠的水平中心与窗口底边，气泡只会向上/向两侧展开。
+        单一事实源是「宠物矩形」（`_pet_anchor`）：布局变化后用"宠物应该在哪"反推窗口左上角，
+        而不是像旧实现那样补偿"上一次的窗口底边"——后者会随每次补偿累积误差，
+        表现为显隐几次之后宠物慢慢漂移。
         """
-        center = self._pet_center_x()
-        self.adjustSize()
-        self.layout().activate()
-        left = self.x() + (center - self._pet_center_x())
-        bottom = self._bottom_anchor if self._bottom_anchor is not None else self.frameGeometry().bottom()
-        self._move_clamped(left, bottom - self.frameGeometry().height())
+        self._reflow_keeping_pet()
         self.bubbleToggled.emit(self.bubble.isVisible())
 
-    def _pet_center_x(self) -> int:
-        """桌宠在窗口坐标系里的水平中心（用 mapTo 避开布局尚未生效的时刻）。"""
-        rect = self.canvas.rect()
-        return self.canvas.mapTo(self, rect.center()).x()
+    # ---------- 宠物定位（锚定宠物矩形，不依赖窗口底边） ----------
+    def _pet_rect(self) -> QRect:
+        """宠物画布在**屏幕坐标系**里的矩形。"""
+        top_left = self.canvas.mapToGlobal(self.canvas.rect().topLeft())
+        return QRect(top_left, self.canvas.size())
+
+    def _remember_pet_anchor(self) -> None:
+        rect = self._pet_rect()
+        if not rect.isEmpty():
+            self._pet_anchor = rect
+
+    def _reflow_keeping_pet(self) -> None:
+        """重新布局，并把宠物矩形的左上角还原到 `_pet_anchor`。"""
+        target = getattr(self, "_pet_anchor", None)
+        self.adjustSize()
+        layout = self.layout()
+        if layout is not None:
+            layout.activate()
+        if target is not None and not target.isEmpty():
+            current = self._pet_rect()
+            delta = target.topLeft() - current.topLeft()
+            if delta.x() or delta.y():
+                self._move_clamped(self.x() + delta.x(), self.y() + delta.y())
+        self._remember_pet_anchor()
 
     def _move_clamped(self, x: int, y: int) -> None:
         """移动并夹到当前屏幕可用区域内，避免气泡超出屏幕后桌宠跑出可视范围。"""
@@ -358,8 +368,9 @@ class PetWindow(QWidget):
         area = screen.availableGeometry()
         width = self.frameGeometry().width()
         height = self.frameGeometry().height()
-        x = max(area.left(), min(int(x), area.right() - width))
-        y = max(area.top(), min(int(y), area.bottom() - height))
+        # 窗口比屏幕还大时（小屏 + 长气泡）优先保住顶部/左侧
+        x = max(area.left(), min(int(x), max(area.left(), area.right() - width)))
+        y = max(area.top(), min(int(y), max(area.top(), area.bottom() - height)))
         self.move(x, y)
 
     # ---------------- 位置 ----------------
@@ -372,13 +383,11 @@ class PetWindow(QWidget):
         else:
             x = screen.right() - self.width() - 24
             y = screen.bottom() - self.height() - 24
-        x = max(screen.left(), min(x, screen.right() - self.width()))
-        y = max(screen.top(), min(y, screen.bottom() - self.height()))
-        self.move(x, y)
-        self._bottom_anchor = self.frameGeometry().bottom()
+        self._move_clamped(x, y)
+        self._remember_pet_anchor()
 
     def _save_position(self) -> None:
-        self._bottom_anchor = self.frameGeometry().bottom()
+        self._remember_pet_anchor()
         self.config.set("pet.position", [self.x(), self.y()])
 
     # ---------------- 交互 ----------------
@@ -406,7 +415,7 @@ class PetWindow(QWidget):
 
     def showEvent(self, event) -> None:            # noqa: N802 - Qt 命名惯例
         super().showEvent(event)
-        self._bottom_anchor = self.frameGeometry().bottom()
+        self._remember_pet_anchor()
         self.canvas.start_animation()
 
     def hideEvent(self, event) -> None:            # noqa: N802 - Qt 命名惯例
