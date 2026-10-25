@@ -89,3 +89,51 @@ def test_connection_runs_off_gui_thread(page, qapp, monkeypatch):
     assert seen.get("ran"), "后台线程应真的执行了 test_connection"
     assert seen["thread"] is not threading.main_thread(), "不能在 GUI 线程里做同步 HTTP"
     assert widget.test_btn.isEnabled() is True, "结束后按钮必须恢复"
+
+
+def test_pet_controls_reach_core_service(page):
+    """拖尺寸滑块 / 切皮肤下拉，都要落到内核 PetService（而不是只改界面）。"""
+    from core.services.pet_service import PetService
+
+    widget, manager = page
+    from core.services.skin_service import SkinService
+
+    widget.deleteLater()
+    widget = type(widget)(manager, skins=SkinService(manager))   # 需要皮肤服务才有多选项
+    service = PetService.instance()
+
+    widget.pet_size_slider.setValue(140)
+    assert service.size == 140, "滑块必须写进核心尺寸"
+
+    index = next((i for i in range(widget.skin_combo.count())
+                  if widget.skin_combo.itemData(i) == "deepseek"), -1)
+    assert index >= 0, "皮肤下拉应包含 deepseek"
+    widget.skin_combo.setCurrentIndex(index)
+    assert service.skin == "deepseek", "外观页切皮肤必须写进核心皮肤"
+
+
+def test_pet_size_survives_skin_change(page):
+    """切皮肤后尺寸不能被重置回默认（右键/下拉两条路径共用 PetHost.apply_skin）。"""
+    from core.services.pet_host import PetHost
+    from core.services.pet_service import PetService
+
+    widget, _manager = page
+    service = PetService.instance()
+    widget.pet_size_slider.setValue(170)
+    assert service.size == 170
+
+    class _FakeWindow:
+        def __init__(self):
+            self.sizes = []
+
+        def set_pet_size(self, size):
+            self.sizes.append(size)
+
+        def _switch_skin(self, skin_id):
+            pass
+
+    host = PetHost.instance()
+    fake = _FakeWindow()
+    host._window = fake
+    host.apply_skin("neon")
+    assert fake.sizes[-1] == service.size == 170, "切皮肤后要按内核尺寸续用"
