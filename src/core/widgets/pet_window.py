@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import (QEasingCurve, QPoint, QRect, QRectF, Qt, QTimer,
                             QVariantAnimation, Signal)
+from core.widgets.pet_events import PetEventMixin
 from core.widgets.pet_menu import PetMenuMixin
 from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
@@ -247,7 +248,7 @@ def _pet_service():
         return None
 
 
-class PetWindow(PetMenuMixin, QWidget):
+class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
     """桌宠 + 建议气泡的合并窗口。"""
 
     #: 气泡显隐变化（供插件同步状态）
@@ -288,11 +289,17 @@ class PetWindow(PetMenuMixin, QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
-        self.bubble = SuggestionCard(self, theme=theme, i18n=i18n, embedded=True)
+        self.bubble = SuggestionCard(None, theme=theme, i18n=i18n, embedded=False)
+        self.bubble.setParent(None)            # 强制成为顶层窗口（内部构造可能又挂回父级）
+        self.bubble.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        try:
+            self._remember_pet_anchor()
+        except Exception:                      # noqa: BLE001
+            pass
         self.bubble.accepted.connect(self._on_accepted)
         self.bubble.ignored.connect(self._on_ignored)
         self.bubble.setVisible(False)
-        layout.addWidget(self.bubble, 0, Qt.AlignHCenter)
+        # 气泡是独立顶层窗口，不加入桌宠窗口布局（否则会被裁切/挤动宠物）
         # 待处理建议（original, corrected, start, end）；None 表示"没有新建议"。
         # 用户采纳/忽略后必须清掉：否则下次点桌宠会把处理过的旧建议再弹出来，
         # 再点确认就按陈旧偏移重写正文。
@@ -329,23 +336,17 @@ class PetWindow(PetMenuMixin, QWidget):
         return self._state
 
     def set_pet_size(self, size: int) -> None:
-        """按内核尺寸缩放**窗口与画布**，保持中心不动并立即重绘。
-
-        关键：只改窗口尺寸不够，画布(canvas)自己也是按皮肤基准 64 绘制的，
-        必须一起放大，否则宠物看起来永远一样大（用户反馈的"根本改不了大小"）。
-        """
+        """只缩放画布；窗口尺寸交给布局（窗口里还有纠错气泡，写死尺寸会把它裁掉）。"""
         factor = max(0.4, min(4.0, float(size) / 64.0))
-        new_side = max(24, int(64 * factor))
-        center_x = self.x() + self.width() // 2
-        center_y = self.y() + self.height() // 2
-        self.setFixedSize(new_side, new_side)
-        self.move(center_x - new_side // 2, center_y - new_side // 2)
-        self.canvas.setFixedSize(new_side, new_side)
-        self.canvas.update()
-        self.canvas.repaint()
+        side = max(16, int(64 * factor))
+        canvas = getattr(self, "canvas", None)
+        if canvas is not None:
+            canvas.setFixedSize(side, side)
+            canvas.update()
+            canvas.repaint()
+        self.adjustSize()
+        self._reflow_keeping_pet()          # 按气泡大小重排，同时保持宠物位置不动
         self.update()
-        self.repaint()
-
 
     def set_services(self, skins=None, theme=None) -> None:
         if skins is not None:
@@ -366,10 +367,12 @@ class PetWindow(PetMenuMixin, QWidget):
     # ---------------- 气泡 ----------------
     def set_suggestion(self, original, corrected, start=-1, end=-1) -> None:
         """收到校对结果：无差异则记 idle，有差异则记 error 并按配置弹出气泡。"""
+        anchor = self._canvas_global_pos()          # 显示气泡前的宠物位置快照
         if not original or not corrected or original.strip() == corrected.strip():
             self._pending_suggestion = None
             self.bubble.clear_diff()
             self.bubble.setVisible(False)
+            self._bubble_anchor = anchor
             self._after_bubble_change()
             return
         self._pending_suggestion = (original, corrected, start, end)
@@ -377,12 +380,14 @@ class PetWindow(PetMenuMixin, QWidget):
                                     start=start, end=end)
         if not self.config.get("auto_show_suggestion", True):
             self.bubble.setVisible(False)
+        self._bubble_anchor = anchor
         self._after_bubble_change()
 
     def _discard_suggestion(self) -> None:
         """建议被采纳/忽略后清现场：不清的话旧建议会"复活"并按陈旧偏移改写正文。"""
         self._pending_suggestion = None
         self.bubble.clear_diff()
+        self._bubble_anchor = self._canvas_global_pos()
         self.bubble.hide()
         self._after_bubble_change()
 
@@ -396,6 +401,8 @@ class PetWindow(PetMenuMixin, QWidget):
         self._after_bubble_change()
 
     def _after_bubble_change(self) -> None:
+        anchor = getattr(self, "_bubble_anchor", None)
+        self._bubble_anchor = None
         """气泡显隐后重新布局，让**桌宠本体**在屏幕上的位置保持不变。
 
         单一事实源是「宠物矩形」（`_pet_anchor`）：布局变化后用"宠物应该在哪"反推窗口左上角，
@@ -405,11 +412,7 @@ class PetWindow(PetMenuMixin, QWidget):
         另外整段重排**关闭重绘**后再一次性打开：分层窗口（半透明）在"先按新尺寸画一帧、再 move"
         的中间态会被用户看成"闪一下"，用一个几何变更代替两次重绘即可消掉。
         """
-        self.setUpdatesEnabled(False)
-        try:
-            self._reflow_keeping_pet()
-        finally:
-            self.setUpdatesEnabled(True)
+        self._place_bubble()          # 窗口不再为气泡改变尺寸：既不裁切也不位移
         self.update()
         self.bubbleToggled.emit(self.bubble.isVisible())
 
@@ -424,16 +427,27 @@ class PetWindow(PetMenuMixin, QWidget):
         if not rect.isEmpty():
             self._pet_anchor = rect
 
-    def _reflow_keeping_pet(self) -> None:
-        """重新布局，并把宠物矩形的左上角还原到 `_pet_anchor`。"""
-        target = getattr(self, "_pet_anchor", None)
+    def _canvas_global_pos(self):
+        """画布左上角的全局坐标（气泡伸缩前后用它判断宠物是否移动）。"""
+        canvas = getattr(self, "canvas", None)
+        if canvas is None:
+            return None
+        return canvas.mapToGlobal(canvas.rect().topLeft())
+
+    def _reflow_keeping_pet(self, anchor=None) -> None:
+        """重新布局，并让**宠物本身**停在原处（用全局坐标快照，锚点不会过期）。"""
+        if anchor is None:
+            anchor = self._canvas_global_pos()
         self.adjustSize()
         layout = self.layout()
         if layout is not None:
             layout.activate()
-        if target is not None and not target.isEmpty():
-            current = self._pet_rect()
-            delta = target.topLeft() - current.topLeft()
+        layout = self.layout()
+        if layout is not None:
+            layout.activate()
+        current = self._canvas_global_pos()
+        if anchor is not None and current is not None:
+            delta = anchor - current
             if delta.x() or delta.y():
                 self._move_clamped(self.x() + delta.x(), self.y() + delta.y())
         self._remember_pet_anchor()

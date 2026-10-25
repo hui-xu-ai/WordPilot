@@ -43,3 +43,22 @@ class PetEventMixin:
     def hideEvent(self, event) -> None:        # noqa: N802
         super().hideEvent(event)
         self._report_geometry()
+
+    def _place_bubble(self) -> None:
+        """把独立气泡贴到宠物右侧（越界翻到左侧，再夹进屏幕）。"""
+        bubble = getattr(self, "bubble", None)
+        if bubble is None or not bubble.isVisible():
+            return
+        from PySide6.QtWidgets import QApplication
+
+        pet = self._pet_rect()
+        screen = QApplication.screenAt(pet.center()) or QApplication.primaryScreen()
+        area = screen.availableGeometry()
+        width, height = bubble.width(), bubble.height()
+        x = pet.right() + 8
+        if x + width > area.right():
+            x = pet.left() - width - 8
+        y = pet.top()
+        x = max(area.left(), min(x, area.right() - width))
+        y = max(area.top(), min(y, area.bottom() - height))
+        bubble.move(x, y)
