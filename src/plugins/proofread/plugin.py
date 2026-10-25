@@ -161,15 +161,30 @@ class ProofreadPlugin(PluginBase):
         except Exception:
             self._log_exception(self.tr("error.open_pet"))
             return None
+        # 统一交给内核宿主：**必须把依赖传进去**（空调用会构造出 config=None 的窗口，看不见）
+        try:
+            from core.services.pet_host import PetHost
+
+            hosted = PetHost.instance().ensure_shown(
+                config=config, api=api, ignore_mgr=ignore_mgr,
+                correction_handler=self.apply_correction,
+                theme=theme, skins=skins, i18n=i18n, tr=self.tr,
+                tools_provider=self._plugin_tools,
+            )
+            if hosted is not None and hosted is not windows.get(PET_WINDOW_ID):
+                if not getattr(hosted, "_wp_signals_connected", False):
+                    hosted.proofreadToggleRequested.connect(self.toggle)
+                    hosted.settingsRequested.connect(self._open_settings)
+                    hosted.bubbleToggled.connect(self._on_bubble_toggled)
+                    hosted._wp_signals_connected = True
+                return hosted
+        except Exception:                      # noqa: BLE001 - 宿主不可用时回退旧路径
+            logger.exception("内核宿主显示宠物失败，回退 WindowManager 路径")
+
         pet = windows.get(PET_WINDOW_ID)
         if pet is not None:
-            try:
-                from core.services.pet_host import PetHost
-
-                PetHost.instance().ensure_shown()
-            except Exception:                  # noqa: BLE001 - 宿主不可用也不能崩
-                pet.show()
-                pet.raise_()
+            pet.show()
+            pet.raise_()
         return pet
 
     def _build_dashboard_page(self):
