@@ -232,13 +232,35 @@ class PluginManager:
                 except Exception:
                     logger.exception("插件 [%s] 失败补偿 deactivate 异常", manifest.id)
             self._cleanup_partial(manifest.id)
+            self._notify_pet(manifest.id, False)
             return record
 
         record.instance = instance
         record.state = PluginState.ACTIVE
         record.error = None
+        self._notify_pet(manifest.id, True)
         logger.info("插件已加载: %s v%s", manifest.id, manifest.version)
         return record
+
+    @staticmethod
+    def _notify_pet(plugin_id: str, active: bool) -> None:
+        """告诉宠物服务该插件是否在跑：右键快捷项据此自动显示/隐藏。"""
+        try:
+            from core.services.pet_service import PetService
+
+            PetService.instance().set_plugin_active(plugin_id, active)
+        except Exception:                      # noqa: BLE001 - 宠物不可用不影响插件加载
+            logger.debug("通知宠物服务失败（%s）", plugin_id, exc_info=True)
+
+    @staticmethod
+    def _pet_cleanup(plugin_id: str) -> None:
+        """卸载插件时清掉它注册的快捷项（重启后由插件重新注册）。"""
+        try:
+            from core.services.pet_service import PetService
+
+            PetService.instance().unregister_plugin(plugin_id)
+        except Exception:                      # noqa: BLE001
+            pass
 
     def _cleanup_partial(self, plugin_id: str) -> None:
         """activate 失败后的补偿清理：把可能已注册的贡献点全部收回（best-effort）。"""
@@ -262,6 +284,8 @@ class PluginManager:
 
     # ---------------- 卸载 ----------------
     def unload(self, plugin_id: str) -> None:
+        self._notify_pet(plugin_id, False)
+        self._pet_cleanup(plugin_id)
         record = self._records.get(plugin_id)
         if record is None or record.state != PluginState.ACTIVE:
             return

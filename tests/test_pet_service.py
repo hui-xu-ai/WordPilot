@@ -105,3 +105,34 @@ def test_deactivated_plugin_hides_actions():
     service.register_action("proofread", "暂停校对", lambda: None)
     service.set_plugin_active("proofread", False)
     assert service.actions() == []
+
+# ---------------- 插件生命周期（快捷项自动显示/隐藏） ----------------
+
+def test_plugin_manager_notifies_pet_on_load_and_unload():
+    """插件加载/停用/卸载 → 宠物右键快捷项自动显示/隐藏。"""
+    from core.plugin_manager import PluginManager
+
+    service = PetService.instance(_Config())
+    service.register_action("reference", "参考文献助手", lambda: None)
+    assert service.actions() == []
+
+    PluginManager._notify_pet("reference", True)
+    assert [label for label, _cb in service.actions()] == ["参考文献助手"]
+
+    PluginManager._notify_pet("reference", False)
+    assert service.actions() == []
+
+    PluginManager._notify_pet("reference", True)
+    PluginManager._pet_cleanup("reference")
+    assert service.actions() == [], "卸载后注册项一并清除"
+
+
+def test_pet_unavailable_does_not_break_plugin_loading(monkeypatch):
+    """宠物服务异常不能让插件加载失败。"""
+    from core.plugin_manager import PluginManager
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("宠物服务挂了")
+
+    monkeypatch.setattr(PetService, "instance", classmethod(lambda cls, *a, **k: boom()))
+    PluginManager._notify_pet("reference", True)
