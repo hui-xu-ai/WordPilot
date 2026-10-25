@@ -328,22 +328,23 @@ class PetWindow(QWidget):
         return self._state
 
     def set_pet_size(self, size: int) -> None:
-        """按内核设定的像素尺寸等比缩放（皮肤基准 64 px），保持左上角不动。"""
-        width, height = 64, 64
-        if self._skins is not None:
-            try:
-                width, height = self._skins.size()
-            except Exception:                  # noqa: BLE001
-                width, height = 64, 64
+        """按内核尺寸缩放**窗口与画布**，保持中心不动并立即重绘。
+
+        关键：只改窗口尺寸不够，画布(canvas)自己也是按皮肤基准 64 绘制的，
+        必须一起放大，否则宠物看起来永远一样大（用户反馈的"根本改不了大小"）。
+        """
         factor = max(0.4, min(4.0, float(size) / 64.0))
-        # 以**中心**为基准缩放：保持宠物中心不动，视觉上不"向左上漂"
+        new_side = max(24, int(64 * factor))
         center_x = self.x() + self.width() // 2
         center_y = self.y() + self.height() // 2
-        new_w = max(24, int(width * factor))
-        new_h = max(24, int(height * factor))
-        self.setFixedSize(new_w, new_h)
-        self.move(center_x - new_w // 2, center_y - new_h // 2)
+        self.setFixedSize(new_side, new_side)
+        self.move(center_x - new_side // 2, center_y - new_side // 2)
+        self.canvas.setFixedSize(new_side, new_side)
+        self.canvas.update()
+        self.canvas.repaint()
         self.update()
+        self.repaint()
+
 
     def set_services(self, skins=None, theme=None) -> None:
         if skins is not None:
@@ -352,6 +353,13 @@ class PetWindow(QWidget):
             self._theme = theme
             self.bubble._theme = theme
         self.canvas.set_services(skins, theme)
+        self.canvas.setFixedSize(self.width(), self.height())   # 画布跟随窗口
+        try:
+            from core.services.pet_service import PetService
+
+            self.set_pet_size(PetService.instance().size)       # 皮肤基准会重置，这里恢复尺寸
+        except Exception:                      # noqa: BLE001
+            pass
         self._reflow_keeping_pet()
 
     # ---------------- 气泡 ----------------

@@ -190,3 +190,33 @@ def test_apply_style_sets_opacity_and_font(qapp):
     assert abs(pet.window().windowOpacity() - 0.55) < 0.01
     assert pet.bubble.font().pointSize() == 21
     pet.close()
+
+def test_pet_size_scales_window_and_canvas(qapp):
+    """改尺寸必须同时放大窗口与画布 —— 只改窗口时宠物看起来"永远一样大"（真凶）。"""
+    pet = _make_pet()
+    pet.show()
+    qapp.processEvents()
+
+    pet.set_pet_size(150)
+    qapp.processEvents()
+
+    assert pet.width() == 150
+    canvas = getattr(pet, "canvas", None)
+    assert canvas is not None, "PetWindow 应有 canvas"
+    assert canvas.width() == 150, "画布必须跟随窗口缩放"
+    assert canvas.height() == 150
+
+
+def test_skin_refresh_keeps_size(qapp):
+    """换皮肤后（set_services 会按皮肤基准重设）尺寸要按内核值恢复。"""
+    from core.services.pet_service import PetService
+
+    PetService.instance().set_size(170)
+    pet = _make_pet()
+    pet.show()
+    qapp.processEvents()
+    pet.set_pet_size(170)
+
+    pet.set_services(skins=getattr(pet, "_skins", None))
+    qapp.processEvents()
+    assert pet.width() == 170, "换皮肤后尺寸不能被重置回 64"
