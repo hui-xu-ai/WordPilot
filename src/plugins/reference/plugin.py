@@ -107,11 +107,21 @@ class ReferencePlugin(PluginBase):
             self._overlay.noteSaved.connect(lambda _key: self.refresh_page())
         return self._overlay
 
+    def _identity_of(self, anchor_key: str) -> str:
+        """同一篇文献的身份：标题（小写）优先，其次解析后的键；都取不到就用锚点本身。"""
+        reference = self._store.get(anchor_key)
+        title = (getattr(reference, "title", "") or "").strip().lower()
+        if title:
+            return f"title:{title}"
+        return f"key:{self._store.resolve_key(anchor_key) or anchor_key}"
+
     def _entry_for_item(self, item: dict) -> OverlayEntry | None:
         """把一个选区命中项解析成悬浮窗条目（域元数据 → 库 → anchors.csv 绑定）。"""
         store = self._store
         anchor_key = item.get("anchor_key") or ""
         if not anchor_key or anchor_key in self._dismissed:
+            return None
+        if self._identity_of(anchor_key) in self._dismissed:
             return None
         doc_name = item.get("doc_name") or ""
         label = item.get("label") or _label_from_key(anchor_key)
@@ -169,10 +179,10 @@ class ReferencePlugin(PluginBase):
             entry = self._entry_for_item(item)
             if entry is None:
                 continue
-            resolved = self._store.resolve_key(entry.anchor_key) or entry.anchor_key
-            if resolved in seen:                       # 同一文献的多个锚点 → 只留一张卡
+            identity = self._identity_of(entry.anchor_key)
+            if identity in seen:                       # 同一文献的多个锚点 → 只留一张卡
                 continue
-            seen.add(resolved)
+            seen.add(identity)
             entries.append(entry)
         if not entries:
             return
@@ -301,14 +311,18 @@ class ReferencePlugin(PluginBase):
     def _on_overlay_dismissed(self, anchor_key: str) -> None:
         if anchor_key:
             self._dismissed.add(anchor_key)
+            identity = self._identity_of(anchor_key)
+            self._dismissed.add(identity)
             resolved = self._store.resolve_key(anchor_key) or anchor_key
             self._dismissed.add(resolved)
             for item in self._last_items:              # 同一文献的其它锚点一并压制
                 if (item.get("anchor_key") or "") == anchor_key:
                     continue
-                other = self._store.resolve_key(item.get("anchor_key") or "") or ""
-                if other == resolved:
-                    self._dismissed.add(item.get("anchor_key") or "")
+                other_key = item.get("anchor_key") or ""
+                same_identity = self._identity_of(other_key) == identity if other_key else False
+                other_resolved = self._store.resolve_key(other_key) or ""
+                if same_identity or other_resolved == resolved:
+                    self._dismissed.add(other_key)
         # 故意保留 _shown_signature：光标没离开前不再重弹（用户在 ✕ 后原地点击会复现 bug）
 
     # ---------------- 未绑定引用的两种处理 ----------------
