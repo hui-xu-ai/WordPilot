@@ -175,12 +175,36 @@ class PetCanvas(QWidget):
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
         try:
-            self._paint(painter)
+            base_w, base_h = self._skin_base_size()
+            width, height = self.width(), self.height()
+            if (width, height) == (base_w, base_h):
+                self._paint(painter)
+                return
+            # 窗口尺寸 != 皮肤基准：先在基准画布上完整绘制，再一次缩放贴过来，
+            # 这样 layout 的绝对坐标不会错位（之前直接 painter.scale 会裁切/偏移）。
+            from PySide6.QtGui import QPixmap
+
+            canvas = QPixmap(base_w, base_h)
+            canvas.fill(Qt.transparent)
+            inner = QPainter(canvas)
+            inner.setRenderHint(QPainter.Antialiasing, True)
+            inner.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            self._paint_rect = QRect(0, 0, base_w, base_h)
+            try:
+                self._paint(inner)
+            finally:
+                self._paint_rect = None
+                inner.end()
+            painter.drawPixmap(self.rect(), canvas)
         finally:
             painter.end()
 
+    def _skin_base_size(self) -> tuple[int, int]:
+        """皮肤布局的基准坐标系（所有 skin.json 均为 64×64）。"""
+        return 64, 64
+
     def _paint(self, painter: QPainter) -> None:
-        rect = self.rect()
+        rect = getattr(self, "_paint_rect", None) or self.rect()
         if self._skins is None or not self._skins.current_id:
             self._paint_fallback(painter, rect)
             return
