@@ -58,6 +58,7 @@ class PetCanvas(QWidget):
 
         width, height = (skins.size() if skins else (64, 64))
         self.setFixedSize(width, height)
+        self._hook_pet_service()
 
         anim = skins.animation() if skins else {}
         self._anim = anim
@@ -85,6 +86,35 @@ class PetCanvas(QWidget):
 
     def state(self) -> str:
         return self._state
+
+    # ---------------- 内核状态联动 ----------------
+    def _base_size(self) -> tuple[int, int]:
+        if self._skins is not None:
+            try:
+                return self._skins.size()
+            except Exception:              # noqa: BLE001
+                pass
+        return 64, 64
+
+    def set_pet_size(self, size: int) -> None:
+        """按内核设定的像素尺寸等比缩放（皮肤基准 64 px）。"""
+        width, height = self._base_size()
+        factor = max(0.4, min(4.0, float(size) / 64.0))
+        anchor = self.pos()                       # 缩放时保持左上角不动（避免位置漂移）
+        self.setFixedSize(max(24, int(width * factor)), max(24, int(height * factor)))
+        self.move(anchor)
+        self._scale = factor
+        self.update()
+
+    def _hook_pet_service(self) -> None:
+        try:
+            from core.services.pet_service import PetService
+
+            service = PetService.instance()
+            service.visibilityChanged.connect(lambda visible: self.setVisible(bool(visible)))
+            self.set_pet_size(service.size)
+        except Exception:                  # noqa: BLE001
+            pass
 
     def set_services(self, skins=None, theme=None) -> None:
         """主题/皮肤切换后刷新引用并立即重绘。"""
@@ -490,8 +520,22 @@ class PetWindow(QWidget):
                 tools_menu.addAction(label, handler)
 
         menu.addSeparator()
-        menu.addAction(self.tr("pet.menu.toggle_proofread"),
-                       self.proofreadToggleRequested.emit)
+        toggle = menu.addAction(self.tr("pet.menu.toggle_proofread"),
+                                self.proofreadToggleRequested.emit)
+        toggle.setCheckable(True)
+        toggle.setChecked(self._proofread_enabled())
+
+    def _proofread_enabled(self) -> bool:
+        """当前是否在"校对中"（用于右键菜单勾选状态）。"""
+        try:
+            plugin = getattr(self, "plugin_provider", None)
+            if callable(plugin):
+                target = plugin("proofread")
+                if target is not None and hasattr(target, "is_enabled"):
+                    return bool(target.is_enabled())
+        except Exception:                  # noqa: BLE001
+            pass
+        return bool(getattr(self, "_proofread_on", True))
         bubble_action = menu.addAction(self.tr("pet.menu.toggle_bubble"), self.toggle_bubble)
         bubble_action.setCheckable(True)
         bubble_action.setChecked(self.bubble.isVisible())

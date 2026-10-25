@@ -26,6 +26,7 @@ class PetHost:
 
     def __init__(self) -> None:
         self._window = None
+        self._hooked = False
 
     @classmethod
     def instance(cls) -> "PetHost":
@@ -37,6 +38,17 @@ class PetHost:
     def reset_instance(cls) -> None:
         cls._instance = None
 
+    def _hook_service(self) -> None:
+        """只在这里监听尺寸变化：窗口自己不再参与，避免移动/缩放互相触发。"""
+        if self._hooked:
+            return
+        try:
+            service = PetService.instance()
+            service.geometryChanged.connect(lambda: self.apply_size(service.size))
+            self._hooked = True
+        except Exception:                      # noqa: BLE001
+            logger.debug("订阅宠物尺寸变化失败", exc_info=True)
+
     # ---------------- 创建/显示 ----------------
     def window(self):
         return self._window
@@ -44,6 +56,7 @@ class PetHost:
     def ensure_shown(self, **deps):
         """没有则创建；创建后把位置夹回屏幕内并显示。返回窗口或 None。"""
         service = PetService.instance()
+        self._hook_service()
         if self._window is None:
             try:
                 from core.widgets.pet_window import PetWindow
