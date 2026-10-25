@@ -163,7 +163,17 @@ class ReferencePlugin(PluginBase):
         self._import_bibliography(payload.get("doc_path") or "",
                                   payload.get("doc_name") or "")
 
-        entries = [entry for entry in (self._entry_for_item(item) for item in items) if entry]
+        entries = []
+        seen: set[str] = set()
+        for item in items:
+            entry = self._entry_for_item(item)
+            if entry is None:
+                continue
+            resolved = self._store.resolve_key(entry.anchor_key) or entry.anchor_key
+            if resolved in seen:                       # 同一文献的多个锚点 → 只留一张卡
+                continue
+            seen.add(resolved)
+            entries.append(entry)
         if not entries:
             return
         overlay = self._ensure_overlay()
@@ -291,7 +301,15 @@ class ReferencePlugin(PluginBase):
     def _on_overlay_dismissed(self, anchor_key: str) -> None:
         if anchor_key:
             self._dismissed.add(anchor_key)
-        self._shown_signature = ()     # 允许下次点击重新弹出
+            resolved = self._store.resolve_key(anchor_key) or anchor_key
+            self._dismissed.add(resolved)
+            for item in self._last_items:              # 同一文献的其它锚点一并压制
+                if (item.get("anchor_key") or "") == anchor_key:
+                    continue
+                other = self._store.resolve_key(item.get("anchor_key") or "") or ""
+                if other == resolved:
+                    self._dismissed.add(item.get("anchor_key") or "")
+        # 故意保留 _shown_signature：光标没离开前不再重弹（用户在 ✕ 后原地点击会复现 bug）
 
     # ---------------- 未绑定引用的两种处理 ----------------
     def _on_bind_requested(self, anchor_key: str, doc_name: str) -> None:

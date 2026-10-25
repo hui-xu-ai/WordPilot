@@ -118,6 +118,7 @@ class _EntryCard(QFrame):
         self.notes_btn.setObjectName("referenceChip")
         self.notes_btn.setCursor(Qt.PointingHandCursor)
         self.notes_btn.setFixedHeight(20)
+        self.notes_btn.setMinimumWidth(84)          # 之前被挤压到看不见
         self.notes_btn.clicked.connect(self._open_picker)
         note_row.addWidget(self.notes_btn, 0)
         layout.addLayout(note_row)
