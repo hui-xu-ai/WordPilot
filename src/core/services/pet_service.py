@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 CONFIG_PREFIX = "pet"
 DEFAULT_SIZE = 96
-MIN_SIZE = 48
+MIN_SIZE = 64          # 皮肤布局基准 64px，小于它会被裁切
 MAX_SIZE = 200
 
 
