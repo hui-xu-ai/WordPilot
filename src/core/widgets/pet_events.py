@@ -45,7 +45,7 @@ class PetEventMixin:
         self._report_geometry()
 
     def _place_bubble(self) -> None:
-        """把独立气泡贴到宠物右侧（越界翻到左侧，再夹进屏幕）。"""
+        """气泡出现在桌宠**头顶正中**（上方放不下时翻到脚下），并夹进屏幕。"""
         bubble = getattr(self, "bubble", None)
         if bubble is None or not bubble.isVisible():
             return
@@ -55,10 +55,11 @@ class PetEventMixin:
         screen = QApplication.screenAt(pet.center()) or QApplication.primaryScreen()
         area = screen.availableGeometry()
         width, height = bubble.width(), bubble.height()
-        x = pet.right() + 8
-        if x + width > area.right():
-            x = pet.left() - width - 8
-        y = pet.top()
+
+        x = pet.center().x() - width // 2          # 水平居中于桌宠
+        y = pet.top() - height - 8                 # 贴在头顶上方
+        if y < area.top():                         # 上面放不下就放到脚下
+            y = pet.bottom() + 8
         x = max(area.left(), min(x, area.right() - width))
         y = max(area.top(), min(y, area.bottom() - height))
         bubble.move(x, y)
