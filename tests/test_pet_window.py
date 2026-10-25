@@ -12,7 +12,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def pet_cls():
-    from plugins.proofread.pet_window import PetWindow
+    from core.widgets.pet_window import PetWindow
 
     return PetWindow
 
@@ -120,7 +120,7 @@ class _Cfg(dict):
 
 
 def _make_pet():
-    from plugins.proofread.pet_window import PetWindow
+    from core.widgets.pet_window import PetWindow
 
     return PetWindow(_Cfg({"auto_show_suggestion": True}))
 

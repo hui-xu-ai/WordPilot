@@ -88,6 +88,6 @@ def test_state_tokens_cover_pet_fallback_colors():
     纯 Qt 无关环境（如只装了 pytest 的系统 Python）跳过而不是失败。
     """
     pytest.importorskip("PySide6", reason="需要 PySide6 才能导入 pet_window 的兜底色表")
-    from plugins.proofread.pet_window import _FALLBACK_COLORS
+    from core.widgets.pet_window import _FALLBACK_COLORS
 
     assert set(_FALLBACK_COLORS) <= set(STATE_TOKENS)

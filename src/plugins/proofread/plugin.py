@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 from core.services.skin_service import STATE_TOKENS
 from core.services.window_manager import CloseBehavior, Layer, Mode
 from core.services.word_bridge import get_word_app
-from plugins.proofread.pet_window import WINDOW_ID as PET_WINDOW_ID
-from plugins.proofread.pet_window import PetWindow
+from core.widgets.pet_window import WINDOW_ID as PET_WINDOW_ID
+from core.widgets.pet_window import PetWindow
 from plugins.proofread.word_monitor import (
     TokenizedSentence,
     WordMonitor,
@@ -163,8 +163,13 @@ class ProofreadPlugin(PluginBase):
             return None
         pet = windows.get(PET_WINDOW_ID)
         if pet is not None:
-            pet.show()
-            pet.raise_()
+            try:
+                from core.services.pet_host import PetHost
+
+                PetHost.instance().ensure_shown()
+            except Exception:                  # noqa: BLE001 - 宿主不可用也不能崩
+                pet.show()
+                pet.raise_()
         return pet
 
     def _build_dashboard_page(self):
