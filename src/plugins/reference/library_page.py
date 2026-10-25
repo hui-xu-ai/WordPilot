@@ -21,11 +21,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QFileDialog, QFormLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFormLayout,
+                               QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSplitter,
                                QStackedWidget, QTableWidget, QTableWidgetItem, QTextEdit,
                                QToolButton, QVBoxLayout, QWidget)
 
+from plugins.reference.page_libraries import LibraryMixin
 from plugins.reference.page_panel import PANEL_WIDTH, build_panel
 from plugins.reference.page_scan import ScanMixin
 from plugins.reference.reference_store import (Anchor, Reference, ReferenceStore,
@@ -43,18 +45,22 @@ _FILTERS = (("all", "filter.all"), ("note", "filter.note"), ("star", "filter.sta
             ("meta", "filter.meta"), ("orphan", "filter.orphan"))
 
 
-class LibraryPage(ScanMixin, QWidget):
+class LibraryPage(ScanMixin, LibraryMixin, QWidget):
     """文献库管理页。"""
 
     def __init__(self, ctx: "PluginContext", store: ReferenceStore,
                  index: "ReferenceIndex", parent: QWidget | None = None,
-                 plugin=None, note_service=None) -> None:
+                 plugin=None, note_service=None, libraries=None,
+                 active_library: str = "", on_switch_library=None) -> None:
         super().__init__(parent)
         self._ctx = ctx
         self._store = store
         self._index = index
         self._plugin = plugin
         self._note_service = note_service
+        self._libraries = list(libraries or [])
+        self._active_library = active_library
+        self._on_switch_library = on_switch_library
         self._auto_scanned = False
         self._refresh_timer = None
         self._current_key = ""
@@ -85,6 +91,8 @@ class LibraryPage(ScanMixin, QWidget):
         # ---- 顶部一条工具栏 ----
         toolbar = QHBoxLayout()
         toolbar.setSpacing(6)
+        self.build_library_combo(toolbar)
+
         self.search_edit = QLineEdit()
         self.search_edit.textChanged.connect(self._apply_filter)
         toolbar.addWidget(self.search_edit, 1)

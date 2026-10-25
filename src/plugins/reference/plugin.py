@@ -18,6 +18,7 @@ from core.sdk.plugin_base import PluginBase
 from plugins.reference.library_page import LibraryPage
 from plugins.reference.overlay import OverlayEntry, ReferenceOverlay
 from plugins.reference.reference_index import ReferenceIndex
+from plugins.reference.libraries import LibraryRegistry
 from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
 from plugins.reference.scan_cache import ScanCache, fingerprint
@@ -54,10 +55,13 @@ class ReferencePlugin(PluginBase):
 
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
-        self._store = ReferenceStore()
-        self._index = ReferenceIndex()
-        self._scan_cache = ScanCache()
-        self._notes = NoteStore()
+        self._libraries = LibraryRegistry()
+        self._libraries.ensure_default()
+        self._data_dir = self._libraries.active_path()
+        self._store = ReferenceStore(directory=self._data_dir)
+        self._index = ReferenceIndex(db_path=self._data_dir / "index.db")
+        self._scan_cache = ScanCache(db_path=self._data_dir / "doc_scan.db")
+        self._notes = NoteStore(directory=self._data_dir)
         self._note_service = NoteService(self._store, self._notes)
         try:
             self._store.ensure_directory()
@@ -73,7 +77,10 @@ class ReferencePlugin(PluginBase):
     def _build_page(self):
         if self._page is None:
             self._page = LibraryPage(self.ctx, self._store, self._index, plugin=self,
-                                    note_service=self._note_service)
+                                    note_service=self._note_service,
+                                    libraries=self._libraries.names(),
+                                    active_library=self._libraries.active_name(),
+                                    on_switch_library=self.switch_library)
         return self._page
 
     # ---------------- 选区监听 ----------------
@@ -237,6 +244,38 @@ class ReferencePlugin(PluginBase):
         if self._overlay is not None:
             self._overlay.refresh_notes()
         self.refresh_page()
+
+    def switch_library(self, name: str) -> None:
+        """切换到另一个文献仓库（用户手动改绑）：重开数据文件并重绑页面。"""
+        if not name or name == self._libraries.active_name():
+            return
+        try:
+            directory = self._libraries.set_active(name)
+        except KeyError as exc:
+            logger.warning("切换仓库失败：%s", exc)
+            return
+
+        if self._index is not None:
+            self._index.close()
+        if self._scan_cache is not None:
+            self._scan_cache.close()
+
+        self._data_dir = directory
+        self._store = ReferenceStore(directory=directory)
+        self._index = ReferenceIndex(db_path=directory / "index.db")
+        self._scan_cache = ScanCache(db_path=directory / "doc_scan.db")
+        self._notes = NoteStore(directory=directory)
+        self._note_service = NoteService(self._store, self._notes)
+        if self._watch is not None:
+            self._watch._cache = self._scan_cache
+            self._watch._index.clear()
+
+        if self._page is not None:
+            self._page.rebind(self._store, self._index, self._note_service, name)
+        if self._overlay is not None:
+            self._overlay._store = self._store
+            self._overlay._note_service = self._note_service
+        logger.info("已切换到文献仓库：%s", name)
 
     def refresh_page(self) -> None:
         """悬浮窗写完备注后刷新页面（用户反馈"表格更新不及时"）。"""

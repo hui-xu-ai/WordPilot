@@ -108,5 +108,6 @@
   "picker.edit": "编辑",
   "picker.pin": "钉住",
   "picker.unpin": "取消钉住",
-  "picker.archive": "归档"
+  "picker.archive": "归档",
+  "status.library": "当前仓库：{name}"
 }

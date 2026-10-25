@@ -30,6 +30,7 @@ _DICT = {
     "status.deleted": "已删除", "new.hint": "（新条目）",
     "status.counts": "共 {total} 条 · 有备注 {with_note} · 孤立锚点 {orphans}",
     "status.reloaded": "已刷新",
+    "status.library": "当前仓库：{name}",
     "overlay.note_child": "子库备注", "overlay.note_inherit": "跟随总库",
     "overlay.note_auto": "来自总库（唯一）", "overlay.note_none": "总库有多条，请挑选",
     "overlay.master_count": "总库 · {count} 条",

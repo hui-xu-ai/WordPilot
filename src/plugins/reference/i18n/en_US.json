@@ -108,5 +108,6 @@
   "picker.edit": "Edit",
   "picker.pin": "Pin",
   "picker.unpin": "Unpin",
-  "picker.archive": "Archive"
+  "picker.archive": "Archive",
+  "status.library": "Library: {name}"
 }

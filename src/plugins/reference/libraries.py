@@ -1,0 +1,144 @@
+# plugins/reference/libraries.py
+"""文献仓库（子库）注册表：每库一个目录，记录当前使用哪个库。
+
+结构（`config/references/` 下）：
+
+    libraries.json                     # {"active": 名字, "libraries": {名字: {...}}}
+    libraries/<库名>/references.csv    # 该库的文献与子库备注
+    libraries/<库名>/anchors.csv
+    libraries/<库名>/notes.csv         # 该库的总库备注（多条）
+    libraries/<库名>/index.db
+
+历史数据（直接放在 `config/references/` 根下的四个文件）在首次启动时**移动**进默认仓库，
+不做拷贝、不删内容 —— 用户资产只有一份。
+"""
+from __future__ import annotations
+
+import json
+import logging
+import shutil
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+ROOT_FILES = ("references.csv", "anchors.csv", "notes.csv", "index.db",
+              "index.db-wal", "index.db-shm", "doc_scan.db")
+DEFAULT_NAME = "默认库"
+
+
+@dataclass
+class Library:
+    name: str
+    path: Path
+    last_used: float = field(default_factory=time.time)
+
+    def to_dict(self) -> dict:
+        return {"path": str(self.path), "last_used": self.last_used}
+
+
+class LibraryRegistry:
+    """仓库目录 + 当前激活仓库（用户可手动改绑）。"""
+
+    def __init__(self, root: str | Path | None = None) -> None:
+        self._root = Path(root) if root is not None else None
+
+    # ---------------- 路径 ----------------
+    @property
+    def root(self) -> Path:
+        if self._root is None:
+            from core.services import config_manager
+
+            self._root = Path(config_manager.CONFIG_DIR) / "references"
+        return self._root
+
+    @property
+    def registry_path(self) -> Path:
+        return self.root / "libraries.json"
+
+    @property
+    def libraries_dir(self) -> Path:
+        return self.root / "libraries"
+
+    # ---------------- 读写 ----------------
+    def _read(self) -> dict:
+        if not self.registry_path.exists():
+            return {}
+        try:
+            return json.loads(self.registry_path.read_text(encoding="utf-8"))
+        except Exception as exc:                 # noqa: BLE001 - 坏文件按空处理
+            logger.warning("读取仓库注册表失败：%s", exc)
+            return {}
+
+    def _write(self, data: dict) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
+        tmp = self.registry_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(self.registry_path)
+
+    # ---------------- 仓库操作 ----------------
+    def names(self) -> list[str]:
+        libraries = self._read().get("libraries", {})
+        return sorted(libraries)
+
+    def active_name(self) -> str:
+        return self._read().get("active") or ""
+
+    def active_path(self) -> Path:
+        name = self.active_name()
+        if name:
+            entry = self._read().get("libraries", {}).get(name)
+            if entry:
+                return Path(entry["path"])
+        return self.libraries_dir / DEFAULT_NAME
+
+    def ensure_default(self) -> str:
+        """首次使用：建注册表，并把根目录下的历史数据**移动**进默认库。"""
+        data = self._read()
+        if data.get("libraries"):
+            return data.get("active") or next(iter(data["libraries"]))
+
+        name = DEFAULT_NAME
+        target = self.libraries_dir / name
+        target.mkdir(parents=True, exist_ok=True)
+        for filename in ROOT_FILES:
+            source = self.root / filename
+            if not source.exists():
+                continue
+            destination = target / filename
+            try:
+                if destination.exists():
+                    destination.unlink()
+                shutil.move(str(source), str(destination))
+            except OSError as exc:               # noqa: BLE001
+                logger.warning("迁移旧数据失败（%s）：%s", source, exc)
+        data = {"active": name, "libraries": {name: Library(name, target).to_dict()}}
+        self._write(data)
+        logger.info("已创建默认文献仓库：%s", target)
+        return name
+
+    def create(self, name: str) -> Path:
+        name = (name or "").strip()
+        if not name:
+            raise ValueError("仓库名不能为空")
+        data = self._read()
+        libraries = data.setdefault("libraries", {})
+        if name in libraries:
+            return Path(libraries[name]["path"])
+        target = self.libraries_dir / name
+        target.mkdir(parents=True, exist_ok=True)
+        libraries[name] = Library(name, target).to_dict()
+        data["active"] = name
+        self._write(data)
+        return target
+
+    def set_active(self, name: str) -> Path:
+        data = self._read()
+        libraries = data.get("libraries", {})
+        if name not in libraries:
+            raise KeyError(f"未知仓库：{name}")
+        libraries[name]["last_used"] = time.time()
+        data["active"] = name
+        self._write(data)
+        return Path(libraries[name]["path"])
