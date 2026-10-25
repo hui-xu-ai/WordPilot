@@ -142,6 +142,24 @@ class SettingsPage(QWidget):
         if 0 <= row < self.stack.count():
             self.stack.setCurrentIndex(row)
 
+    # ---------------- 桌宠外观 ----------------
+    def _on_pet_size_changed(self, value: int) -> None:
+        self.pet_size_value.setText(f"{value} px")
+        try:
+            from core.services.pet_service import PetService
+
+            PetService.instance().set_size(int(value))
+        except Exception:                      # noqa: BLE001
+            pass
+
+    def _on_pet_visible_toggled(self, visible: bool) -> None:
+        try:
+            from core.services.pet_service import PetService
+
+            PetService.instance().set_visible(bool(visible))
+        except Exception:                      # noqa: BLE001
+            pass
+
     def _card(self) -> tuple[QWidget, QVBoxLayout]:
         """一张通栏卡片（样式见 base.qss #contentCard）。"""
         card = QWidget()
@@ -235,6 +253,26 @@ class SettingsPage(QWidget):
                 self.skin_combo.addItem(item["name"], item["id"])
         self.label_skin = QLabel()
         form.addRow(self.label_skin, self.skin_combo)
+
+        # ---- 桌宠尺寸 / 显隐：状态在内核 PetService（插件解耦，任何插件都不再控制宠物）----
+        from core.services.pet_service import MAX_SIZE, MIN_SIZE, PetService
+
+        pet_service = PetService.instance()
+        self.pet_size_slider = QSlider(Qt.Horizontal)
+        self.pet_size_slider.setRange(MIN_SIZE, MAX_SIZE)
+        self.pet_size_slider.setValue(int(pet_service.size))
+        self.pet_size_value = QLabel(f"{pet_service.size} px")
+        self.pet_size_slider.valueChanged.connect(self._on_pet_size_changed)
+        size_row = QHBoxLayout()
+        size_row.addWidget(self.pet_size_slider, 1)
+        size_row.addWidget(self.pet_size_value)
+        self.label_pet_size = QLabel()
+        form.addRow(self.label_pet_size, size_row)
+
+        self.pet_visible_check = QCheckBox()
+        self.pet_visible_check.setChecked(bool(pet_service.visible))
+        self.pet_visible_check.toggled.connect(self._on_pet_visible_toggled)
+        form.addRow(self.pet_visible_check)
         lay.addLayout(form)
 
         self.skin_hint = QLabel()

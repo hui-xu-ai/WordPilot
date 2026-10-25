@@ -525,5 +525,5 @@ class PetWindow(QWidget):
 
     def refresh_visibility(self) -> None:
         """由插件在「显示悬浮按钮」配置变化后调用。"""
-        visible = bool(self.config.get("show_floating_button", True))
+        visible = True                      # 显隐由内核 PetService 决定
         self.setVisible(visible)

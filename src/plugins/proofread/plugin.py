@@ -274,7 +274,7 @@ class ProofreadPlugin(PluginBase):
         """按当前开关与气泡内容推导应显示的状态。"""
         if self.ctx is None:
             return
-        if not self._enabled or not bool(self.ctx.config.get("show_floating_button", True)):
+        if not self._enabled:              # 宠物显隐归内核，插件启用与否只影响校对功能
             self.set_state("disabled")
             return
         if self.floating_btn is not None and self.floating_btn.bubble.isVisible():
