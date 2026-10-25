@@ -127,10 +127,18 @@ class ProofreadPlugin(PluginBase):
 
 
     def _open_pet(self, config, api, ignore_mgr, i18n) -> PetWindow | None:
-        """通过 WindowManager 打开桌宠，保证它是受管窗口而非野窗口。"""
-        windows = self.ctx.windows
+        """打开桌宠：**优先内核宿主**；宿主成功就绝不再让 WindowManager 建第二个。"""
         theme = self.ctx.get_service("theme")
         skins = self.ctx.get_service("skins")
+
+        hosted = self._ensure_hosted_pet(config, api, ignore_mgr, theme, skins, i18n)
+        if hosted is not None:
+            return hosted
+
+        # 兜底：宿主不可用时才退回 WindowManager（老路径）
+        windows = self.ctx.windows
+        if windows is None:
+            return None
 
         def _factory() -> PetWindow:
             pet = PetWindow(
@@ -141,50 +149,50 @@ class ProofreadPlugin(PluginBase):
             )
             pet.proofreadToggleRequested.connect(self.toggle)
             pet.settingsRequested.connect(self._open_settings)
-            # 用户在气泡上点了确认/忽略 -> 气泡关闭 -> 表情从 error 回落到打盹
             pet.bubbleToggled.connect(self._on_bubble_toggled)
             return pet
-
-        if windows is None:
-            # 无窗口服务（离屏/测试环境）：仍构造出一个实例，只是不受管
-            return _factory()
 
         try:
             windows.open(
                 PET_WINDOW_ID, _factory, owner="proofread",
                 mode=Mode.SINGLETON,
                 layer=Layer.OVERLAY,
-                # 隐藏而非销毁：桌宠要常驻桌面，关闭主窗口时也不该被抹掉位置
                 behavior=CloseBehavior.HIDE,
                 remember_geometry=False,
             )
         except Exception:
             self._log_exception(self.tr("error.open_pet"))
             return None
-        # 统一交给内核宿主：**必须把依赖传进去**（空调用会构造出 config=None 的窗口，看不见）
+        pet = windows.get(PET_WINDOW_ID)
+        if pet is not None:
+            pet.show()
+            pet.raise_()
+        return pet
+
+    def _ensure_hosted_pet(self, config, api, ignore_mgr, theme, skins, i18n) -> PetWindow | None:
+        """请内核宿主创建/显示宠物，并接好信号（只接一次）。"""
         try:
             from core.services.pet_host import PetHost
 
-            hosted = PetHost.instance().ensure_shown(
+            pet = PetHost.instance().ensure_shown(
                 config=config, api=api, ignore_mgr=ignore_mgr,
                 correction_handler=self.apply_correction,
                 theme=theme, skins=skins, i18n=i18n, tr=self.tr,
                 tools_provider=self._plugin_tools,
             )
-            if hosted is not None and hosted is not windows.get(PET_WINDOW_ID):
-                if not getattr(hosted, "_wp_signals_connected", False):
-                    hosted.proofreadToggleRequested.connect(self.toggle)
-                    hosted.settingsRequested.connect(self._open_settings)
-                    hosted.bubbleToggled.connect(self._on_bubble_toggled)
-                    hosted._wp_signals_connected = True
-                return hosted
-        except Exception:                      # noqa: BLE001 - 宿主不可用时回退旧路径
-            logger.exception("内核宿主显示宠物失败，回退 WindowManager 路径")
-
-        pet = windows.get(PET_WINDOW_ID)
-        if pet is not None:
-            pet.show()
-            pet.raise_()
+        except Exception:                      # noqa: BLE001 - 宿主失败退回旧路径
+            logger.exception("内核宿主创建宠物失败，回退 WindowManager")
+            return None
+        if pet is None:
+            return None
+        if not getattr(pet, "_wp_signals_connected", False):
+            try:
+                pet.proofreadToggleRequested.connect(self.toggle)
+                pet.settingsRequested.connect(self._open_settings)
+                pet.bubbleToggled.connect(self._on_bubble_toggled)
+                pet._wp_signals_connected = True
+            except Exception:                  # noqa: BLE001
+                logger.debug("连接宠物信号失败", exc_info=True)
         return pet
 
     def _build_dashboard_page(self):
