@@ -76,7 +76,10 @@ class PetService(QObject):
     def _load(self) -> None:
         self._size = int(self._get("size", DEFAULT_SIZE) or DEFAULT_SIZE)
         self._skin = str(self._get("skin", "classic") or "classic")
-        self._visible = bool(self._get("visible", True))
+        # 历史 bug 曾把"窗口隐藏"当成用户选择写进配置，导致宠物永远不出现。
+        # 只有当用户显式切换过（hidden_by_user=True）才尊重 pet.visible。
+        self._visible = (bool(self._get("visible", True))
+                         if self._get("hidden_by_user", False) else True)
 
     # ---------------- 属性 ----------------
     @property
@@ -101,6 +104,7 @@ class PetService(QObject):
             return
         self._visible = visible
         self._set("visible", visible)
+        self._set("hidden_by_user", True)      # 记录"这是用户的选择"，之后才尊重
         self.visibilityChanged.emit(visible)
 
     def set_size(self, size: int) -> None:

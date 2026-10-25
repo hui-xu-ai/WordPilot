@@ -422,7 +422,6 @@ class PetWindow(QWidget):
             return
         try:
             service.update_geometry(self.x(), self.y(), self.width())
-            service.set_visible(self.isVisible())
         except Exception:                      # noqa: BLE001
             pass
 

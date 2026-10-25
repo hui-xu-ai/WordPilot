@@ -148,3 +148,22 @@ def test_ui_registry_add_pet_action_registers_into_service():
 
     service.set_plugin_active("reference", True)
     assert [label for label, _cb in service.actions()] == ["打开参考文献助手"]
+
+def test_poisoned_visibility_config_is_ignored():
+    """历史 bug：窗口隐藏被写进配置 → 宠物永远不出现。现在没有 hidden_by_user 就强制可见。"""
+    config = _Config({"pet.visible": False})
+    assert PetService.instance(config).visible is True
+
+
+def test_user_hidden_choice_is_respected():
+    """用户真的点过"显示桌宠"开关，才尊重他关掉的选择。"""
+    config = _Config({"pet.visible": False, "pet.hidden_by_user": True})
+    assert PetService.instance(config).visible is False
+
+
+def test_set_visible_marks_user_choice():
+    config = _Config()
+    service = PetService.instance(config)
+    service.set_visible(False)
+    assert config.get("pet.hidden_by_user") is True
+    assert config.get("pet.visible") is False
