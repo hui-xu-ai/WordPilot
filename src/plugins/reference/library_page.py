@@ -48,12 +48,13 @@ class LibraryPage(ScanMixin, QWidget):
 
     def __init__(self, ctx: "PluginContext", store: ReferenceStore,
                  index: "ReferenceIndex", parent: QWidget | None = None,
-                 plugin=None) -> None:
+                 plugin=None, note_service=None) -> None:
         super().__init__(parent)
         self._ctx = ctx
         self._store = store
         self._index = index
         self._plugin = plugin
+        self._note_service = note_service
         self._auto_scanned = False
         self._refresh_timer = None
         self._current_key = ""
@@ -344,6 +345,52 @@ class LibraryPage(ScanMixin, QWidget):
         else:
             self.panel_title.setText(self.tr("panel.summary"))
 
+    def open_notes(self) -> None:
+        """打开总库备注面板（挑选 / 新建 / 转为子库备注）。"""
+        if self._note_service is None:
+            return
+        key = self._selected_key
+        if not key:
+            return
+        from plugins.reference.note_editor import NoteEditor
+        from plugins.reference.note_picker import NotePicker
+
+        ref_key = self._store.resolve_key(key)
+        dialog = NotePicker(self._note_service.master_notes(ref_key),
+                            current_id=self._note_service.inherit_id(ref_key),
+                            tr=self.tr, parent=self)
+        if dialog.exec() != dialog.Accepted:
+            return
+        if dialog.new_note_requested:
+            editor = NoteEditor(tr=self.tr, parent=self)
+            if editor.exec() != editor.Accepted:
+                return
+            note = self._note_service.create_master_note(ref_key, editor.text, editor.label)
+            self._note_service.set_inherit(ref_key, note.note_id)
+        elif dialog.fork_requested:
+            picked = next((note for note in self._note_service.master_notes(ref_key)
+                           if note.note_id == dialog.selected_note_id), None)
+            if picked is not None:
+                self._note_service.save_child_note(ref_key, picked.text)
+        elif dialog.selected_note_id:
+            self._note_service.set_inherit(ref_key, dialog.selected_note_id)
+        self.reload()
+        self._show_reference(self._selected_key)
+
+    def _refresh_notes_ui(self, key: str) -> None:
+        """右栏备注区：来源徽标 + 总库条数（只有 1 条时不需要挑选）。"""
+        if self._note_service is None or not hasattr(self, "notes_btn"):
+            return
+        ref_key = self._store.resolve_key(key)
+        notes = self._note_service.master_notes(ref_key)
+        _text, source, _hit = self._note_service.effective(ref_key)
+        labels = {"child": "overlay.note_child", "inherit": "overlay.note_inherit",
+                  "auto": "overlay.note_auto", "none": "overlay.note_none"}
+        self.notes_source_label.setText(self.tr(labels.get(source, "")))
+        template = self.tr("overlay.master_count")
+        self.notes_btn.setText(template.replace("{count}", str(len(notes))))
+        self.notes_btn.setVisible(bool(notes))
+
     def _clear_panel(self) -> None:
         for key, label in self.read_labels.items():
             label.setText("")
@@ -380,6 +427,7 @@ class LibraryPage(ScanMixin, QWidget):
 
     def _show_reference(self, ref: Reference) -> None:
         self._current_key = ref.ref_key
+        self._refresh_notes_ui(ref.ref_key)
         for key, label in self.read_labels.items():
             label.setText(str(getattr(ref, key, "") or "—"))
         self.read_note.setText(ref.note or self.tr("panel.no_note"))

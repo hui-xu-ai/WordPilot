@@ -72,7 +72,8 @@ class ReferencePlugin(PluginBase):
 
     def _build_page(self):
         if self._page is None:
-            self._page = LibraryPage(self.ctx, self._store, self._index, plugin=self)
+            self._page = LibraryPage(self.ctx, self._store, self._index, plugin=self,
+                                    note_service=self._note_service)
         return self._page
 
     # ---------------- 选区监听 ----------------
