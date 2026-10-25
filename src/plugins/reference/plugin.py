@@ -21,7 +21,9 @@ from plugins.reference.reference_index import ReferenceIndex
 from plugins.reference.libraries import LibraryRegistry
 from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
+from plugins.reference.matching import SnapshotStore, cite_key_set
 from plugins.reference.scan_cache import ScanCache, fingerprint
+from plugins.reference.switch_plan import KEEP, NEW, PROMPT, SWITCH, plan_switch
 from plugins.reference.word_watch import WordWatch
 
 if TYPE_CHECKING:
@@ -360,7 +362,62 @@ class ReferencePlugin(PluginBase):
 
         if self._watch is not None:
             stats["anchors"] = self._watch.rescan_index(word)
+
+        keys = cite_key_set(candidates)
+        stats["keys"] = len(keys)
+        try:
+            SnapshotStore(self._data_dir).record(path, keys)
+        except Exception as exc:                   # noqa: BLE001 - 快照失败不影响扫描
+            logger.warning("记录引用快照失败：%s", exc)
+        self._apply_switch_plan(path, keys, stats)
         return stats
+
+    # ---------------- 仓库自动识别 ----------------
+    def _library_snapshots(self) -> dict[str, set[str]]:
+        """除当前库外，其余各库的历史快照并集（用于相似度比较）。"""
+        result: dict[str, set[str]] = {}
+        for name in self._libraries.names():
+            if name == self._libraries.active_name():
+                continue
+            path = self._libraries.libraries_dir / name
+            keys = SnapshotStore(path).library_snapshot()
+            if keys:
+                result[name] = keys
+        return result
+
+    def _apply_switch_plan(self, doc_path: str, keys: set[str], stats: dict) -> None:
+        """按相似度决定是否切库，并把结论写到状态栏（不弹模态框，先让用户看见）。"""
+        bindings = self._libraries.doc_bindings()
+        bound = bindings.get(doc_path, "")
+        plan = plan_switch(keys, self._library_snapshots(),
+                           current_library=self._libraries.active_name(),
+                           bound_library=bound,)
+        stats["switch"] = plan.action
+
+        if plan.action == SWITCH and plan.library:
+            self.switch_library(plan.library)
+            self._libraries.bind_document(doc_path, plan.library)
+            self._notify_status(self.tr("switch.auto", library=plan.library,
+                                        percent=int(plan.score * 100)))
+        elif plan.action == PROMPT and plan.library:
+            self._notify_status(self.tr("switch.prompt", library=plan.library,
+                                        percent=int(plan.score * 100),
+                                        added=len(plan.added), removed=len(plan.removed)))
+        elif plan.action == NEW:
+            self._notify_status(self.tr("switch.new"))
+        elif plan.action == KEEP and plan.library:
+            self._libraries.bind_document(doc_path, plan.library)
+
+    def _notify_status(self, text: str) -> None:
+        if self._page is not None:
+            try:
+                self._page.append_status(text)
+            except Exception:                      # noqa: BLE001
+                pass
+        try:
+            self.ctx.ui.status(text, 3000)
+        except Exception:                          # noqa: BLE001
+            pass
 
     def _reshow(self, anchor_key: str, doc_name: str, label: str) -> None:
         """绑定/新建之后，用库里最新数据把悬浮窗重画一次（用户不用挪光标）。"""

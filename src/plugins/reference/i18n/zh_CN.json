@@ -109,5 +109,8 @@
   "picker.pin": "钉住",
   "picker.unpin": "取消钉住",
   "picker.archive": "归档",
-  "status.library": "当前仓库：{name}"
+  "status.library": "当前仓库：{name}",
+  "switch.auto": "已自动切换到仓库《{library}》（匹配 {percent}%）",
+  "switch.prompt": "疑似与仓库《{library}》同源（匹配 {percent}%：新增 {added}、移除 {removed}），可在左上角仓库下拉确认切换",
+  "switch.new": "当前文档与现有仓库几乎无重叠，建议为它新建仓库"
 }

@@ -133,6 +133,17 @@ class LibraryRegistry:
         self._write(data)
         return target
 
+    def doc_bindings(self) -> dict[str, str]:
+        """文档路径 → 仓库名（手动改绑或上次自动判定）。"""
+        return dict(self._read().get("doc_bindings", {}))
+
+    def bind_document(self, document_path: str, library: str) -> None:
+        if not document_path or not library:
+            return
+        data = self._read()
+        data.setdefault("doc_bindings", {})[document_path] = library
+        self._write(data)
+
     def set_active(self, name: str) -> Path:
         data = self._read()
         libraries = data.get("libraries", {})

@@ -109,5 +109,8 @@
   "picker.pin": "Pin",
   "picker.unpin": "Unpin",
   "picker.archive": "Archive",
-  "status.library": "Library: {name}"
+  "status.library": "Library: {name}",
+  "switch.auto": "Switched to library \"{library}\" ({percent}% match)",
+  "switch.prompt": "Looks related to \"{library}\" ({percent}%: +{added}/-{removed}); confirm via the library dropdown",
+  "switch.new": "No overlap with existing libraries; consider creating one for this document"
 }
