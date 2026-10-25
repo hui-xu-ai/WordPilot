@@ -170,6 +170,9 @@ class ReferencePlugin(PluginBase):
         self._last_items = items
         point = payload.get("point") or (200, 200)
         self._last_point = (int(point[0]), int(point[1]))
+        pet_anchor = self._pet_anchor_point()
+        if pet_anchor is not None and self._pet_preferred():
+            self._last_point = pet_anchor
         self._import_bibliography(payload.get("doc_path") or "",
                                   payload.get("doc_name") or "")
 
@@ -192,6 +195,21 @@ class ReferencePlugin(PluginBase):
             return                                  # 同一组锚点且已在显示 → 不重画，避免闪烁
         self._shown_signature = signature
         overlay.show_entries(entries, self._last_point)
+
+    @staticmethod
+    def _pet_anchor_point() -> tuple[int, int] | None:
+        """宠物作为定位锚点（用户要求：悬浮窗贴宠物，不挡正文）。"""
+        try:
+            from core.services.pet_service import PetService
+
+            return PetService.instance().anchor_point()
+        except Exception:                          # noqa: BLE001
+            return None
+
+    @staticmethod
+    def _pet_preferred() -> bool:
+        """宠物可用时优先贴宠物；宠物隐藏/未定位则回退光标位置。"""
+        return True
 
     def _import_bibliography(self, doc_path: str, doc_name: str) -> None:
         """把文末"参考文献"列表解析进库（同一文档按 mtime 只做一次）。

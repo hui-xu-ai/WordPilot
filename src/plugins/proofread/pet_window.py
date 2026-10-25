@@ -205,6 +205,16 @@ class PetCanvas(QWidget):
                             side, side)
 
 
+def _pet_service():
+    """宠物共享服务（内核），拿不到就返回 None（不阻塞渲染）。"""
+    try:
+        from core.services.pet_service import PetService
+
+        return PetService.instance()
+    except Exception:                              # noqa: BLE001
+        return None
+
+
 class PetWindow(QWidget):
     """桌宠 + 建议气泡的合并窗口。"""
 
@@ -405,6 +415,32 @@ class PetWindow(QWidget):
             self._dragged = False
         super().mousePressEvent(event)
 
+    def _report_geometry(self) -> None:
+        """把当前位置/尺寸上报给共享服务，供其它插件（如参考文献悬浮窗）锚定。"""
+        service = _pet_service()
+        if service is None:
+            return
+        try:
+            service.update_geometry(self.x(), self.y(), self.width())
+            service.set_visible(self.isVisible())
+        except Exception:                      # noqa: BLE001
+            pass
+
+    def moveEvent(self, event) -> None:        # noqa: N802 - Qt 命名惯例
+        super().moveEvent(event)
+        self._report_geometry()
+
+    def resizeEvent(self, event) -> None:      # noqa: N802
+        super().resizeEvent(event)
+        self._report_geometry()
+
+    def showEvent(self, event) -> None:        # noqa: N802
+        super().showEvent(event)
+        self._report_geometry()
+
+    def hideEvent(self, event) -> None:        # noqa: N802
+        super().hideEvent(event)
+        self._report_geometry()
     def mouseMoveEvent(self, event) -> None:       # noqa: N802 - Qt 命名惯例
         if self._drag_pos is not None and event.buttons() & Qt.LeftButton:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
