@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="hair" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#7ea6ff"/>
+      <stop offset="1" stop-color="#3f5fd4"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9dd"/>
+      <stop offset="1" stop-color="#f6cfbf"/>
+    </linearGradient>
+    <filter id="glow2" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#2a3b86" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <!-- 长发（外侧） -->
+  <path d="M12 34c0-14 9-24 20-24s20 10 20 24c0 8-3 14-6 18l-6-4c3-4 4-9 4-13 0-8-5-13-12-13s-12 5-12 13c0 4 1 9 4 13l-6 4c-3-4-6-10-6-18z"
+        fill="url(#hair)" filter="url(#glow2)"/>
+  <!-- 脸 -->
+  <ellipse cx="32" cy="34" rx="15" ry="14" fill="url(#skin)"/>
+  <!-- 刘海 -->
+  <path d="M17 30c2-9 8-14 15-14s13 5 15 14c-4-5-9-7-15-7s-11 2-15 7z" fill="url(#hair)" opacity="0.95"/>
+  <!-- 鲸鱼发饰 -->
+  <path d="M44 17c4-1 7 1 8 4-3 0-6 0-8 2z" fill="#4d6bfe"/>
+  <circle cx="47" cy="15.5" r="1.4" fill="#9fc4ff"/>
+  <!-- 腮红 -->
+  <ellipse cx="23" cy="39" rx="3.2" ry="2" fill="#ff9fb0" opacity="0.55"/>
+  <ellipse cx="41" cy="39" rx="3.2" ry="2" fill="#ff9fb0" opacity="0.55"/>
+</svg>
