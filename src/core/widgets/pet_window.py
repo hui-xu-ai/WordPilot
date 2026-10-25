@@ -326,6 +326,20 @@ class PetWindow(QWidget):
     def state(self) -> str:
         return self._state
 
+    def set_pet_size(self, size: int) -> None:
+        """按内核设定的像素尺寸等比缩放（皮肤基准 64 px），保持左上角不动。"""
+        width, height = 64, 64
+        if self._skins is not None:
+            try:
+                width, height = self._skins.size()
+            except Exception:                  # noqa: BLE001
+                width, height = 64, 64
+        factor = max(0.4, min(4.0, float(size) / 64.0))
+        anchor_pos = self.pos()
+        self.setFixedSize(max(24, int(width * factor)), max(24, int(height * factor)))
+        self.move(anchor_pos)
+        self.update()
+
     def set_services(self, skins=None, theme=None) -> None:
         if skins is not None:
             self._skins = skins
