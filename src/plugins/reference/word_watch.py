@@ -192,28 +192,69 @@ def resolve_selection(word) -> dict | None:
             "point": screen_point(word, selection)}
 
 
-def screen_point(word, selection) -> tuple[int, int]:
-    """引用位置在屏幕上的坐标（点）。失败时退回 Word 窗口左上角附近。"""
-    window = getattr(word, "ActiveWindow", None)
-    offset_x = offset_y = 0
+def _device_ratio() -> float:
+    """Qt 逻辑像素 ↔ Win32 物理像素的比例（高分屏缩放）。"""
+    try:
+        from PySide6.QtGui import QGuiApplication
+
+        screen = QGuiApplication.primaryScreen()
+        return float(screen.devicePixelRatio()) if screen is not None else 1.0
+    except Exception:                      # noqa: BLE001
+        return 1.0
+
+
+def _client_origin() -> tuple[int, int] | None:
+    """Word 窗口**客户区**在屏幕上的物理像素原点（不含标题栏与边框）。"""
     try:
         import win32gui
 
         hwnd = win32gui.FindWindow("OpusApp", None)
-        if hwnd:
-            left, top, _right, _bottom = win32gui.GetWindowRect(hwnd)
-            offset_x, offset_y = left, top
-    except Exception:                      # noqa: BLE001 - 没有 pywin32/窗口时忽略
-        pass
+        if not hwnd:
+            return None
+        left, top, _right, _bottom = win32gui.GetClientRect(hwnd)
+        return win32gui.ClientToScreen(hwnd, (left, top))
+    except Exception:                      # noqa: BLE001
+        return None
 
+
+def _word_point(word, selection) -> tuple[int, int] | None:
+    """用 Word 自己的 API 把选区换算成屏幕物理像素；失败返回 None。"""
     try:
-        page_x = int(selection.Information(5))       # wdHorizontalPositionRelativeToPage
-        page_y = int(selection.Information(6))       # wdVerticalPositionRelativeToPage
+        window = word.ActiveWindow
+        page_x = int(selection.Information(5))     # 相对页面左边缘（pt）
+        page_y = int(selection.Information(6))     # 相对页面顶端（pt）
+        if page_x <= 0 and page_y <= 0:
+            return None
         pixel_x = int(window.PointsToScreenPixelsX(page_x))
         pixel_y = int(window.PointsToScreenPixelsY(page_y))
-        return offset_x + pixel_x, offset_y + pixel_y
     except Exception:                      # noqa: BLE001
-        return offset_x + 200, offset_y + 200
+        return None
+
+    origin = _client_origin()
+    if origin is not None:
+        return origin[0] + pixel_x, origin[1] + pixel_y
+    return pixel_x, pixel_y
+
+
+def _cursor_point() -> tuple[int, int] | None:
+    """鼠标位置兜底：用户刚点击引用，光标就在引用附近。"""
+    try:
+        import win32api
+
+        return win32api.GetCursorPos()
+    except Exception:                      # noqa: BLE001
+        return None
+
+
+def screen_point(word, selection) -> tuple[int, int]:
+    """引用位置在屏幕上的坐标（Qt 逻辑像素）。"""
+    physical = _word_point(word, selection) or _cursor_point()
+    if physical is None:
+        origin = _client_origin()
+        physical = ((origin[0] + 120, origin[1] + 80) if origin else (200, 200))
+
+    ratio = _device_ratio() or 1.0
+    return int(physical[0] / ratio), int(physical[1] / ratio)
 
 
 class WordWatch(QThread):
