@@ -132,10 +132,7 @@ class SettingsPage(QWidget):
         self.save_status = QLabel("")
         self.save_status.setObjectName("hintLabel")
         bottom.addWidget(self.save_status, 1)
-        self.save_btn = QPushButton()
-        self.save_btn.setProperty("accent", True)
-        self.save_btn.clicked.connect(self.save_settings)
-        bottom.addWidget(self.save_btn)
+        # 外观改动全部即时生效，不需要「保存」按钮
         main_layout.addLayout(bottom)
 
     def _switch_section(self, row: int) -> None:
@@ -393,7 +390,6 @@ class SettingsPage(QWidget):
         self.qss_hint.setText(self.tr("settings.appearance.custom_hint", path=USER_QSS))
         self.open_qss_btn.setText(self.tr("settings.appearance.open_qss"))
 
-        self.save_btn.setText(self.tr("settings.btn.save"))
 
     # ---------------- 数据 ----------------
     def open_user_qss(self):

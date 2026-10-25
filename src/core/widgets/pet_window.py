@@ -335,9 +335,13 @@ class PetWindow(QWidget):
             except Exception:                  # noqa: BLE001
                 width, height = 64, 64
         factor = max(0.4, min(4.0, float(size) / 64.0))
-        anchor_pos = self.pos()
-        self.setFixedSize(max(24, int(width * factor)), max(24, int(height * factor)))
-        self.move(anchor_pos)
+        # 以**中心**为基准缩放：保持宠物中心不动，视觉上不"向左上漂"
+        center_x = self.x() + self.width() // 2
+        center_y = self.y() + self.height() // 2
+        new_w = max(24, int(width * factor))
+        new_h = max(24, int(height * factor))
+        self.setFixedSize(new_w, new_h)
+        self.move(center_x - new_w // 2, center_y - new_h // 2)
         self.update()
 
     def set_services(self, skins=None, theme=None) -> None:
