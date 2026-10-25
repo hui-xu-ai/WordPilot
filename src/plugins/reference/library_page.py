@@ -403,7 +403,8 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         notes = self._note_service.master_notes(ref_key)
         _text, source, _hit = self._note_service.effective(ref_key)
         labels = {"child": "overlay.note_child", "inherit": "overlay.note_inherit",
-                  "auto": "overlay.note_auto", "none": "overlay.note_none"}
+                  "auto": "overlay.note_auto", "default": "overlay.note_default",
+                  "none": "overlay.note_none"}
         self.notes_source_label.setText(self.tr(labels.get(source, "")))
         template = self.tr("overlay.master_count")
         self.notes_btn.setText(template.replace("{count}", str(len(notes))))

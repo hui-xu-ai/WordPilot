@@ -88,7 +88,7 @@
   "overlay.note_child": "子库备注",
   "overlay.note_inherit": "跟随总库",
   "overlay.note_auto": "来自总库（唯一）",
-  "overlay.note_none": "总库有多条备注，点右侧「总库」挑选",
+  "overlay.note_none": "总库还没有备注",
   "overlay.master_count": "总库 {count} 条",
   "picker.title": "选择总库备注",
   "picker.filter": "筛选备注（标签或内容）…",
@@ -128,5 +128,6 @@
   "filter.added": "本次新增",
   "filter.removed": "已移除",
   "filter.diff_tip": "与上次扫描相比的差异",
-  "status.diff": "本次同步：新增 {added} 条 · 已移除 {removed} 条（备注仍保留）"
+  "status.diff": "本次同步：新增 {added} 条 · 已移除 {removed} 条（备注仍保留）",
+  "overlay.note_default": "总库默认备注（多条，点「总库」可切换）"
 }

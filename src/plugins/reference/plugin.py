@@ -309,7 +309,15 @@ class ReferencePlugin(PluginBase):
                 pass
 
     def _on_overlay_dismissed(self, anchor_key: str) -> None:
-        if anchor_key:
+        # 关一次就关掉整个弹窗：压制当前显示的**所有**条目（[7-8] 不该只剩 [8]）
+        for item in self._last_items:
+            key = item.get("anchor_key") or ""
+            if not key:
+                continue
+            self._dismissed.add(key)
+            self._dismissed.add(self._identity_of(key))
+            self._dismissed.add(self._store.resolve_key(key) or key)
+        if False:
             self._dismissed.add(anchor_key)
             identity = self._identity_of(anchor_key)
             self._dismissed.add(identity)

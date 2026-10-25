@@ -47,12 +47,15 @@ def test_child_note_wins_over_master(service):
     assert (text, source) == ("子库自己写的", SOURCE_CHILD)
 
 
-def test_master_multiple_without_pick_is_empty(service):
+def test_master_multiple_without_pick_uses_default(service):
+    """多条未挑选时默认显示一条（钉住/最近更新），来源标记为 default。"""
     svc, store, notes = service
     store.upsert(Reference(ref_key="doi:1", title="T"))
     notes.add("doi:1", "a")
-    notes.add("doi:1", "b")
-    assert svc.effective("doi:1")[1] == SOURCE_NONE
+    newest = notes.add("doi:1", "b")
+    text, source, hit = svc.effective("doi:1")
+    assert text in {"a", "b"} and source == "default"
+    assert hit is not None
 
 
 def test_note_is_per_reference_not_per_citation(service):

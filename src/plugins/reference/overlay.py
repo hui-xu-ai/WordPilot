@@ -161,6 +161,7 @@ class _EntryCard(QFrame):
             "child": self._dict_tr("overlay.note_child"),
             "inherit": self._dict_tr("overlay.note_inherit"),
             "auto": self._dict_tr("overlay.note_auto"),
+            "default": self._dict_tr("overlay.note_default"),
             "none": self._dict_tr("overlay.note_none"),
         }
         self.note_source_label.setText(labels.get(source, ""))

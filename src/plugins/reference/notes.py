@@ -28,6 +28,7 @@ SOURCE_CHILD = "child"        # 子库自己写的
 SOURCE_INHERIT = "inherit"    # 跟随总库挑选的那条
 SOURCE_AUTO = "auto"          # 总库只有一条，自动填充
 SOURCE_NONE = "none"
+SOURCE_DEFAULT = "default"      # 多条时默认取钉住/最近更新那条
 
 
 @dataclass
@@ -91,6 +92,11 @@ def resolve_note(child_note: str, inherit_note_id: str, master_notes: list[Note]
 
     if len(active) == 1:
         return active[0].text, SOURCE_AUTO, active[0]
+    if active:
+        # 多条且没挑：默认显示"钉住 / 最近更新"的那条，避免空白（用户反馈）
+        default = pick_default_note(active)
+        if default is not None:
+            return default.text, SOURCE_DEFAULT, default
     return "", SOURCE_NONE, None
 
 

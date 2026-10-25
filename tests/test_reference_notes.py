@@ -45,9 +45,12 @@ def test_resolve_auto_fills_when_master_has_single_note():
     assert hit is not None and hit.note_id == "n1"
 
 
-def test_resolve_returns_empty_when_master_has_many_and_nothing_picked():
-    text, source, hit = resolve_note("", "", [_note("n1", "a"), _note("n2", "b")])
-    assert (text, source, hit) == ("", SOURCE_NONE, None)
+def test_resolve_defaults_to_best_note_when_master_has_many():
+    """多条且未挑选 → 默认显示"钉住/最近更新"那条，不留空白（用户反馈）。"""
+    text, source, hit = resolve_note("", "", [_note("n1", "a", updated="2026-01-01 00:00:00"),
+                                               _note("n2", "b", pinned=True)])
+    assert (text, source) == ("b", "default")
+    assert hit is not None and hit.note_id == "n2"
 
 
 def test_resolve_ignores_archived_notes():

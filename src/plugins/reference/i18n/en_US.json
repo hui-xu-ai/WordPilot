@@ -88,7 +88,7 @@
   "overlay.note_child": "Local note",
   "overlay.note_inherit": "Following master",
   "overlay.note_auto": "From master (only one)",
-  "overlay.note_none": "Multiple master notes — pick one on the right",
+  "overlay.note_none": "No master notes yet",
   "overlay.master_count": "Master · {count}",
   "picker.title": "Choose a master note",
   "picker.filter": "Filter notes (label or text)…",
@@ -128,5 +128,6 @@
   "filter.added": "New",
   "filter.removed": "Removed",
   "filter.diff_tip": "Differences since the last scan",
-  "status.diff": "Synced: +{added} new · -{removed} removed (notes kept)"
+  "status.diff": "Synced: +{added} new · -{removed} removed (notes kept)",
+  "overlay.note_default": "Default master note (several; click Master to switch)"
 }
