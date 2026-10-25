@@ -269,7 +269,7 @@ class SettingsPage(QWidget):
         self.label_pet_size = QLabel()
         form.addRow(self.label_pet_size, size_row)
 
-        self.pet_visible_check = QCheckBox()
+        self.pet_visible_check = QCheckBox()  # 文案在 retranslateUi 里设置
         self.pet_visible_check.setChecked(bool(pet_service.visible))
         self.pet_visible_check.toggled.connect(self._on_pet_visible_toggled)
         form.addRow(self.pet_visible_check)
@@ -377,6 +377,8 @@ class SettingsPage(QWidget):
         self.label_theme.setText(self.tr("settings.appearance.theme"))
         self.label_ui_language.setText(self.tr("settings.appearance.language"))
         self.label_skin.setText(self.tr("settings.appearance.skin"))
+        self.label_pet_size.setText(self.tr("app.settings.pet_size"))
+        self.pet_visible_check.setText(self.tr("app.settings.pet_visible"))
         self.skin_hint.setText(self.tr("settings.appearance.skin_hint"))
         for index in range(self.theme_combo.count()):
             self.theme_combo.setItemText(index, self.tr(f"theme.{self.theme_combo.itemData(index)}"))

@@ -164,6 +164,7 @@ class ProofreadPlugin(PluginBase):
         pet = windows.get(PET_WINDOW_ID)
         if pet is not None:
             pet.show()
+            pet.raise_()
         return pet
 
     def _build_dashboard_page(self):
