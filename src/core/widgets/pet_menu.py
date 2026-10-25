@@ -1,0 +1,52 @@
+# core/widgets/pet_menu.py
+"""宠物右键菜单（外观皮肤 / 插件快捷项 / 校对开关 / 建议气泡 / 设置）。"""
+from __future__ import annotations
+
+
+def _pet_service():
+    try:
+        from core.services.pet_service import PetService
+
+        return PetService.instance()
+    except Exception:                      # noqa: BLE001
+        return None
+
+
+class PetMenuMixin:
+    """宿主需提供 tr / _skins / _tools_provider / proofreadToggleRequested 等。"""
+
+    def _show_menu(self, pos) -> None:
+        menu = QMenu(self)
+        menu.setObjectName("petMenu")
+
+        skins_menu = menu.addMenu(self.tr("pet.menu.skin"))
+        current_skin = self._skins.current_id if self._skins else ""
+        for item in (self._skins.available() if self._skins else []):
+            action = skins_menu.addAction(item["name"],
+                                          lambda sid=item["id"]: self._switch_skin(sid))
+            action.setCheckable(True)
+            action.setChecked(item["id"] == current_skin)
+
+        # 插件快捷入口：内核宠物服务里"已启用插件"注册的动作
+        tools = list(self._tools_provider() if self._tools_provider else [])
+        service = _pet_service()
+        if service is not None:
+            tools = list(service.actions() or []) + tools
+        if tools:
+            tools_menu = menu.addMenu(self.tr("pet.menu.plugins"))
+            for label, handler in tools:
+                tools_menu.addAction(label, handler)
+
+        menu.addSeparator()
+        toggle = menu.addAction(self.tr("pet.menu.toggle_proofread"),
+                                self.proofreadToggleRequested.emit)
+        toggle.setCheckable(True)
+        toggle.setChecked(self._proofread_enabled())
+
+        bubble_action = menu.addAction(self.tr("pet.menu.toggle_bubble"), self.toggle_bubble)
+        bubble_action.setCheckable(True)
+        bubble_action.setChecked(self.bubble.isVisible())
+
+        menu.addAction(self.tr("pet.menu.settings"), self.settingsRequested.emit)
+        menu.exec(self.mapToGlobal(pos))
+

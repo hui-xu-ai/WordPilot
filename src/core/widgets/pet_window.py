@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import (QEasingCurve, QPoint, QRect, QRectF, Qt, QTimer,
                             QVariantAnimation, Signal)
+from core.widgets.pet_menu import PetMenuMixin
 from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication, QMenu, QVBoxLayout, QWidget
@@ -246,7 +247,7 @@ def _pet_service():
         return None
 
 
-class PetWindow(QWidget):
+class PetWindow(PetMenuMixin, QWidget):
     """桌宠 + 建议气泡的合并窗口。"""
 
     #: 气泡显隐变化（供插件同步状态）
@@ -521,41 +522,6 @@ class PetWindow(QWidget):
     def hideEvent(self, event) -> None:            # noqa: N802 - Qt 命名惯例
         self.canvas.stop_animation()
         super().hideEvent(event)
-
-    def _show_menu(self, pos: QPoint) -> None:
-        menu = QMenu(self)
-        menu.setObjectName("petMenu")
-
-        skins_menu = menu.addMenu(self.tr("pet.menu.skin"))
-        current_skin = self._skins.current_id if self._skins else ""
-        for item in (self._skins.available() if self._skins else []):
-            action = skins_menu.addAction(item["name"],
-                                          lambda sid=item["id"]: self._switch_skin(sid))
-            action.setCheckable(True)
-            action.setChecked(item["id"] == current_skin)
-
-        # 插件快捷入口：内核宠物服务里"已启用插件"注册的动作
-        tools = list(self._tools_provider() if self._tools_provider else [])
-        service = _pet_service()
-        if service is not None:
-            tools = list(service.actions() or []) + tools
-        if tools:
-            tools_menu = menu.addMenu(self.tr("pet.menu.plugins"))
-            for label, handler in tools:
-                tools_menu.addAction(label, handler)
-
-        menu.addSeparator()
-        toggle = menu.addAction(self.tr("pet.menu.toggle_proofread"),
-                                self.proofreadToggleRequested.emit)
-        toggle.setCheckable(True)
-        toggle.setChecked(self._proofread_enabled())
-
-        bubble_action = menu.addAction(self.tr("pet.menu.toggle_bubble"), self.toggle_bubble)
-        bubble_action.setCheckable(True)
-        bubble_action.setChecked(self.bubble.isVisible())
-
-        menu.addAction(self.tr("pet.menu.settings"), self.settingsRequested.emit)
-        menu.exec(self.mapToGlobal(pos))
 
     def _proofread_enabled(self) -> bool:
         """当前是否在"校对中"（右键菜单据此显示勾选状态）。"""
