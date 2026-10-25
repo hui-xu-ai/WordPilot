@@ -21,7 +21,7 @@ from plugins.reference.reference_index import ReferenceIndex
 from plugins.reference.libraries import LibraryRegistry
 from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
-from plugins.reference.matching import SnapshotStore, cite_key_set
+from plugins.reference.matching import SnapshotStore, cite_key_set, diff
 from plugins.reference.scan_cache import ScanCache, fingerprint
 from plugins.reference.switch_plan import KEEP, NEW, PROMPT, SWITCH, plan_switch
 from plugins.reference.word_watch import WordWatch
@@ -366,6 +366,11 @@ class ReferencePlugin(PluginBase):
 
         keys = cite_key_set(candidates)
         stats["keys"] = len(keys)
+        previous = set(SnapshotStore(self._data_dir).load().get(path, {}).get("keys", []))
+        added, removed = diff(previous, keys) if previous else ([], [])
+        if previous:
+            stats["diff_added"] = added
+            stats["diff_removed"] = removed
         try:
             SnapshotStore(self._data_dir).record(path, keys)
         except Exception as exc:                   # noqa: BLE001 - 快照失败不影响扫描

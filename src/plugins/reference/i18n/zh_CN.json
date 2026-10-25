@@ -124,5 +124,9 @@
   "switch.new_placeholder": "给仓库起个名字（如：论文A）",
   "switch.name_required": "请先输入仓库名",
   "switch.name_taken": "这个名字已存在",
-  "switch.created": "已新建仓库：{name}"
+  "switch.created": "已新建仓库：{name}",
+  "filter.added": "本次新增",
+  "filter.removed": "已移除",
+  "filter.diff_tip": "与上次扫描相比的差异",
+  "status.diff": "本次同步：新增 {added} 条 · 已移除 {removed} 条（备注仍保留）"
 }

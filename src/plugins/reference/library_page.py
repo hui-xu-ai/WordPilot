@@ -42,7 +42,8 @@ logger = logging.getLogger(__name__)
 _TABLE_COLUMNS = ("cite_label", "title", "authors", "year", "container", "doi", "tags", "note")
 _ORPHAN_COLUMNS = ("doc_name", "cite_label", "anchor_key")
 _FILTERS = (("all", "filter.all"), ("note", "filter.note"), ("star", "filter.star"),
-            ("meta", "filter.meta"), ("orphan", "filter.orphan"))
+            ("meta", "filter.meta"), ("orphan", "filter.orphan"),
+            ("added", "filter.added"), ("removed", "filter.removed"))
 
 
 class LibraryPage(ScanMixin, LibraryMixin, QWidget):
@@ -65,6 +66,8 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         self._on_create_library = on_create_library
         self._auto_scanned = False
         self._refresh_timer = None
+        self._diff_added: set[str] = set()
+        self._diff_removed: set[str] = set()
         self._current_key = ""
         self._mode = "refs"                      # refs | orphans
         self._orphan: Anchor | None = None
@@ -321,6 +324,10 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
                 if name == "note" and not ref.note.strip():
                     continue
                 if name == "star" and not ref.starred:
+                    continue
+                if name == "added" and key not in self._diff_added:
+                    continue
+                if name == "removed" and key not in self._diff_removed:
                     continue
                 if name == "meta" and (ref.title and ref.authors):
                     continue

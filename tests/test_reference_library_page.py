@@ -31,6 +31,8 @@ _DICT = {
     "status.counts": "共 {total} 条 · 有备注 {with_note} · 孤立锚点 {orphans}",
     "status.reloaded": "已刷新",
     "status.library": "当前仓库：{name}",
+    "status.diff": "本次同步：新增 {added} 条 · 已移除 {removed} 条（备注仍保留）",
+    "filter.added": "本次新增", "filter.removed": "已移除", "filter.diff_tip": "与上次扫描的差异",
     "overlay.note_child": "子库备注", "overlay.note_inherit": "跟随总库",
     "overlay.note_auto": "来自总库（唯一）", "overlay.note_none": "总库有多条，请挑选",
     "overlay.master_count": "总库 · {count} 条",

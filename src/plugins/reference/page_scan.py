@@ -61,6 +61,9 @@ class ScanMixin:
             if stats.get("switch_text"):
                 page.append_status(str(stats["switch_text"]).replace("{library}", "")
                                    .replace("{percent}", ""))
+            if "diff_added" in stats or "diff_removed" in stats:
+                page.set_doc_diff(set(stats.get("diff_added") or []),
+                                  set(stats.get("diff_removed") or []))
             plan = stats.get("plan")
             if plan is not None:
                 page.handle_switch_plan(plan)
@@ -100,3 +103,18 @@ class ScanMixin:
             self.append_status(str(text).replace("{name}", dialog.new_name))
         else:
             self.append_status(self.tr("switch.stay"))
+
+
+    def set_doc_diff(self, added, removed) -> None:
+        """扫描后把"本次新增/已移除"喂给页面（chips 高亮可用 + 状态栏计数）。"""
+        self._diff_added = set(added or ())
+        self._diff_removed = set(removed or ())
+        for name in ("added", "removed"):
+            button = getattr(self, "filter_buttons", {}).get(name)
+            if button is not None:
+                button.setVisible(True)
+                button.setToolTip(self.tr("filter.diff_tip"))
+        text = self.tr("status.diff", added=len(self._diff_added),
+                       removed=len(self._diff_removed))
+        self.append_status(str(text).replace("{added}", str(len(self._diff_added)))
+                           .replace("{removed}", str(len(self._diff_removed))))
