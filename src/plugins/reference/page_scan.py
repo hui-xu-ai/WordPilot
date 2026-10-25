@@ -58,6 +58,12 @@ class ScanMixin:
                 return
             stats = worker.result or {}
             page.reload()
+            if stats.get("switch_text"):
+                page.append_status(str(stats["switch_text"]).replace("{library}", "")
+                                   .replace("{percent}", ""))
+            plan = stats.get("plan")
+            if plan is not None:
+                page.handle_switch_plan(plan)
             page.append_status(page.tr(
                 "status.scan_done",
                 doc=stats.get("doc_name", ""), bibliography=stats.get("bibliography", 0),
@@ -75,3 +81,22 @@ class ScanMixin:
         lines = [line for line in (label.text() or "").splitlines() if line]
         lines.append(text)
         label.setText("\n".join(lines[-3:]))
+
+    def handle_switch_plan(self, plan) -> None:
+        """扫描判定需要用户决策时弹确认框（只能在 GUI 线程调用）。"""
+        from plugins.reference.switch_dialog import SwitchDialog
+
+        dialog = SwitchDialog(plan, tr=self.tr, existing=self._libraries or [], parent=self)
+        dialog.exec()
+        if dialog.choice == "switch" and getattr(plan, "library", "") and self._on_switch_library:
+            self._on_switch_library(plan.library)
+            text = self.tr("switch.auto", library=plan.library,
+                           percent=int(plan.score * 100))
+            self.append_status(str(text).replace("{library}", plan.library)
+                               .replace("{percent}", str(int(plan.score * 100))))
+        elif dialog.choice == "new" and dialog.new_name and self._on_create_library:
+            self._on_create_library(dialog.new_name)
+            text = self.tr("switch.created", name=dialog.new_name)
+            self.append_status(str(text).replace("{name}", dialog.new_name))
+        else:
+            self.append_status(self.tr("switch.stay"))

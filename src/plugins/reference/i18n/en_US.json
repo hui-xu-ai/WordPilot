@@ -112,5 +112,17 @@
   "status.library": "Library: {name}",
   "switch.auto": "Switched to library \"{library}\" ({percent}% match)",
   "switch.prompt": "Looks related to \"{library}\" ({percent}%: +{added}/-{removed}); confirm via the library dropdown",
-  "switch.new": "No overlap with existing libraries; consider creating one for this document"
+  "switch.new": "No overlap with existing libraries; consider creating one for this document",
+  "switch.title": "Which library should this document use?",
+  "switch.dialog_prompt": "This document overlaps strongly with \"{library}\" ({percent}%). Use it?",
+  "switch.dialog_new": "No shared references with existing libraries. Create one for this document?",
+  "switch.diff_added": "New: {key}",
+  "switch.diff_removed": "In library but not in document: {key}",
+  "switch.confirm": "Use this library",
+  "switch.stay": "Keep current",
+  "switch.new_library": "New library",
+  "switch.new_placeholder": "Library name (e.g. Paper A)",
+  "switch.name_required": "Please enter a name",
+  "switch.name_taken": "That name already exists",
+  "switch.created": "Created library: {name}"
 }

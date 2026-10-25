@@ -112,5 +112,17 @@
   "status.library": "当前仓库：{name}",
   "switch.auto": "已自动切换到仓库《{library}》（匹配 {percent}%）",
   "switch.prompt": "疑似与仓库《{library}》同源（匹配 {percent}%：新增 {added}、移除 {removed}），可在左上角仓库下拉确认切换",
-  "switch.new": "当前文档与现有仓库几乎无重叠，建议为它新建仓库"
+  "switch.new": "当前文档与现有仓库几乎无重叠，建议为它新建仓库",
+  "switch.title": "这个文档该用哪个文献仓库？",
+  "switch.dialog_prompt": "当前文档与仓库《{library}》引用高度重合（匹配 {percent}%）。要用这个仓库吗？",
+  "switch.dialog_new": "当前文档与现有仓库几乎没有相同引用。建议为它新建一个仓库。",
+  "switch.diff_added": "新增：{key}",
+  "switch.diff_removed": "本库有、文档里没有：{key}",
+  "switch.confirm": "切到该仓库",
+  "switch.stay": "保持当前",
+  "switch.new_library": "新建仓库",
+  "switch.new_placeholder": "给仓库起个名字（如：论文A）",
+  "switch.name_required": "请先输入仓库名",
+  "switch.name_taken": "这个名字已存在",
+  "switch.created": "已新建仓库：{name}"
 }

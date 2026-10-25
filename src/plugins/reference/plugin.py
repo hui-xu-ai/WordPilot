@@ -82,7 +82,8 @@ class ReferencePlugin(PluginBase):
                                     note_service=self._note_service,
                                     libraries=self._libraries.names(),
                                     active_library=self._libraries.active_name(),
-                                    on_switch_library=self.switch_library)
+                                    on_switch_library=self.switch_library,
+                                    on_create_library=self.create_library)
         return self._page
 
     # ---------------- 选区监听 ----------------
@@ -397,16 +398,25 @@ class ReferencePlugin(PluginBase):
         if plan.action == SWITCH and plan.library:
             self.switch_library(plan.library)
             self._libraries.bind_document(doc_path, plan.library)
-            self._notify_status(self.tr("switch.auto", library=plan.library,
-                                        percent=int(plan.score * 100)))
-        elif plan.action == PROMPT and plan.library:
-            self._notify_status(self.tr("switch.prompt", library=plan.library,
-                                        percent=int(plan.score * 100),
-                                        added=len(plan.added), removed=len(plan.removed)))
-        elif plan.action == NEW:
-            self._notify_status(self.tr("switch.new"))
+            stats["switch_text"] = self.tr("switch.auto", library=plan.library,
+                                           percent=int(plan.score * 100))
+        elif plan.action in (PROMPT, NEW):
+            # 弹框必须回到 GUI 线程：把决策放进 stats，由页面在扫描完成回调里处理
+            stats["plan"] = plan
         elif plan.action == KEEP and plan.library:
             self._libraries.bind_document(doc_path, plan.library)
+
+    def create_library(self, name: str) -> None:
+        """新建仓库并切过去（扫描后的确认框会用到）。"""
+        try:
+            self._libraries.create(name)
+        except ValueError as exc:
+            logger.warning("新建仓库失败：%s", exc)
+            return
+        self.switch_library(name)
+
+    def bind_current_document(self, doc_path: str, library: str) -> None:
+        self._libraries.bind_document(doc_path, library)
 
     def _notify_status(self, text: str) -> None:
         if self._page is not None:
