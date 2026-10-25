@@ -171,38 +171,15 @@ class PetCanvas(QWidget):
         return {"STATE": QColor(self.state_color()).name(), "BODY": body, "ACCENT": accent}
 
     def paintEvent(self, event) -> None:        # noqa: N802 - Qt 命名惯例
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-        try:
-            base_w, base_h = self._skin_base_size()
-            width, height = self.width(), self.height()
-            if (width, height) == (base_w, base_h):
-                self._paint(painter)
-                return
-            # 窗口尺寸 != 皮肤基准：先在基准画布上完整绘制，再一次缩放贴过来，
-            # 这样 layout 的绝对坐标不会错位（之前直接 painter.scale 会裁切/偏移）。
-            from PySide6.QtGui import QPixmap
+        from PySide6.QtGui import QPainter
 
-            canvas = QPixmap(base_w, base_h)
-            canvas.fill(Qt.transparent)
-            inner = QPainter(canvas)
-            inner.setRenderHint(QPainter.Antialiasing, True)
-            inner.setRenderHint(QPainter.SmoothPixmapTransform, True)
-            self._paint_rect = QRect(0, 0, base_w, base_h)
-            try:
-                self._paint(inner)
-            finally:
-                self._paint_rect = None
-                inner.end()
-            painter.drawPixmap(self.rect(), canvas)
+        from core.widgets.pet_render import paint_scaled
+
+        painter = QPainter(self)
+        try:
+            paint_scaled(self, painter)
         finally:
             painter.end()
-
-    def _skin_base_size(self) -> tuple[int, int]:
-        """皮肤布局的基准坐标系（所有 skin.json 均为 64×64）。"""
-        return 64, 64
-
     def _paint(self, painter: QPainter) -> None:
         rect = getattr(self, "_paint_rect", None) or self.rect()
         if self._skins is None or not self._skins.current_id:
@@ -589,6 +566,14 @@ class PetWindow(QWidget):
             return
         self._skins.set_skin(skin_id)
         self.set_services(skins=self._skins)
+        # 皮肤切换会按 skin.json 的 64px 重设窗口；这里按内核里记住的尺寸再套一次，
+        # 否则"切一次皮肤，尺寸就回到默认"（用户反馈的第 3 个问题）。
+        try:
+            from core.services.pet_service import PetService
+
+            self.set_pet_size(PetService.instance().size)
+        except Exception:                      # noqa: BLE001
+            pass
 
     # ---------------- 建议回调 ----------------
     def _on_accepted(self, corrected, start, end, original) -> None:

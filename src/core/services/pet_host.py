@@ -94,15 +94,20 @@ class PetHost:
         self._apply_size(size)
 
     def apply_skin(self, skin_id: str) -> None:
-        """皮肤来自 skin 服务；拿到就切，拿不到交给渲染方的默认逻辑。"""
+        """切皮肤：内核记录 + 窗口真正换肤，随后按内核尺寸续用。"""
         if self._window is None:
             return
+        try:
+            PetService.instance().set_skin(skin_id)          # 记住选择，重启后仍生效
+        except Exception:                      # noqa: BLE001
+            logger.debug("记录皮肤失败", exc_info=True)
         switch = getattr(self._window, "_switch_skin", None)
         if callable(switch):
             try:
                 switch(skin_id)
+                self.apply_size(PetService.instance().size)
             except Exception:                  # noqa: BLE001
-                logger.debug("切换宠物皮肤失败：%s", skin_id, exc_info=True)
+                logger.exception("切换宠物皮肤失败：%s", skin_id)
 
     # ---------------- 内部 ----------------
     def _apply_size(self, size: int) -> None:

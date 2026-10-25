@@ -140,6 +140,27 @@ class SettingsPage(QWidget):
             self.stack.setCurrentIndex(row)
 
     # ---------------- 桌宠外观 ----------------
+    def _on_pet_skin_changed(self, _index: int) -> None:
+        """外观页切皮肤：同时更新内核状态、皮肤服务与宠物窗口。"""
+        skin_id = self.skin_combo.currentData()
+        if not skin_id:
+            return
+        try:
+            from core.services.pet_host import PetHost
+            from core.services.pet_service import PetService
+
+            PetService.instance().set_skin(str(skin_id))
+            if getattr(self, "skins", None) is not None:
+                try:
+                    self.skins.set_skin(str(skin_id))     # 让窗口内的皮肤服务也切过去
+                except Exception:                       # noqa: BLE001
+                    pass
+            host = PetHost.instance()
+            host.apply_skin(str(skin_id))
+            host.apply_size(PetService.instance().size)
+        except Exception:                      # noqa: BLE001
+            pass
+
     def _on_pet_size_changed(self, value: int) -> None:
         self.pet_size_value.setText(f"{value} px")
         try:
@@ -255,6 +276,7 @@ class SettingsPage(QWidget):
         if self.skins is not None:
             for item in self.skins.available():
                 self.skin_combo.addItem(item["name"], item["id"])
+        self.skin_combo.currentIndexChanged.connect(self._on_pet_skin_changed)
         self.label_skin = QLabel()
         form.addRow(self.label_skin, self.skin_combo)
 
