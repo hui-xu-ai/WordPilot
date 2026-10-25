@@ -175,29 +175,12 @@ class PetCanvas(QWidget):
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
         try:
-            base_w, base_h = self._skin_base_size()
-            target = self.rect()
-            # 皮肤按基准尺寸绘制；窗口被缩放时必须整体等比缩放，否则只画出左上角一块
-            self._paint_rect = QRect(0, 0, base_w, base_h)
-            if base_w and base_h and (target.width() != base_w or target.height() != base_h):
-                painter.scale(target.width() / base_w, target.height() / base_h)
             self._paint(painter)
         finally:
-            self._paint_rect = None
             painter.end()
 
-    def _skin_base_size(self) -> tuple[int, int]:
-        if self._skins is not None:
-            try:
-                width, height = self._skins.size()
-                if width > 0 and height > 0:
-                    return int(width), int(height)
-            except Exception:                  # noqa: BLE001
-                pass
-        return 64, 64
-
     def _paint(self, painter: QPainter) -> None:
-        rect = getattr(self, "_paint_rect", None) or self.rect()
+        rect = self.rect()
         if self._skins is None or not self._skins.current_id:
             self._paint_fallback(painter, rect)
             return

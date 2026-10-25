@@ -264,6 +264,8 @@ class SettingsPage(QWidget):
         pet_service = PetService.instance()
         self.pet_size_slider = QSlider(Qt.Horizontal)
         self.pet_size_slider.setRange(MIN_SIZE, MAX_SIZE)
+        self.pet_size_slider.setEnabled(False)      # 缩放绘制未完成，先禁用避免出错
+        self.pet_size_slider.setToolTip("尺寸缩放绘制仍在修（当前固定为基准尺寸）")
         self.pet_size_slider.setValue(int(pet_service.size))
         self.pet_size_value = QLabel(f"{pet_service.size} px")
         self.pet_size_slider.valueChanged.connect(self._on_pet_size_changed)
