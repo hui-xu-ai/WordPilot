@@ -167,3 +167,16 @@ def test_set_visible_marks_user_choice():
     service.set_visible(False)
     assert config.get("pet.hidden_by_user") is True
     assert config.get("pet.visible") is False
+
+def test_position_is_remembered():
+    """拖动宠物后位置写进配置，下次启动可恢复。"""
+    config = _Config()
+    service = PetService.instance(config)
+    service.update_geometry(320, 240, 96)
+    assert config.get("pet.position") == [320, 240]
+    assert service.saved_position() == (320, 240)
+
+
+def test_saved_position_tolerates_garbage():
+    service = PetService.instance(_Config({"pet.position": "broken"}))
+    assert service.saved_position() is None

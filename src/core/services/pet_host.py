@@ -55,6 +55,7 @@ class PetHost:
 
         try:
             self._apply_size(service.size)
+            self._restore_position(service)
             self._clamp_into_screen()
             if service.visible:
                 self._window.show()
@@ -98,6 +99,14 @@ class PetHost:
         resize = getattr(self._window, "set_pet_size", None)
         if callable(resize):
             resize(size)
+
+    def _restore_position(self, service) -> None:
+        """优先用内核记住的位置；没有就用窗口当前坐标。"""
+        if self._window is None:
+            return
+        saved = service.saved_position()
+        if saved is not None:
+            self._window.move(int(saved[0]), int(saved[1]))
 
     def _clamp_into_screen(self) -> None:
         """把宠物位置夹回**可见区域**（历史位置可能在屏幕外）。"""

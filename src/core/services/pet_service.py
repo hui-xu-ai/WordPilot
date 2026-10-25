@@ -151,9 +151,21 @@ class PetService(QObject):
         return [(label, callback) for _order, label, callback in items]
 
     # ---------------- 几何 ----------------
+    def saved_position(self) -> tuple[int, int] | None:
+        """上次保存的位置（启动时由 PetHost 恢复并夹回可见区域）。"""
+        stored = self._get("position", None)
+        try:
+            if isinstance(stored, (list, tuple)) and len(stored) == 2:
+                return int(stored[0]), int(stored[1])
+        except Exception:                      # noqa: BLE001
+            return None
+        return None
+
     def update_geometry(self, x: int, y: int, size: int | None = None) -> None:
-        """渲染方（宠物窗口）移动/缩放后调用：更新锚点基准。"""
+        """渲染方（宠物窗口）移动/缩放后调用：更新锚点基准并记住位置。"""
         self._pos = QPoint(int(x), int(y))
+        if (x, y) != tuple(self._get("position", []) or []):
+            self._set("position", [int(x), int(y)])
         if size is not None:
             self._size = max(MIN_SIZE, min(MAX_SIZE, int(size)))
         self.geometryChanged.emit()
