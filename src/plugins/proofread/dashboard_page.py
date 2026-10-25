@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import logging
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QCheckBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
+from PySide6.QtWidgets import (QComboBox, QCheckBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
                                QPushButton, QSlider, QSpinBox, QTextEdit,
                                QVBoxLayout, QWidget)
 from core.services.api_logger import clear_api_log
@@ -134,6 +134,47 @@ class DashboardPage(QWidget):
         self.retranslateUi()
         return panel
 
+    # ---------------- 桌宠外观 ----------------
+    @staticmethod
+    def _pet_service():
+        try:
+            from core.services.pet_service import PetService
+
+            return PetService.instance()
+        except Exception:                      # noqa: BLE001
+            return None
+
+    @staticmethod
+    def _available_skins() -> list[tuple[str, str]]:
+        """读皮肤包目录里的 skin.json（id + 名称），按名称排序。"""
+        import json
+        from pathlib import Path as _Path
+
+        root = _Path(__file__).resolve().parents[2] / "assets" / "skins"
+        items: list[tuple[str, str]] = []
+        try:
+            for path in sorted(root.glob("*/skin.json")):
+                data = json.loads(path.read_text(encoding="utf-8"))
+                items.append((str(data.get("id") or path.parent.name),
+                              str(data.get("name") or path.parent.name)))
+        except Exception:                      # noqa: BLE001
+            return []
+        return items
+
+    def _on_pet_size_changed(self, value: int) -> None:
+        self.pet_size_value.setText(f"{value} px")
+        service = self._pet_service()
+        if service is not None:
+            service.set_size(int(value))
+
+    def _on_pet_skin_changed(self, _index: int) -> None:
+        service = self._pet_service()
+        if service is None:
+            return
+        skin_id = self.pet_skin_combo.currentData()
+        if skin_id:
+            service.set_skin(str(skin_id))
+
     def _build_pet_settings_card(self) -> QWidget:
         """桌宠与建议窗口（原来是主界面「设置 → 界面」里的内容）。"""
         card, lay = self._card()
@@ -165,6 +206,32 @@ class DashboardPage(QWidget):
         self.font_size_spin.setValue(int(self._config.get("suggestion_font_size", 13)))
         self.font_size_label = QLabel()
         form.addRow(self.font_size_label, self.font_size_spin)
+
+        # ---- 桌宠外观：尺寸 + 皮肤（状态住内核 PetService，与插件解耦）----
+        self.pet_size_slider = QSlider(Qt.Horizontal)
+        self.pet_size_slider.setRange(48, 200)
+        self.pet_size_value = QLabel()
+        pet_service = self._pet_service()
+        current_size = pet_service.size if pet_service is not None else 96
+        self.pet_size_slider.setValue(int(current_size))
+        self.pet_size_value.setText(f"{current_size} px")
+        self.pet_size_slider.valueChanged.connect(self._on_pet_size_changed)
+        size_row = QHBoxLayout()
+        size_row.addWidget(self.pet_size_slider, 1)
+        size_row.addWidget(self.pet_size_value)
+        self.pet_size_label = QLabel()
+        form.addRow(self.pet_size_label, size_row)
+
+        self.pet_skin_combo = QComboBox()
+        for skin_id, skin_name in self._available_skins():
+            self.pet_skin_combo.addItem(skin_name, skin_id)
+        if pet_service is not None:
+            index = self.pet_skin_combo.findData(pet_service.skin)
+            if index >= 0:
+                self.pet_skin_combo.setCurrentIndex(index)
+        self.pet_skin_combo.currentIndexChanged.connect(self._on_pet_skin_changed)
+        self.pet_skin_label = QLabel()
+        form.addRow(self.pet_skin_label, self.pet_skin_combo)
         lay.addLayout(form)
 
         self.save_pet_settings_btn = QPushButton()

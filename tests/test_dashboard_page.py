@@ -108,3 +108,16 @@ def test_save_writes_proof_prompt(page):
     widget.proof_prompt_edit.setPlainText("只改错别字：{text}")
     widget.save_plugin_settings()
     assert manager.get("proof_prompt") == "只改错别字：{text}"
+
+def test_pet_size_slider_and_skin_combo(page):
+    """外观页要能调桌宠尺寸（48–200 px）与皮肤，写入内核 PetService。"""
+    from core.services.pet_service import PetService
+
+    widget = page[0]
+
+    assert widget.pet_size_slider.minimum() == 48
+    assert widget.pet_size_slider.maximum() == 200
+    assert widget.pet_skin_combo.count() >= 4, "至少应有 default/glass/polygon/neon 等皮肤"
+
+    widget.pet_size_slider.setValue(140)
+    assert widget.pet_size_value.text() == "140 px"
