@@ -200,3 +200,9 @@ def test_reference_columns_are_stable_contract(store):
     assert REF_COLUMNS[0] == "ref_key"
     assert "note" in REF_COLUMNS and "aliases" in REF_COLUMNS
     assert Anchor.__dataclass_fields__.keys() >= {"doc_name", "cite_label", "anchor_key"}
+
+def test_inherit_note_id_roundtrip(store):
+    """子库"挑选"保存的是总库备注 id（跟随），要能写进 CSV 再读回来。"""
+    store.upsert(Reference(ref_key="doi:10.1/x", inherit_note_id="n123"))
+    reopened = ReferenceStore(directory=store.directory)
+    assert reopened.get("doi:10.1/x").inherit_note_id == "n123"

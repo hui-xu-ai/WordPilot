@@ -31,7 +31,7 @@ ENCODING = "utf-8-sig"
 REF_COLUMNS = (
     "ref_key", "aliases", "provider", "provider_id", "cite_label",
     "title", "authors", "year", "container", "doi", "url", "type",
-    "tags", "starred", "note", "updated_at",
+    "tags", "starred", "note", "inherit_note_id", "updated_at",
 )
 ANCHOR_COLUMNS = ("doc_name", "cite_label", "anchor_key", "first_para", "updated_at")
 
@@ -82,6 +82,8 @@ class Reference:
     tags: list[str] = field(default_factory=list)
     starred: bool = False
     note: str = ""
+    #: 子库挑选的总库备注 id（跟随：总库改了这里跟着变；空 = 未挑选）
+    inherit_note_id: str = ""
     updated_at: str = ""
     extra: dict[str, str] = field(default_factory=dict)
 
@@ -105,6 +107,7 @@ class Reference:
             tags=split_list(row.get("tags")),
             starred=parse_bool(row.get("starred")),
             note=row.get("note") or "",
+            inherit_note_id=(row.get("inherit_note_id") or "").strip(),
             updated_at=(row.get("updated_at") or "").strip(),
             extra={k: (v or "") for k, v in row.items() if k and k not in known},
         )
@@ -126,6 +129,7 @@ class Reference:
             "tags": join_list(self.tags),
             "starred": "1" if self.starred else "0",
             "note": self.note,
+            "inherit_note_id": self.inherit_note_id,
             "updated_at": self.updated_at or _now(),
         }
         row.update(self.extra)
