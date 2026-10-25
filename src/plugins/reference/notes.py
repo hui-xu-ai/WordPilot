@@ -143,6 +143,16 @@ class NoteService:
     def create_master_note(self, ref_key: str, text: str, label: str = "") -> "Note":
         return self._notes.add(ref_key, text, label=label)
 
+    def update_master_note(self, note_id: str, text: str | None = None,
+                           label: str | None = None, pinned: bool | None = None):
+        return self._notes.update(note_id, text=text, label=label, pinned=pinned)
+
+    def set_pinned(self, note_id: str, pinned: bool):
+        return self._notes.update(note_id, pinned=pinned)
+
+    def archive_master_note(self, note_id: str) -> None:
+        self._notes.archive(note_id)
+
 
 class NoteStore:
     """总库备注的 CSV 存储（`config/references/notes.csv`）。"""

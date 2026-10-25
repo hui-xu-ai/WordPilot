@@ -104,5 +104,9 @@
   "editor.text": "Content",
   "editor.text_placeholder": "Write your note about this reference…",
   "editor.pinned": "Pin (shown first in the picker)",
-  "editor.required": "Content cannot be empty"
+  "editor.required": "Content cannot be empty",
+  "picker.edit": "Edit",
+  "picker.pin": "Pin",
+  "picker.unpin": "Unpin",
+  "picker.archive": "Archive"
 }

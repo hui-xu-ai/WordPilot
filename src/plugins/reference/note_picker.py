@@ -16,10 +16,12 @@ ROW_HEIGHT = 44     # 每行高度（标签 + 首行摘要 + 时间）
 class NotePicker(QDialog):
     """从总库多条备注里挑一条（选中的是 note_id，供子库"跟随"）。"""
 
-    def __init__(self, notes, current_id: str = "", tr=None, parent=None) -> None:
+    def __init__(self, notes, current_id: str = "", tr=None, parent=None,
+                 service=None) -> None:
         super().__init__(parent)
         self._tr = tr or (lambda key, **kwargs: key)
         self._notes = list(notes)
+        self._service = service
         self.selected_note_id = current_id
         self.new_note_requested = False
         self.fork_requested = False
@@ -41,6 +43,7 @@ class NotePicker(QDialog):
         self.list_widget.setFixedHeight(ROWS * ROW_HEIGHT)
         self.list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.list_widget.itemDoubleClicked.connect(lambda _item: self._accept_current())
+        self.list_widget.currentItemChanged.connect(lambda *_: self._sync_buttons())
         layout.addWidget(self.list_widget)
 
         self.hint = QLabel()
@@ -49,6 +52,12 @@ class NotePicker(QDialog):
         layout.addWidget(self.hint)
 
         actions = QHBoxLayout()
+        self.edit_btn = QPushButton(self._tr("picker.edit"))
+        self.edit_btn.clicked.connect(self._on_edit_clicked)
+        self.pin_btn = QPushButton(self._tr("picker.pin"))
+        self.pin_btn.clicked.connect(self._on_pin_clicked)
+        self.archive_btn = QPushButton(self._tr("picker.archive"))
+        self.archive_btn.clicked.connect(self._on_archive_clicked)
         self.fork_btn = QPushButton(self._tr("picker.fork"))
         self.fork_btn.setToolTip(self._tr("picker.fork_tip"))
         self.fork_btn.clicked.connect(self._on_fork_clicked)
@@ -60,6 +69,9 @@ class NotePicker(QDialog):
         self.ok_btn.setDefault(True)
         self.ok_btn.clicked.connect(self._accept_current)
         actions.addWidget(self.new_btn)
+        actions.addWidget(self.edit_btn)
+        actions.addWidget(self.pin_btn)
+        actions.addWidget(self.archive_btn)
         actions.addWidget(self.fork_btn)
         actions.addStretch(1)
         actions.addWidget(self.cancel_btn)
@@ -67,6 +79,7 @@ class NotePicker(QDialog):
         layout.addLayout(actions)
 
         self._reload()
+        self._sync_buttons()
 
     # ---------------- 内部 ----------------
     def _visible_notes(self):
@@ -106,6 +119,66 @@ class NotePicker(QDialog):
     def _on_new_clicked(self) -> None:
         self.new_note_requested = True
         self.accept()
+
+    # ---------------- 管理动作 ----------------
+    def _selected_note(self):
+        item = self.list_widget.currentItem()
+        if item is None or self._service is None:
+            return None
+        note_id = item.data(Qt.UserRole)
+        return next((note for note in self._notes if note.note_id == note_id), None)
+
+    def _refresh_from_service(self) -> None:
+        """管理动作后重新拉一遍列表（保持筛选关键字与选中项）。"""
+        if self._service is None:
+            return
+        current = self.selected_note_id
+        ref_keys = {note.ref_key for note in self._notes}
+        if ref_keys:
+            self._notes = self._service.master_notes(next(iter(ref_keys)))
+        self.selected_note_id = current
+        self._reload()
+        self._sync_buttons()
+
+    def _sync_buttons(self) -> None:
+        note = self._selected_note()
+        has_note = note is not None
+        self.edit_btn.setEnabled(has_note)
+        self.archive_btn.setEnabled(has_note)
+        self.pin_btn.setEnabled(has_note)
+        if has_note:
+            self.pin_btn.setText(self._tr("picker.unpin") if note.pinned else self._tr("picker.pin"))
+
+    def _on_edit_clicked(self) -> None:
+        note = self._selected_note()
+        if note is None:
+            return
+        from plugins.reference.note_editor import NoteEditor
+
+        editor = NoteEditor(tr=self._tr, label=note.label, text=note.text,
+                            pinned=note.pinned, parent=self)
+        if editor.exec() != editor.Accepted:
+            return
+        self._service.update_master_note(note.note_id, text=editor.text,
+                                         label=editor.label, pinned=editor.pinned)
+        self.selected_note_id = note.note_id
+        self._refresh_from_service()
+
+    def _on_pin_clicked(self) -> None:
+        note = self._selected_note()
+        if note is None:
+            return
+        self._service.set_pinned(note.note_id, not note.pinned)
+        self.selected_note_id = note.note_id
+        self._refresh_from_service()
+
+    def _on_archive_clicked(self) -> None:
+        note = self._selected_note()
+        if note is None:
+            return
+        self._service.archive_master_note(note.note_id)
+        self.selected_note_id = ""
+        self._refresh_from_service()
 
     def _on_fork_clicked(self) -> None:
         """把选中的那条复制成子库自己的备注（之后各改各的）。"""

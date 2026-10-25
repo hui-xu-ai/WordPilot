@@ -358,7 +358,8 @@ class LibraryPage(ScanMixin, QWidget):
         ref_key = self._store.resolve_key(key)
         dialog = NotePicker(self._note_service.master_notes(ref_key),
                             current_id=self._note_service.inherit_id(ref_key),
-                            tr=self.tr, parent=self)
+                            tr=self.tr, parent=self,
+                            service=self._note_service)
         if dialog.exec() != dialog.Accepted:
             return
         if dialog.new_note_requested:

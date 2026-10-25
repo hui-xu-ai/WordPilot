@@ -104,5 +104,9 @@
   "editor.text": "内容",
   "editor.text_placeholder": "写下你关于这篇文献的备注…",
   "editor.pinned": "钉住（挑选面板里优先显示）",
-  "editor.required": "内容不能为空"
+  "editor.required": "内容不能为空",
+  "picker.edit": "编辑",
+  "picker.pin": "钉住",
+  "picker.unpin": "取消钉住",
+  "picker.archive": "归档"
 }
