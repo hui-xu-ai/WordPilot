@@ -84,5 +84,16 @@
   "overlay.close_tip": "关闭",
   "status.reloaded": "已刷新",
   "action.scan.tip": "解析当前文档的引用与文末参考文献列表，导入本地库（文档没改动时会跳过）",
-  "action.reload.tip": "只重新读取本地 CSV 库，不解析 Word 文档"
+  "action.reload.tip": "只重新读取本地 CSV 库，不解析 Word 文档",
+  "overlay.note_child": "子库备注",
+  "overlay.note_inherit": "跟随总库",
+  "overlay.note_auto": "来自总库（唯一）",
+  "overlay.note_none": "总库有多条，点击右侧挑选",
+  "overlay.master_count": "总库 · {count} 条",
+  "picker.title": "选择总库备注",
+  "picker.filter": "筛选备注（标签或内容）…",
+  "picker.pick": "使用这条",
+  "picker.new_master": "新建总库备注",
+  "picker.untitled": "未命名备注",
+  "picker.hint": "共 {count} 条 · 最多显示 5 行，更多请用上方筛选"
 }

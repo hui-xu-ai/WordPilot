@@ -59,9 +59,14 @@ class _EntryCard(QFrame):
     bindRequested = Signal(str)            # anchor_key
     createRequested = Signal(str)          # anchor_key
 
-    def __init__(self, entry: OverlayEntry, tr, parent: QWidget | None = None) -> None:
+    def __init__(self, entry: OverlayEntry, tr, parent: QWidget | None = None,
+                 note_service=None, on_pick=None) -> None:
         super().__init__(parent)
         self._entry = entry
+        self._note_service = note_service
+        self._on_pick_notes = on_pick
+        self._on_pick = on_pick
+        self._dict_tr = tr
         self.setObjectName("referenceEntry")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 8, 10, 8)
@@ -103,6 +108,20 @@ class _EntryCard(QFrame):
             self.create_btn.clicked.connect(lambda: self.createRequested.emit(entry.anchor_key))
             return
 
+        note_row = QHBoxLayout()
+        note_row.setContentsMargins(0, 0, 0, 0)
+        note_row.setSpacing(6)
+        self.note_source_label = QLabel(tr("overlay.note_child"))
+        self.note_source_label.setObjectName("overlayHint")
+        note_row.addWidget(self.note_source_label, 1)
+        self.notes_btn = QPushButton()
+        self.notes_btn.setObjectName("referenceChip")
+        self.notes_btn.setCursor(Qt.PointingHandCursor)
+        self.notes_btn.setFixedHeight(20)
+        self.notes_btn.clicked.connect(self._open_picker)
+        note_row.addWidget(self.notes_btn, 0)
+        layout.addLayout(note_row)
+
         self.note_edit = QTextEdit()
         self.note_edit.setObjectName("referenceNote")
         self.note_edit.setPlainText(entry.note)
@@ -110,11 +129,64 @@ class _EntryCard(QFrame):
         self.note_edit.setPlaceholderText(tr("overlay.note_placeholder"))
         layout.addWidget(self.note_edit)
         self.note_edit.textChanged.connect(self._on_text_changed)
+        self._refresh_note_meta()
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(AUTOSAVE_MS)
         self._timer.timeout.connect(self.flush)
+
+    def refresh_note_state(self) -> None:
+        """重新解析当前应显示的备注（挑选变化后调用）。"""
+        if self._note_service is None:
+            return
+        text, _source, _hit = self._note_service.effective(self._entry.anchor_key)
+        if text and self.note_edit.toPlainText() != text:
+            self.note_edit.blockSignals(True)
+            self.note_edit.setPlainText(text)
+            self.note_edit.blockSignals(False)
+        self._refresh_note_meta()
+
+    def _refresh_note_meta(self) -> None:
+        """刷新「来源徽标 + 总库条数」：只有 1 条时不需要用户挑选。"""
+        if self._note_service is None or not hasattr(self, "notes_btn"):
+            self.notes_btn.setVisible(False)
+            self.note_source_label.setVisible(False)
+            return
+        ref_key = self._entry.anchor_key
+        notes = self._note_service.master_notes(ref_key)
+        text, source, _hit = self._note_service.effective(ref_key)
+        labels = {
+            "child": self._dict_tr("overlay.note_child"),
+            "inherit": self._dict_tr("overlay.note_inherit"),
+            "auto": self._dict_tr("overlay.note_auto"),
+            "none": self._dict_tr("overlay.note_none"),
+        }
+        self.note_source_label.setText(labels.get(source, ""))
+        template = self._dict_tr("overlay.master_count")
+        self.notes_btn.setText(template.replace("{count}", str(len(notes))))
+        self.notes_btn.setVisible(bool(notes))
+        if text and not self.note_edit.toPlainText():
+            self.note_edit.setPlainText(text)     # 自动填充/跟随：先把内容显示出来
+
+    def _open_picker(self) -> None:
+        if self._note_service is None:
+            return
+        from plugins.reference.note_picker import NotePicker
+
+        ref_key = self._entry.anchor_key
+        dialog = NotePicker(self._note_service.master_notes(ref_key),
+                            current_id=self._note_service.inherit_id(ref_key),
+                            tr=self.tr, parent=self.window())
+        if dialog.exec() != dialog.Accepted:
+            return
+        if dialog.new_note_requested:
+            if callable(self._on_pick):
+                self._on_pick(ref_key, "")
+            return
+        if callable(self._on_pick):
+            self._on_pick(ref_key, dialog.selected_note_id)
+        self._refresh_note_meta()
 
     def _on_text_changed(self) -> None:
         self._timer.start()
@@ -208,10 +280,13 @@ class ReferenceOverlay(QWidget):
     createRequested = Signal(str, str)     # (anchor_key, doc_name)
     noteSaved = Signal(str)                # 备注已落盘（anchor_key），供页面刷新
 
-    def __init__(self, store, tr, parent: QWidget | None = None) -> None:
+    def __init__(self, store, tr, parent: QWidget | None = None, note_service=None,
+                 on_pick=None) -> None:
         super().__init__(parent)
         self._store = store
         self._tr = tr
+        self._note_service = note_service
+        self._on_pick_notes = on_pick
         self._cards: list[_EntryCard] = []
         self._drag_offset: QPoint | None = None
         self._dismissed_key = ""
@@ -302,13 +377,23 @@ class ReferenceOverlay(QWidget):
     def move_to(self, x: int, y: int) -> None:
         self.move(int(x), int(y))
 
+    def refresh_notes(self) -> None:
+        """挑选总库备注后，就地刷新卡片上的来源徽标与备注文本（不重建窗口）。"""
+        for card in self._cards:
+            try:
+                card.refresh_note_state()
+            except Exception:              # noqa: BLE001 - 单卡异常不影响其它卡
+                continue
+
     def _rebuild(self, entries: list[OverlayEntry]) -> None:
         for card in self._cards:
             card.setParent(None)
             card.deleteLater()
         self._cards = []
         for entry in entries:
-            card = _EntryCard(entry, self._tr)
+            card = _EntryCard(entry, self._tr, self.scroll.widget(),
+                              note_service=self._note_service,
+                              on_pick=self._on_pick_notes)
             card.noteEdited.connect(self._save_note)
             card.bindRequested.connect(lambda key, doc=entry.doc_name: self.bindRequested.emit(key, doc))
             card.createRequested.connect(

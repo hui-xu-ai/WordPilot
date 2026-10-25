@@ -84,5 +84,16 @@
   "overlay.close_tip": "Close",
   "status.reloaded": "Reloaded",
   "action.scan.tip": "Parse citations and the bibliography of the active document and import them (skipped when the document is unchanged)",
-  "action.reload.tip": "Re-read the local CSV library only; does not parse the Word document"
+  "action.reload.tip": "Re-read the local CSV library only; does not parse the Word document",
+  "overlay.note_child": "Local note",
+  "overlay.note_inherit": "Following master",
+  "overlay.note_auto": "From master (only one)",
+  "overlay.note_none": "Multiple master notes — pick one on the right",
+  "overlay.master_count": "Master · {count}",
+  "picker.title": "Choose a master note",
+  "picker.filter": "Filter notes (label or text)…",
+  "picker.pick": "Use this note",
+  "picker.new_master": "New master note",
+  "picker.untitled": "Untitled note",
+  "picker.hint": "{count} notes · 5 rows visible, use the filter for more"
 }

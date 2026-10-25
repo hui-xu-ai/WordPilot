@@ -18,6 +18,7 @@ from core.sdk.plugin_base import PluginBase
 from plugins.reference.library_page import LibraryPage
 from plugins.reference.overlay import OverlayEntry, ReferenceOverlay
 from plugins.reference.reference_index import ReferenceIndex
+from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
 from plugins.reference.scan_cache import ScanCache, fingerprint
 from plugins.reference.word_watch import WordWatch
@@ -56,6 +57,8 @@ class ReferencePlugin(PluginBase):
         self._store = ReferenceStore()
         self._index = ReferenceIndex()
         self._scan_cache = ScanCache()
+        self._notes = NoteStore()
+        self._note_service = NoteService(self._store, self._notes)
         try:
             self._store.ensure_directory()
             self._index.ensure(self._store)
@@ -84,7 +87,9 @@ class ReferencePlugin(PluginBase):
 
     def _ensure_overlay(self) -> ReferenceOverlay:
         if self._overlay is None:
-            self._overlay = ReferenceOverlay(self._store, self.tr)
+            self._overlay = ReferenceOverlay(self._store, self.tr,
+                                        note_service=self._note_service,
+                                        on_pick=self._on_note_picked)
             self._overlay.dismissed.connect(self._on_overlay_dismissed)
             self._overlay.bindRequested.connect(self._on_bind_requested)
             self._overlay.createRequested.connect(self._on_create_requested)
@@ -218,6 +223,19 @@ class ReferencePlugin(PluginBase):
             self._overlay.hide_overlay()
         self._dismissed.clear()        # 光标离开后允许再次弹出
         self._shown_signature = ()
+
+    def _on_note_picked(self, ref_key: str, note_id: str) -> None:
+        """子库挑选总库备注（跟随；note_id 为空表示"新建总库备注"暂不处理）。"""
+        if not note_id:
+            return
+        try:
+            self._note_service.set_inherit(ref_key, note_id)
+        except ReferenceStoreError as exc:
+            logger.warning("保存挑选的备注失败：%s", exc)
+            return
+        if self._overlay is not None:
+            self._overlay.refresh_notes()
+        self.refresh_page()
 
     def refresh_page(self) -> None:
         """悬浮窗写完备注后刷新页面（用户反馈"表格更新不及时"）。"""

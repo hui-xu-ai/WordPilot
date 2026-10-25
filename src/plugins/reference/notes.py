@@ -104,6 +104,46 @@ def pick_default_note(master_notes: list[Note]) -> Note | None:
     return sorted(pool, key=lambda note: note.updated or note.created or "", reverse=True)[0]
 
 
+class NoteService:
+    """界面用的门面：子库备注（1 条）+ 总库多条 + 跟随挑选。"""
+
+    def __init__(self, store, note_store: "NoteStore") -> None:
+        self._store = store
+        self._notes = note_store
+
+    # ---------------- 读 ----------------
+    def master_notes(self, ref_key: str):
+        return self._notes.notes_for(ref_key)
+
+    def inherit_id(self, ref_key: str) -> str:
+        reference = self._store.get(ref_key)
+        return (reference.inherit_note_id if reference else "") or ""
+
+    def child_note(self, ref_key: str) -> str:
+        reference = self._store.get(ref_key)
+        return (reference.note if reference else "") or ""
+
+    def effective(self, ref_key: str) -> tuple[str, str, "Note | None"]:
+        """当前应显示的备注：(文本, 来源, 命中的总库备注)。"""
+        return resolve_note(self.child_note(ref_key), self.inherit_id(ref_key),
+                            self.master_notes(ref_key))
+
+    # ---------------- 写 ----------------
+    def save_child_note(self, ref_key: str, text: str) -> None:
+        """子库备注（单条）：同一文献在文中多处引用共用。"""
+        self._store.set_note(ref_key, note=text)
+
+    def set_inherit(self, ref_key: str, note_id: str) -> None:
+        reference = self._store.get(ref_key)
+        if reference is None:
+            return
+        reference.inherit_note_id = note_id or ""
+        self._store.upsert(reference)
+
+    def create_master_note(self, ref_key: str, text: str, label: str = "") -> "Note":
+        return self._notes.add(ref_key, text, label=label)
+
+
 class NoteStore:
     """总库备注的 CSV 存储（`config/references/notes.csv`）。"""
 
