@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PREFIX = "pet"
 DEFAULT_SIZE = 96
 MIN_SIZE = 32          # 画布会同步缩放，小尺寸也完整
-MAX_SIZE = 128
+MAX_SIZE = 100
 
 
 class PetService(QObject):

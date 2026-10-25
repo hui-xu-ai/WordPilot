@@ -43,8 +43,8 @@ def test_apply_size_reaches_window():
     host._window = window
     PetService.instance(_Config())
 
-    host.apply_size(120)
-    assert window.sizes == [120], "拖滑块必须真正把尺寸下发给窗口"
+    host.apply_size(96)
+    assert window.sizes == [96], "拖滑块必须真正把尺寸下发给窗口"
 
 
 def test_apply_skin_records_and_switches():
@@ -63,10 +63,10 @@ def test_apply_skin_records_and_switches():
 def test_skin_switch_keeps_size():
     """切皮肤后尺寸不该被重置回 64（用户反馈的第三个问题）。"""
     service = PetService.instance(_Config())
-    service.set_size(120)
+    service.set_size(96)
     host = PetHost.instance()
     window = _FakeWindow()
     host._window = window
 
     host.apply_skin("deepseek")
-    assert window.sizes[-1] == 120, "切皮肤后要按内核尺寸重新套用"
+    assert window.sizes[-1] == 96, "切皮肤后要按内核尺寸重新套用"

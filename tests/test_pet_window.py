@@ -211,15 +211,15 @@ def test_skin_refresh_keeps_size(qapp):
     """换皮肤后（set_services 会按皮肤基准重设）尺寸要按内核值恢复。"""
     from core.services.pet_service import PetService
 
-    PetService.instance().set_size(120)
+    PetService.instance().set_size(96)
     pet = _make_pet()
     pet.show()
     qapp.processEvents()
-    pet.set_pet_size(120)
+    pet.set_pet_size(96)
 
     pet.set_services(skins=getattr(pet, "_skins", None))
     qapp.processEvents()
-    assert pet.width() == 120, "换皮肤后尺寸不能被重置回基准"
+    assert pet.width() == 96, "换皮肤后尺寸不能被重置回基准"
 
 def test_pet_window_composes_mixins(qapp):
     """右键菜单与几何上报已抽成 mixin：PetWindow 应同时具备两者（回归防丢）。"""

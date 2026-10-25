@@ -51,11 +51,11 @@ def test_size_is_clamped_and_persisted():
     assert service.size == MIN_SIZE
     service.set_size(9999)
     assert service.size == MAX_SIZE
-    service.set_size(120)
-    assert config.get("pet.size") == 120
+    service.set_size(96)
+    assert config.get("pet.size") == 96
 
     PetService.reset_instance()
-    assert PetService.instance(config).size == 120
+    assert PetService.instance(config).size == 96
 
 
 def test_skin_and_visibility_persist():

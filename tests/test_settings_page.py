@@ -102,8 +102,8 @@ def test_pet_controls_reach_core_service(page):
     widget = type(widget)(manager, skins=SkinService(manager))   # 需要皮肤服务才有多选项
     service = PetService.instance()
 
-    widget.pet_size_slider.setValue(120)
-    assert service.size == 120, "滑块必须写进核心尺寸"
+    widget.pet_size_slider.setValue(96)
+    assert service.size == 96, "滑块必须写进核心尺寸"
 
     index = next((i for i in range(widget.skin_combo.count())
                   if widget.skin_combo.itemData(i) == "deepseek"), -1)
@@ -119,8 +119,8 @@ def test_pet_size_survives_skin_change(page):
 
     widget, _manager = page
     service = PetService.instance()
-    widget.pet_size_slider.setValue(120)
-    assert service.size == 120
+    widget.pet_size_slider.setValue(96)
+    assert service.size == 96
 
     class _FakeWindow:
         def __init__(self):
@@ -136,4 +136,4 @@ def test_pet_size_survives_skin_change(page):
     fake = _FakeWindow()
     host._window = fake
     host.apply_skin("neon")
-    assert fake.sizes[-1] == service.size == 120, "切皮肤后要按内核尺寸续用"
+    assert fake.sizes[-1] == service.size == 96, "切皮肤后要按内核尺寸续用"
