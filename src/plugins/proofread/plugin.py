@@ -327,12 +327,10 @@ class ProofreadPlugin(PluginBase):
         self.set_enabled(not self._enabled)
 
     def _apply_visibility(self) -> None:
+        """只切换**校对状态**，绝不碰宠物窗口（宠物归内核，启停校对不该让它消失）。"""
         if self.floating_btn is None or self.ctx is None:
             return
-        config = self.ctx.config
-        visible = self._enabled and bool(config.get("show_floating_button", True))
-        self.floating_btn.setVisible(visible)
-        self.set_state("idle" if visible else "disabled")
+        self.set_state("idle" if self._enabled else "disabled")
 
     def refresh_visibility(self) -> None:
         """设置项中「显示悬浮按钮」变化后由外壳或设置对话框调用。"""

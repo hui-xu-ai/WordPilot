@@ -150,7 +150,11 @@ class SettingsPage(QWidget):
             from core.services.pet_service import PetService
 
             PetService.instance().set_size(int(value))
-            PetHost.instance().apply_size(int(value))       # 立即生效，不依赖信号
+            host = PetHost.instance()
+            host.apply_size(int(value))
+            window = host.window()
+            if window is not None:                 # 直接落到窗口，排除信号链问题
+                window.set_pet_size(int(value))
         except Exception:                      # noqa: BLE001
             pass
 
