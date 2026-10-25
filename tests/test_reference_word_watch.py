@@ -285,3 +285,32 @@ def test_payload_merges_field_and_text_labels():
                                     "论文.docx", 4)
     labels = [item["label"] for item in payload["items"]]
     assert labels == ["5", "6"], f"连用编号要全部列出，实际 {labels}"
+
+def test_selected_text_does_not_trigger():
+    """选中整句时不应触发（否则一句话里的多个引用会同时弹窗）。"""
+    from plugins.reference.word_watch import WordWatch
+
+    class _Doc:
+        Name = "论文.docx"
+        FullName = "C:/tmp/论文.docx"
+
+        def Range(self, start, end):
+            return type("R", (), {"Text": "句子里有[1]和[2]" })()
+
+    class _Sel:
+        Text = "句子里有[1]和[2]"
+        Start = 0
+        End = 12                       # 选中了整句
+
+        def Information(self, kind):
+            return 100
+
+    word = type("W", (), {})()
+    word.ActiveDocument = _Doc()
+    word.Selection = _Sel()
+
+    watch = WordWatch()
+    seen: list[dict] = []
+    watch.citationFound.connect(seen.append)
+    watch._tick(lambda: word)
+    assert seen == [], "选中文字时不应弹出参考文献卡片"

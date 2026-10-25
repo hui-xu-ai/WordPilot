@@ -341,7 +341,13 @@ class WordWatch(QThread):
         try:
             selection = word.Selection
             position = int(selection.Start)
+            start, end = int(selection.Start), int(selection.End)
         except Exception:                  # noqa: BLE001
+            self._handle_miss()
+            return
+
+        # 用户选中了整句/整段时不要弹窗（否则一句话里多个引用会一起触发）
+        if end - start > 1:
             self._handle_miss()
             return
 

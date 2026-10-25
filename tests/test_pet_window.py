@@ -211,15 +211,15 @@ def test_skin_refresh_keeps_size(qapp):
     """换皮肤后（set_services 会按皮肤基准重设）尺寸要按内核值恢复。"""
     from core.services.pet_service import PetService
 
-    PetService.instance().set_size(170)
+    PetService.instance().set_size(120)
     pet = _make_pet()
     pet.show()
     qapp.processEvents()
-    pet.set_pet_size(170)
+    pet.set_pet_size(120)
 
     pet.set_services(skins=getattr(pet, "_skins", None))
     qapp.processEvents()
-    assert pet.width() == 170, "换皮肤后尺寸不能被重置回 64"
+    assert pet.width() == 120, "换皮肤后尺寸不能被重置回基准"
 
 def test_pet_window_composes_mixins(qapp):
     """右键菜单与几何上报已抽成 mixin：PetWindow 应同时具备两者（回归防丢）。"""
@@ -229,3 +229,13 @@ def test_pet_window_composes_mixins(qapp):
     assert isinstance(pet, PetMenuMixin), "右键菜单 mixin 丢失"
     assert callable(pet._show_menu), "右键菜单入口必须存在"
     assert callable(getattr(pet, "_report_geometry", None)), "几何上报必须存在"
+
+def test_context_menu_builds(qapp):
+    """右键菜单必须能构建出菜单项（之前 mixin 缺 QMenu 导入 → 右键点了没反应）。"""
+    pet = _make_pet()
+    menu = pet._build_menu()
+    labels = [action.text() for action in menu.actions()]
+    assert labels, "菜单不应为空"
+    assert any("pet.menu" in str(label) or label for label in labels)
+    submenus = [action.menu().title() for action in menu.actions() if action.menu() is not None]
+    assert submenus, "至少应有「外观皮肤」「插件」等子菜单"

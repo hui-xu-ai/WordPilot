@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 CONFIG_PREFIX = "pet"
 DEFAULT_SIZE = 96
-MIN_SIZE = 64          # 皮肤布局基准 64px，小于它会被裁切
-MAX_SIZE = 200
+MIN_SIZE = 32          # 画布会同步缩放，小尺寸也完整
+MAX_SIZE = 128
 
 
 class PetService(QObject):

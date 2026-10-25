@@ -2,6 +2,8 @@
 """宠物右键菜单（外观皮肤 / 插件快捷项 / 校对开关 / 建议气泡 / 设置）。"""
 from __future__ import annotations
 
+from PySide6.QtWidgets import QMenu
+
 
 def _pet_service():
     try:
@@ -15,7 +17,7 @@ def _pet_service():
 class PetMenuMixin:
     """宿主需提供 tr / _skins / _tools_provider / proofreadToggleRequested 等。"""
 
-    def _show_menu(self, pos) -> None:
+    def _build_menu(self):
         menu = QMenu(self)
         menu.setObjectName("petMenu")
 
@@ -48,5 +50,8 @@ class PetMenuMixin:
         bubble_action.setChecked(self.bubble.isVisible())
 
         menu.addAction(self.tr("pet.menu.settings"), self.settingsRequested.emit)
-        menu.exec(self.mapToGlobal(pos))
+        return menu
 
+    def _show_menu(self, pos) -> None:
+        menu = self._build_menu()
+        menu.exec(self.mapToGlobal(pos))
