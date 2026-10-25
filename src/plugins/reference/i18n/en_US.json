@@ -95,5 +95,14 @@
   "picker.pick": "Use this note",
   "picker.new_master": "New master note",
   "picker.untitled": "Untitled note",
-  "picker.hint": "{count} notes · 5 rows visible, use the filter for more"
+  "picker.hint": "{count} notes · 5 rows visible, use the filter for more",
+  "picker.fork": "Copy to local",
+  "picker.fork_tip": "Copy the selected note into this library (master changes stop affecting it)",
+  "editor.title": "Master note",
+  "editor.label": "Label (e.g. why you cite it)",
+  "editor.label_placeholder": "Note 1",
+  "editor.text": "Content",
+  "editor.text_placeholder": "Write your note about this reference…",
+  "editor.pinned": "Pin (shown first in the picker)",
+  "editor.required": "Content cannot be empty"
 }

@@ -63,3 +63,9 @@ def test_empty_notes_hint(picker):
     picker.filter_edit.setText("不存在的关键词")
     assert picker.list_widget.count() == 0
     assert "0" in picker.hint.text()
+def test_fork_flag_returns_selected_note(picker):
+    """「转为子库备注」要把选中那条的 id 带回去（内容由调用方复制）。"""
+    picker.list_widget.setCurrentRow(1)
+    picker._on_fork_clicked()
+    assert picker.fork_requested is True
+    assert picker.selected_note_id == "n2"

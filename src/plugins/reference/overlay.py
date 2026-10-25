@@ -181,11 +181,30 @@ class _EntryCard(QFrame):
         if dialog.exec() != dialog.Accepted:
             return
         if dialog.new_note_requested:
-            if callable(self._on_pick):
-                self._on_pick(ref_key, "")
+            self._create_master_note(ref_key)
+            return
+        if dialog.fork_requested:
+            picked = next((note for note in self._note_service.master_notes(ref_key)
+                           if note.note_id == dialog.selected_note_id), None)
+            if picked is not None:
+                self.note_edit.setPlainText(picked.text)
+                self.noteEdited.emit(ref_key, picked.text)   # 走统一的保存路径
+            self._refresh_note_meta()
             return
         if callable(self._on_pick):
             self._on_pick(ref_key, dialog.selected_note_id)
+        self._refresh_note_meta()
+
+    def _create_master_note(self, ref_key: str) -> None:
+        """新建一条总库备注，建好后自动挑选它。"""
+        from plugins.reference.note_editor import NoteEditor
+
+        editor = NoteEditor(tr=self._dict_tr, parent=self.window())
+        if editor.exec() != editor.Accepted:
+            return
+        note = self._note_service.create_master_note(ref_key, editor.text, editor.label)
+        if callable(self._on_pick):
+            self._on_pick(ref_key, note.note_id)
         self._refresh_note_meta()
 
     def _on_text_changed(self) -> None:

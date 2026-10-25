@@ -95,5 +95,14 @@
   "picker.pick": "使用这条",
   "picker.new_master": "新建总库备注",
   "picker.untitled": "未命名备注",
-  "picker.hint": "共 {count} 条 · 最多显示 5 行，更多请用上方筛选"
+  "picker.hint": "共 {count} 条 · 最多显示 5 行，更多请用上方筛选",
+  "picker.fork": "转为子库备注",
+  "picker.fork_tip": "把选中那条复制到子库（之后总库改动不再影响它）",
+  "editor.title": "总库备注",
+  "editor.label": "标签（便于区分，如“引用理由”）",
+  "editor.label_placeholder": "备注 1",
+  "editor.text": "内容",
+  "editor.text_placeholder": "写下你关于这篇文献的备注…",
+  "editor.pinned": "钉住（挑选面板里优先显示）",
+  "editor.required": "内容不能为空"
 }

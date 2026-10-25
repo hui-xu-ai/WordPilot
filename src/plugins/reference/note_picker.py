@@ -22,6 +22,7 @@ class NotePicker(QDialog):
         self._notes = list(notes)
         self.selected_note_id = current_id
         self.new_note_requested = False
+        self.fork_requested = False
 
         self.setWindowTitle(self._tr("picker.title"))
         self.setMinimumWidth(380)
@@ -48,6 +49,9 @@ class NotePicker(QDialog):
         layout.addWidget(self.hint)
 
         actions = QHBoxLayout()
+        self.fork_btn = QPushButton(self._tr("picker.fork"))
+        self.fork_btn.setToolTip(self._tr("picker.fork_tip"))
+        self.fork_btn.clicked.connect(self._on_fork_clicked)
         self.new_btn = QPushButton(self._tr("picker.new_master"))
         self.new_btn.clicked.connect(self._on_new_clicked)
         self.cancel_btn = QPushButton(self._tr("action.cancel"))
@@ -56,6 +60,7 @@ class NotePicker(QDialog):
         self.ok_btn.setDefault(True)
         self.ok_btn.clicked.connect(self._accept_current)
         actions.addWidget(self.new_btn)
+        actions.addWidget(self.fork_btn)
         actions.addStretch(1)
         actions.addWidget(self.cancel_btn)
         actions.addWidget(self.ok_btn)
@@ -101,3 +106,8 @@ class NotePicker(QDialog):
     def _on_new_clicked(self) -> None:
         self.new_note_requested = True
         self.accept()
+
+    def _on_fork_clicked(self) -> None:
+        """把选中的那条复制成子库自己的备注（之后各改各的）。"""
+        self._accept_current()
+        self.fork_requested = True
