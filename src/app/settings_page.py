@@ -146,20 +146,23 @@ class SettingsPage(QWidget):
     def _on_pet_size_changed(self, value: int) -> None:
         self.pet_size_value.setText(f"{value} px")
         try:
+            from core.services.pet_host import PetHost
             from core.services.pet_service import PetService
 
             PetService.instance().set_size(int(value))
+            PetHost.instance().apply_size(int(value))       # 立即生效，不依赖信号
         except Exception:                      # noqa: BLE001
             pass
 
     def _on_pet_visible_toggled(self, visible: bool) -> None:
         try:
+            from core.services.pet_host import PetHost
             from core.services.pet_service import PetService
 
             PetService.instance().set_visible(bool(visible))
+            PetHost.instance().apply_visibility(bool(visible))
         except Exception:                      # noqa: BLE001
             pass
-
     def _card(self) -> tuple[QWidget, QVBoxLayout]:
         """一张通栏卡片（样式见 base.qss #contentCard）。"""
         card = QWidget()
