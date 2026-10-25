@@ -38,6 +38,9 @@ class PetService(QObject):
         self._size = DEFAULT_SIZE
         self._skin = "classic"
         self._visible = False
+        # 插件快捷项：{plugin_id: [{label, callback, order}]}，只显示已启用插件的
+        self._actions: dict[str, list[dict]] = {}
+        self._active_plugins: set[str] = set()
         self._load()
 
     # ---------------- 单例 ----------------
@@ -115,6 +118,33 @@ class PetService(QObject):
         self._skin = skin
         self._set("skin", skin)
         self.geometryChanged.emit()
+
+    # ---------------- 插件快捷入口 ----------------
+    def register_action(self, plugin_id: str, label: str, callback, order: int = 100) -> None:
+        """插件注册宠物右键快捷项；插件停用时自动不显示（无需手动注销）。"""
+        self._actions.setdefault(plugin_id, []).append(
+            {"label": label, "callback": callback, "order": order})
+
+    def unregister_plugin(self, plugin_id: str) -> None:
+        self._actions.pop(plugin_id, None)
+        self._active_plugins.discard(plugin_id)
+
+    def set_plugin_active(self, plugin_id: str, active: bool) -> None:
+        if active:
+            self._active_plugins.add(plugin_id)
+        else:
+            self._active_plugins.discard(plugin_id)
+
+    def actions(self) -> list[tuple[str, object]]:
+        """当前**已启用插件**注册的快捷项（按 order、标签排序）。"""
+        items: list[tuple[int, str, object]] = []
+        for plugin_id, entries in self._actions.items():
+            if plugin_id not in self._active_plugins:
+                continue
+            for entry in entries:
+                items.append((int(entry["order"]), str(entry["label"]), entry["callback"]))
+        items.sort(key=lambda item: (item[0], item[1]))
+        return [(label, callback) for _order, label, callback in items]
 
     # ---------------- 几何 ----------------
     def update_geometry(self, x: int, y: int, size: int | None = None) -> None:

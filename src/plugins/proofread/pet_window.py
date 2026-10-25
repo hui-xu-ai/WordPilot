@@ -480,6 +480,11 @@ class PetWindow(QWidget):
 
         # 插件快捷入口：各插件注册的动作一键直达（导航助手等）
         tools = self._tools_provider() if self._tools_provider else []
+        service = _pet_service()
+        if service is not None:
+            registered = service.actions()          # 已启用插件注册的快捷项
+            if registered:
+                tools = list(registered) + list(tools or [])
         if tools:
             tools_menu = menu.addMenu(self.tr("pet.menu.plugins"))
             for label, handler in tools:
