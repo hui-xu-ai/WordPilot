@@ -220,3 +220,12 @@ def test_skin_refresh_keeps_size(qapp):
     pet.set_services(skins=getattr(pet, "_skins", None))
     qapp.processEvents()
     assert pet.width() == 170, "换皮肤后尺寸不能被重置回 64"
+
+def test_pet_window_composes_mixins(qapp):
+    """右键菜单与几何上报已抽成 mixin：PetWindow 应同时具备两者（回归防丢）。"""
+    from core.widgets.pet_menu import PetMenuMixin
+
+    pet = _make_pet()
+    assert isinstance(pet, PetMenuMixin), "右键菜单 mixin 丢失"
+    assert callable(pet._show_menu), "右键菜单入口必须存在"
+    assert callable(getattr(pet, "_report_geometry", None)), "几何上报必须存在"
