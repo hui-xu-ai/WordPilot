@@ -136,3 +136,15 @@ def test_pet_unavailable_does_not_break_plugin_loading(monkeypatch):
 
     monkeypatch.setattr(PetService, "instance", classmethod(lambda cls, *a, **k: boom()))
     PluginManager._notify_pet("reference", True)
+
+def test_ui_registry_add_pet_action_registers_into_service():
+    """插件通过 ctx.ui.add_pet_action(...) 注册，落到 PetService 且受启用状态控制。"""
+    from core.sdk.ui import UiRegistry
+
+    service = PetService.instance(_Config())
+    registry = UiRegistry()
+    registry.add_pet_action("reference", "打开参考文献助手", lambda: None, order=20)
+    assert service.actions() == [], "插件未启用前不显示"
+
+    service.set_plugin_active("reference", True)
+    assert [label for label, _cb in service.actions()] == ["打开参考文献助手"]

@@ -123,6 +123,8 @@ class ProofreadPlugin(PluginBase):
         self.subscribe("settings.saved", self._on_settings_saved)
         ctx.register_capability("proofread", self)
         ctx.logger.info(self.tr("log.activated"))
+        self._register_pet_actions()
+
 
     def _open_pet(self, config, api, ignore_mgr, i18n) -> PetWindow | None:
         """通过 WindowManager 打开桌宠，保证它是受管窗口而非野窗口。"""
@@ -210,6 +212,13 @@ class ProofreadPlugin(PluginBase):
             return []
         return entries
 
+    def _register_pet_actions(self) -> None:
+        """把本插件自己的快捷入口注册到桌宠右键菜单（停用即自动消失）。"""
+        try:
+            self.ctx.ui.add_pet_action(self.ctx.id, self.tr("pet.menu.toggle_proofread"),
+                                       self._toggle_proofread, order=10)
+        except Exception:                      # noqa: BLE001
+            logger.debug("注册桌宠快捷项失败", exc_info=True)
     def deactivate(self) -> None:
         if self.monitor is not None:
             monitor = self.monitor

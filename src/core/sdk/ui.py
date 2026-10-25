@@ -78,6 +78,16 @@ class UiRegistry:
         return []
 
 
+    # ---------------- 桌宠右键快捷项 ----------------
+    def add_pet_action(self, plugin_id: str, label: str, handler, order: int = 100) -> None:
+        """插件注册宠物右键快捷项；插件停用/卸载后自动隐藏（内核宠物服务统一管理）。"""
+        try:
+            from core.services.pet_service import PetService
+
+            PetService.instance().register_action(plugin_id, label, handler, order=order)
+        except Exception:                      # noqa: BLE001 - 宠物不可用不该影响插件
+            pass
+
 class NullUiRegistry(UiRegistry):
     """无界面环境的空实现。"""
 
