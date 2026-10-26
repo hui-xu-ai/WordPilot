@@ -101,14 +101,7 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
         # 原先一排十几个按钮挤在一起、也没有删除入口（用户反馈：功能没有分区）。
         self.build_library_combo(toolbar)
 
-        self.new_lib_btn = QPushButton()
-        self.new_lib_btn.clicked.connect(self.prompt_new_library)
-        toolbar.addWidget(self.new_lib_btn)
-
-        self.del_lib_btn = QPushButton()
-        self.del_lib_btn.clicked.connect(self.confirm_delete_library)
-        toolbar.addWidget(self.del_lib_btn)
-        toolbar.addWidget(group_separator())
+        # 仓库的增删是低频管理动作：按方案收进"更多 → 管理文献集"
 
         # ---- 分区 2：检索与筛选 ----
         self.search_edit = QLineEdit()
@@ -131,6 +124,9 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
         self.more_btn = QToolButton()
         self.more_btn.setPopupMode(QToolButton.InstantPopup)
         self.menu = QMenu(self.more_btn)
+        self.new_lib_action = self.menu.addAction("", self.prompt_new_library)
+        self.del_lib_action = self.menu.addAction("", self.confirm_delete_library)
+        self.menu.addSeparator()
         self.refresh_action = self.menu.addAction("", self.reload_now)
         self.open_csv_action = self.menu.addAction("", self.open_csv)
         self.menu.addSeparator()
@@ -189,11 +185,13 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
         for name, key in _FILTERS:
             self.filter_actions[name].setText(self.tr(key))
         self.filter_actions["orphan"].setText(self.tr("filter.orphan"))
-        self.new_lib_btn.setText(self.tr("library.new"))
+        self.new_lib_action.setText(self.tr("library.new"))
         self.new_ref_btn.setText(self.tr("action.new_reference"))
-        self.del_lib_btn.setText(self.tr("library.delete"))
-        self.scan_btn.setText(self.tr("action.scan"))
+        self.del_lib_action.setText(self.tr("library.delete"))
+        self.scan_btn.setText(self.tr("action.sync_doc"))
         self.scan_btn.setToolTip(self.tr("action.scan.tip"))
+        self.new_lib_action.setText(self.tr("library.new"))
+        self.del_lib_action.setText(self.tr("library.delete"))
         self.refresh_action.setText(self.tr("action.reload"))
         self.open_csv_action.setText(self.tr("action.open_csv"))
         self.more_btn.setText("⋯")

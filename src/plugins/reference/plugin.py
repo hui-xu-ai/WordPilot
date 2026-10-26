@@ -223,39 +223,8 @@ class ReferencePlugin(PluginBase):
         return True
 
     def _import_bibliography(self, doc_path: str, doc_name: str) -> None:
-        """把文末"参考文献"列表解析进库（同一文档按 mtime 只做一次）。
-
-        EndNote 的引用域常常只是空壳，但文末列表是完整文本 —— 用它补元数据，
-        并让 `doc:<文档>:cite:<n>` 成为这些文献的别名，于是"点了没反应"变成"有信息可看"。
-        """
-        if not doc_path or not os.path.exists(doc_path):
-            return
-        try:
-            mtime = os.path.getmtime(doc_path)
-        except OSError:
-            return
-        if self._bib_cache.get(doc_path) == mtime:
-            return
-        # R1：自动导入同样先按文档绑定确定目标库，不能从"当前库"推断写入位置
-        self._ensure_scan_library(doc_path)
-        from plugins.reference.docx_scan import scan_docx
-
-        try:
-            result = scan_docx(doc_path, doc_name or os.path.basename(doc_path))
-        except Exception as exc:                    # noqa: BLE001 - 解析失败不影响弹窗
-            logger.warning("解析参考文献列表失败：%s", exc)
-            return
-        imported = 0
-        for reference in result.references:
-            try:
-                self._store.upsert(reference)       # 保留用户已有备注
-                imported += 1
-            except ReferenceStoreError as exc:
-                logger.warning("导入参考文献条目失败：%s", exc)
-        self._bib_cache[doc_path] = mtime
-        if imported:
-            logger.info("从文末参考文献列表补入 %d 条元数据（%s）", imported,
-                        doc_name or os.path.basename(doc_path))
+        """把文末参考文献列表解析进库（实现见 bib_import）。"""
+        import_bibliography(self, doc_path, doc_name)
 
     def _on_watch_status(self, code: str) -> None:
         """监听线程的连接/扫描状态 → 页面底部状态栏（用户要求"看得见"）。"""
@@ -440,13 +409,21 @@ class ReferencePlugin(PluginBase):
             stats["keys"] = len(keys)      # R2：需要确认时本次不导入任何条目
             return stats
 
+        failed = 0
         for reference in candidates:
             try:
                 self._store.upsert(reference)          # 保留用户已有备注
                 stats["imported"] += 1
             except ReferenceStoreError as exc:
+                failed += 1
                 logger.warning("扫描入库失败（%s）：%s", reference.ref_key, exc)
-        self._bib_cache[path] = 0.0                    # 已手工扫过，避免再次全量导入
+        if failed:
+            # R3：写失败就**不能**记成"已完成" —— 旧实现照样写缓存，
+            # 用户解决占用后再扫会被 cached 命中直接跳过，看起来像"扫了没反应"。
+            stats["failed"] = failed
+            stats["error"] = "部分条目写入失败，可重试"
+            return stats
+        self._bib_cache[path] = 0.0                    # 成功后才标记本次已导入
         if self._scan_cache is not None:
             self._scan_cache.mark_bibliography(path, fp, name)
 

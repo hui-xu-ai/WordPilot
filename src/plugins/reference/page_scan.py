@@ -63,6 +63,9 @@ class ScanMixin:
                 page.append_status(page.tr("status.scan_failed", error=worker.error))
                 return
             stats = worker.result or {}
+            if stats.get("failed"):            # R3：写失败要明确提示，且允许重试
+                page.append_status(page.tr("status.scan_failed",
+                                           error=stats.get("error") or "write failed"))
             # R6：后台线程只切了数据层（update_page=False），页面控件必须由这里
             # （GUI 线程）重绑，否则后台直接操作 QComboBox/表格会出界面异常。
             plugin = getattr(page, "_plugin", None)
