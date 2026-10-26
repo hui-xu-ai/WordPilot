@@ -71,16 +71,14 @@ class SidePanelHost(QWidget):
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QScrollArea.NoFrame)
         # 只允许竖向：横向滚动条会和内容里的输入框/按钮挤在一起，看着像"第二条长滚动条"
-        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # 内容比抽屉宽时宁可出横向滚动条，也不要静默裁掉右侧（U05）
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._container_layout.addWidget(self._scroll, 1)
         root.addWidget(self._container, 1)
 
         self._content: QWidget | None = None
         self._apply_state()
         self.setVisible(False)
-        parent = self.parentWidget()
-        if parent is not None:
-            parent.installEventFilter(self)   # 窗口缩放时重算抽屉宽度（U05）
 
     # ---------------- 内容 ----------------
     def set_content(self, widget: QWidget | None, title: str = "") -> None:
@@ -103,6 +101,9 @@ class SidePanelHost(QWidget):
         widget.show()
         self.setVisible(True)
         self._apply_state()
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, self._apply_state)      # 布局定型后再按真实宽度算一次
 
     def has_content(self) -> bool:
         return self._content is not None
@@ -133,24 +134,61 @@ class SidePanelHost(QWidget):
     def _on_toggle_clicked(self) -> None:
         self.toggle()
 
+    def _content_min_width(self) -> int:
+        """抽屉内容自身需要的最小宽度（含竖条与边距）。
+
+        以前只看配置宽度，内容比它宽时右侧被直接裁掉（用户截图里的"显示不全"）。
+        """
+        content = getattr(self, "_content", None)
+        if content is None:
+            return 0
+        try:
+            need = content.minimumSizeHint().width()
+        except Exception:                      # noqa: BLE001
+            return 0
+        margins = 0
+        layout = self._container_layout
+        if layout is not None:
+            margins = layout.contentsMargins().left() + layout.contentsMargins().right()
+        # 竖向滚动条本身也占宽度：漏掉它会让视口比内容窄十几像素，右侧正好被裁
+        try:
+            scrollbar = self._scroll.verticalScrollBar().sizeHint().width()
+        except Exception:                      # noqa: BLE001
+            scrollbar = 16
+        return int(need) + margins + int(scrollbar) + COLLAPSED_WIDTH + 2
+
     def _fit_width(self) -> int:
-        """展开宽度：内容宽度 + 竖条，但不超过父容器能给的空间（留主内容最小宽度）。"""
-        desired = self._width + COLLAPSED_WIDTH + 1
-        parent = self.parentWidget()
-        if parent is None or parent.width() <= 0:
+        """展开宽度：优先用配置宽度，窗口装不下时才收窄（永远给主内容留 MIN_CONTENT_WIDTH）。
+
+        用**顶层窗口**的宽度而不是 parentWidget()：布局未定型时父控件宽度可能是 0 或偏小，
+        按它算会把抽屉固定成很小的值，之后拉大窗口也不会恢复（用户看到"显示不全、拉窗口也没用"）。
+        """
+        desired = max(self._width + COLLAPSED_WIDTH + 1, self._content_min_width())
+        window = self.window()
+        total = window.width() if window is not None else 0
+        if total <= 0:
             return desired
-        limit = parent.width() - MIN_CONTENT_WIDTH - 8   # 8px 留给布局间距/边框
+        limit = total - MIN_CONTENT_WIDTH - 8
         if limit <= 0:
-            return desired
+            return desired                     # 窗口还没布局好：先按期望值，resize 后再收
         return max(COLLAPSED_WIDTH + 1, min(desired, limit))
 
     def eventFilter(self, watched, event) -> bool:      # noqa: N802 - Qt 命名惯例
-        """父容器变宽/变窄时重算抽屉宽度。"""
+        """顶层窗口变宽/变窄时重算抽屉宽度。"""
         from PySide6.QtCore import QEvent
 
-        if watched is self.parentWidget() and event.type() == QEvent.Resize and self._opened:
+        if event.type() == QEvent.Resize and self._opened and watched is self.window():
             self.setFixedWidth(self._fit_width())
         return super().eventFilter(watched, event)
+
+    def showEvent(self, event) -> None:                 # noqa: N802 - Qt 命名惯例
+        """显示时把事件过滤器挂到顶层窗口上（构造阶段 parent 可能还是 None）。"""
+        super().showEvent(event)
+        window = self.window()
+        if window is not None and window is not self and not getattr(self, "_filter_on", None):
+            window.installEventFilter(self)
+            self._filter_on = window
+        self.setFixedWidth(self._fit_width())
 
     def _apply_state(self) -> None:
         self._container.setVisible(self._opened)
