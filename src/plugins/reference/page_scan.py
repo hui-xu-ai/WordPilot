@@ -89,7 +89,9 @@ class ScanMixin:
                                   set(stats.get("diff_removed") or []))
             plan = stats.get("plan")
             if plan is not None:
-                page.handle_switch_plan(plan)
+                page.handle_switch_plan(plan,
+                                        doc_path=stats.get("doc_path", ""),
+                                        suggested=stats.get("suggested", ""))
             page.append_status(page.tr(
                 "status.scan_done",
                 doc=stats.get("doc_name", ""), bibliography=stats.get("bibliography", 0),
@@ -108,25 +110,40 @@ class ScanMixin:
         lines.append(text)
         label.setText("\n".join(lines[-3:]))
 
-    def handle_switch_plan(self, plan) -> None:
-        """扫描判定需要用户决策时弹确认框（只能在 GUI 线程调用）。"""
+    def handle_switch_plan(self, plan, doc_path: str = "", suggested: str = "") -> None:
+        """扫描判定"这份文档归属不明"时弹窗，由**用户**决定，软件不自动建库。"""
         from plugins.reference.switch_dialog import SwitchDialog
 
-        dialog = SwitchDialog(plan, tr=self.tr, existing=self._libraries or [], parent=self)
+        dialog = SwitchDialog(plan, tr=self.tr, existing=self._library_names(), parent=self)
+        if suggested:
+            dialog.name_edit.setText(suggested)     # 只做预填，不替用户建
+            dialog.name_edit.setVisible(True)
         dialog.exec()
+
+        plugin = getattr(self, "_plugin", None)
+        bundle = doc_path and plugin is not None
+
         if dialog.choice == "switch" and getattr(plan, "library", "") and self._on_switch_library:
+            if bundle:
+                plugin.bind_document(doc_path, plan.library)
             self._on_switch_library(plan.library)
-            text = self.tr("switch.auto", library=plan.library,
-                           percent=int(plan.score * 100))
-            self.append_status(str(text).replace("{library}", plan.library)
-                               .replace("{percent}", str(int(plan.score * 100))))
+            self.append_status(self.tr("switch.auto", library=plan.library,
+                                       percent=int(getattr(plan, "score", 0.0) * 100)))
+            self._rescan_after_choice()
         elif dialog.choice == "new" and dialog.new_name and self._on_create_library:
             self._on_create_library(dialog.new_name)
-            text = self.tr("switch.created", name=dialog.new_name)
-            self.append_status(str(text).replace("{name}", dialog.new_name))
+            if bundle:
+                plugin.bind_document(doc_path, dialog.new_name)
+            self.append_status(self.tr("switch.created", name=dialog.new_name))
+            self._rescan_after_choice()
         else:
             self.append_status(self.tr("switch.stay"))
 
+    def _rescan_after_choice(self) -> None:
+        """用户做出选择后重新扫描一次：此时绑定已存在，会直接入库。"""
+        scan = getattr(self, "scan_document", None)
+        if callable(scan):
+            scan(silent=True)
 
     def set_doc_diff(self, added, removed) -> None:
         """扫描后把"本次新增/已移除"喂给页面（chips 高亮可用 + 状态栏计数）。"""

@@ -22,6 +22,7 @@ from plugins.reference.libraries import LibraryRegistry
 from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.notes_migration import migrate_legacy_notes
 from plugins.reference.bib_import import import_bibliography
+from plugins.reference.doc_bindings import bind_doc
 from plugins.reference.overlay_debug import hint_missing_reference
 from plugins.reference.pet_anchor import pet_anchor_point, pet_preferred
 from plugins.reference.watch_bridge import (apply_document_name, connect_watch,
@@ -287,6 +288,10 @@ class ReferencePlugin(PluginBase):
         if self._overlay is not None:
             self._overlay.refresh_notes()
         self.refresh_page()
+
+    def bind_document(self, doc_path: str, library: str) -> bool:
+        """把某份文档关联到指定库（实现见 doc_bindings）。"""
+        return bind_doc(self._libraries, doc_path, library)
 
     def switch_library(self, name: str, update_page: bool = True) -> None:
         """切换到另一个文献仓库（用户手动改绑）：重开数据文件并重绑页面。

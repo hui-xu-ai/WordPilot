@@ -35,8 +35,8 @@ def route_before_import(plugin, doc_path: str, doc_name: str,
 
     - 已绑定 → 切绑定库；
     - 与其它库高度相似 → 直接切；
-    - 与任何现有库都不相似（含"只有当前库"）→ 按文档名新建一个库再导入；
-    - 中等相似（要用户确认）→ **一条都不写**，把 plan 交给界面（R2）。
+    - 与现有库都不相似 / 只是中等相似 → **一条都不写**，交给界面弹窗让用户决定
+      （不自动建库、不自动合并）；
 
     返回 True 表示可以入库，False 表示应等用户确认。
     """
@@ -58,22 +58,12 @@ def route_before_import(plugin, doc_path: str, doc_name: str,
                                          percent=int(plan.score * 100))
         return True
 
-    if plan.action == NEW:
-        new_name = suggest_library_name(plugin._libraries.names(), doc_name)
-        try:
-            plugin._libraries.create(new_name)
-            plugin.switch_library(new_name, update_page=False)
-            plugin._libraries.bind_document(doc_path, new_name)
-            stats["switch_text"] = plugin.tr("switch.created", name=new_name)
-            return True
-        except ValueError as exc:
-            logger.warning("自动建库失败（%s）：%s", new_name, exc)
-            return False
-
-    if plan.action == PROMPT:
-        # 相似度只是线索：确认前一条都不写，避免"先混进当前库再问用户"
+    if plan.action in (NEW, PROMPT):
+        # 用户明确要求：**不要替用户建库**。识别到不认识/相似度不足的文档时，
+        # 一条都不导入，把建议名交给界面弹窗，由用户决定"新建 / 关联到某个库 / 不同步"。
         stats["plan"] = plan
         stats["pending"] = True
+        stats["suggested"] = suggest_library_name(plugin._libraries.names(), doc_name)
         return False
 
     return True

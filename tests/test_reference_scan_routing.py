@@ -76,45 +76,40 @@ def _plugin(tmp_path, monkeypatch, names=None):
     return plugin
 
 
-def test_new_document_gets_its_own_library(tmp_path, monkeypatch):
-    """只有默认库时，新文档应按文档名新建库再导入，而不是塞进默认库。"""
+def test_unknown_document_does_not_create_library(tmp_path, monkeypatch):
+    """用户明确要求：不替用户建库 —— 未知文档只报告，不写库、不切库。"""
     plugin = _plugin(tmp_path, monkeypatch)
     stats: dict = {}
 
-    plugin._route_before_import("C:/docs/论文甲.docx", "论文甲.docx",
-                                {"endnote:1", "endnote:2"}, stats)
+    allowed = plugin._route_before_import("C:/docs/论文甲.docx", "论文甲.docx",
+                                          {"endnote:1", "endnote:2"}, stats)
 
-    assert plugin._libraries.active_name() == "论文甲", \
-        f"应新建并切到「论文甲」，实际 {plugin._libraries.active_name()}"
-    assert stats.get("switch") == "new"
-    assert plugin._libraries.doc_bindings()["C:/docs/论文甲.docx"] == "论文甲"
-
-
-def test_second_document_does_not_share_library(tmp_path, monkeypatch):
-    """第二份不同文档必须再建一个库，不能与第一份共用。"""
-    plugin = _plugin(tmp_path, monkeypatch)
-
-    plugin._route_before_import("C:/docs/甲.docx", "甲.docx", {"endnote:1"}, {})
-    plugin._route_before_import("C:/docs/乙.docx", "乙.docx", {"zotero:9"}, {})
-
-    assert plugin._libraries.active_name() == "乙"
-    assert set(plugin._libraries.names()) == {"默认库", "甲", "乙"}
+    assert allowed is False, "未知文档不能直接入库"
+    assert plugin._libraries.active_name() == "默认库", "不得自动切库"
+    assert plugin._libraries.names() == ["默认库"], "不得自动建库"
+    assert stats.get("pending") is True
+    assert stats.get("suggested") == "论文甲", "只给建议名，由界面弹窗确认"
+    assert "C:/docs/论文甲.docx" not in plugin._libraries.doc_bindings()
 
 
-def test_bound_document_switches_to_bound_library(tmp_path, monkeypatch):
-    """已绑定文档优先走绑定库（S11 的语义保持不变）。"""
-    plugin = _plugin(tmp_path, monkeypatch, names=["默认库", "我的库"])
-    plugin._libraries.bind_document("C:/docs/丙.docx", "我的库")
+def test_bound_document_imports_into_bound_library(tmp_path, monkeypatch):
+    """用户点过"关联到某库"之后：再次扫描直接入库，不再弹窗。"""
+    plugin = _plugin(tmp_path, monkeypatch, names=["默认库", "论文乙"])
+    plugin._libraries.bind_document("C:/docs/论文乙.docx", "论文乙")
     stats: dict = {}
 
-    plugin._route_before_import("C:/docs/丙.docx", "丙.docx", {"endnote:7"}, stats)
+    allowed = plugin._route_before_import("C:/docs/论文乙.docx", "论文乙.docx",
+                                          {"endnote:5"}, stats)
 
-    assert plugin._libraries.active_name() == "我的库"
-    assert stats.get("switch") == "switch"
+    assert allowed is True
+    assert plugin._libraries.active_name() == "论文乙"
 
 
-def test_suggested_name_avoids_collision(tmp_path, monkeypatch):
-    """同名文档重扫时不能覆盖已有库名。"""
-    plugin = _plugin(tmp_path, monkeypatch, names=["默认库", "论文甲"])
+def test_bind_document_helper(tmp_path, monkeypatch):
+    plugin = _plugin(tmp_path, monkeypatch, names=["默认库", "论文丙"])
 
-    assert plugin._suggest_library_name("论文甲.docx") == "论文甲 2"
+    assert plugin.bind_document("C:/docs/丙.docx", "论文丙") is True
+    assert plugin._libraries.doc_bindings()["C:/docs/丙.docx"] == "论文丙"
+    assert plugin.bind_document("", "论文丙") is False
+
+
