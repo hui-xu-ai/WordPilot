@@ -25,7 +25,8 @@ from plugins.reference.notes_migration import migrate_legacy_notes
 from plugins.reference.bib_import import import_bibliography
 from plugins.reference.doc_bindings import bind_doc
 from plugins.reference.overlay_debug import hint_missing_reference
-from plugins.reference.pet_anchor import pet_anchor_point, pet_preferred
+from plugins.reference.pet_anchor import (pet_anchor_point, pet_preferred,
+                                          resolve_window)
 from plugins.reference.watch_bridge import connect_watch, on_document_switched
 from plugins.reference.watch_bridge import push_current_document
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
@@ -234,12 +235,10 @@ class ReferencePlugin(PluginBase):
                     len(entries), point, getattr(self, "_active_name", ""))
         overlay.show_entries(entries, point)
 
-    @staticmethod
-    def _pet_anchor_point():
-        """宠物作为定位锚点（实现见 pet_anchor）。"""
-        return pet_anchor_point()
+    def _pet_anchor_point(self):
+        """宠物作为定位锚点（窗口查找与几何兜底见 pet_anchor）。"""
+        return pet_anchor_point(resolve_window(getattr(self, "ctx", None)))
 
-    @staticmethod
     def _pet_preferred() -> bool:
         """宠物可用时优先贴宠物（实现见 pet_anchor）。"""
         return pet_preferred()

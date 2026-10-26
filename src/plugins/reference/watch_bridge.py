@@ -71,10 +71,13 @@ def apply_document_name(plugin, name: str) -> None:
 
 
 def on_document_switched(plugin, name: str) -> None:
-    """换文档 = 换上下文：更新"当前文件"并清掉旧的忽略记录与去重签名。
+    """换文档 = 换上下文：切到该文档的绑定库、更新"当前文件"、清掉旧上下文。
 
-    不清的话，新文档里同编号的引用会被当成"刚刚被忽略过"，点了没有反应。
+    - 只更新文件名是不够的：库名不跟随，用户看到"文件名对了、仓库没对"，
+      而且点引用时用的还是旧库的数据（于是"点了没弹窗"）；
+    - 清 dismissed / signature：旧文档里"点了不再提示"的记录不能影响新文档。
     """
+    switch_to_bound_library(plugin, name)
     apply_document_name(plugin, name)
     plugin._dismissed = set()
     plugin._shown_signature = ()
@@ -84,6 +87,19 @@ def on_document_switched(plugin, name: str) -> None:
             overlay.hide_overlay()
         except Exception:                      # noqa: BLE001
             logger.debug("隐藏旧悬浮卡失败", exc_info=True)
+
+
+def switch_to_bound_library(plugin, doc_identity: str) -> None:
+    """文档已有绑定时，把当前库切到它的绑定库（GUI 线程执行）。"""
+    if not doc_identity:
+        return
+    try:
+        bound = plugin._libraries.doc_bindings().get(doc_identity, "")
+        if bound and bound != getattr(plugin, "_active_name", ""):
+            plugin.switch_library(bound)          # 允许更新页面：这里在 GUI 线程
+            logger.info("按文档绑定切换仓库：%s → %s", doc_identity, bound)
+    except Exception:                          # noqa: BLE001 - 切换失败不影响弹窗
+        logger.debug("按绑定切换仓库失败", exc_info=True)
 
 
 def push_current_document(plugin) -> None:

@@ -117,20 +117,26 @@ class DocIndex:
             logger.debug("扫描域失败：%s", exc)
             return 0
 
-        # 先记住文档名：即便后面拿不到域，也不要每轮都"重扫"
+        # 记录文档名/身份，但**先不标记"已扫描"**：
+        # 刚切换文档时 Word 常短暂忙碌，读域会抛异常；若此时就标记 scanned，
+        # 这份文档会被判定"扫过了但 0 个锚点"，之后再也不重扫 → 点引用永远不弹窗
+        # （用户现场：切换文档后必须点「同步本文」才恢复）。
         self.doc_name = doc_name
         self.doc_identity = doc_identity
-        self.signature = document_signature(document)
         self.anchors = []
         self._starts = []
-        self.scanned = True
 
         try:
             fields = document.Fields
             count = int(fields.Count)
         except Exception as exc:                 # noqa: BLE001
-            logger.debug("读取域集合失败（保留空索引）：%s", exc)
+            logger.debug("读取域集合失败（下次继续重试）：%s", exc)
+            self.signature = (0, 0)              # 指纹归零 → 下一轮 needs_rescan 为真
+            self.scanned = False
             return 0
+
+        self.signature = document_signature(document)
+        self.scanned = True
 
         anchors: list[DocAnchor] = []
         for index in range(1, count + 1):

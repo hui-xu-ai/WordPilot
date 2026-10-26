@@ -121,8 +121,9 @@ def test_tick_keeps_working_when_label_parsing_fails(qapp, monkeypatch):
     watch._tick(lambda: word)
 
 
-def test_doc_index_remembers_doc_name_on_failure():
+def test_doc_index_retries_after_field_failure():
+    """读域失败时**不能**标记成已扫描：否则这份文档永远不再重扫（点引用不弹窗）。"""
     index = DocIndex()
     assert index.rescan(_Word(_Doc(fail_fields=True))) == 0
-    assert index.doc_name == "论文.docx"
-    assert index.needs_rescan("C:/tmp/论文.docx") is False   # S10：身份用全路径
+    assert index.doc_name == "论文.docx", "拿不到域也要记住文档名"
+    assert index.needs_rescan("C:/tmp/论文.docx") is True, "失败后下一轮必须允许重扫"
