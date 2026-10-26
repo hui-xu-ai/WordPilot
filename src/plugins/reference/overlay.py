@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QGuiApplication
-from PySide6.QtWidgets import (QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
+from PySide6.QtWidgets import (QFrame, QPushButton, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
                                QPushButton, QScrollArea, QTextEdit, QVBoxLayout, QWidget)
 
 from plugins.reference.overlay_geometry import place_near
@@ -343,7 +343,13 @@ class ReferenceOverlay(QWidget):
         self.title_bar_host.setFixedHeight(30)
         header = QHBoxLayout(self.title_bar_host)
         header.setContentsMargins(8, 4, 6, 4)
-        header.setSpacing(0)
+        header.setSpacing(4)
+
+        # 组合引用（[1,2,3]）用编号标签切换：只显示一张卡片，其余隐藏但**不销毁**，
+        # 这样切来切去草稿不丢（方案要求）。
+        self._tabs_layout = QHBoxLayout()
+        self._tabs_layout.setSpacing(4)
+        header.addLayout(self._tabs_layout)
         header.addStretch(1)
         self.close_btn = _CloseButton(self.title_bar_host)
         self.close_btn.setToolTip(self._tr("overlay.close_tip"))
@@ -413,6 +419,33 @@ class ReferenceOverlay(QWidget):
             except Exception:              # noqa: BLE001 - 单卡异常不影响其它卡
                 continue
 
+    def _clear_tabs(self) -> None:
+        while self._tabs_layout.count():
+            item = self._tabs_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _add_tab(self, index: int, entry: OverlayEntry) -> None:
+        button = QPushButton(self.title_bar_host)
+        button.setObjectName("referenceOverlayTab")
+        button.setCheckable(True)
+        button.setText(entry.label or str(index + 1))
+        button.setToolTip(entry.title or entry.label or "")
+        button.clicked.connect(lambda _checked, i=index: self._select_card(i))
+        self._tabs_layout.addWidget(button)
+
+    def _select_card(self, index: int) -> None:
+        """显示第 index 张卡片、隐藏其余（隐藏不销毁 → 草稿保留）。"""
+        if not 0 <= index < len(self._cards):
+            return
+        for position, card in enumerate(self._cards):
+            card.setVisible(position == index)
+        for position in range(self._tabs_layout.count()):
+            widget = self._tabs_layout.itemAt(position).widget()
+            if widget is not None:
+                widget.setChecked(position == index)
+
     def _rebuild(self, entries: list[OverlayEntry]) -> None:
         # R5：卡片即将被销毁 —— 先把 800ms 自动保存里的草稿落盘，
         # 否则"输入后立刻点下一个引用"会把刚敲的文字连同定时器一起丢掉。
@@ -425,7 +458,8 @@ class ReferenceOverlay(QWidget):
             card.setParent(None)
             card.deleteLater()
         self._cards = []
-        for entry in entries:
+        self._clear_tabs()
+        for index, entry in enumerate(entries):
             card = _EntryCard(entry, self._tr, self.scroll.widget(),
                               note_service=self._note_service,
                               on_pick=self._on_pick_notes)
@@ -435,7 +469,11 @@ class ReferenceOverlay(QWidget):
                 lambda key, doc=entry.doc_name: self.createRequested.emit(key, doc))
             self._body_layout.addWidget(card)
             self._cards.append(card)
+            if len(entries) > 1:
+                self._add_tab(index, entry)
         self._body_layout.addStretch(1)
+        if len(self._cards) > 1:
+            self._select_card(0)
 
     def _save_note(self, anchor_key: str, text: str) -> None:
         try:
