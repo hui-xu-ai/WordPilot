@@ -21,6 +21,7 @@ from plugins.reference.reference_index import ReferenceIndex
 from plugins.reference.libraries import LibraryRegistry
 from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.notes_migration import migrate_legacy_notes
+from plugins.reference.bib_import import import_bibliography
 from plugins.reference.overlay_debug import hint_missing_reference
 from plugins.reference.pet_anchor import pet_anchor_point, pet_preferred
 from plugins.reference.watch_bridge import (apply_document_name, connect_watch,
