@@ -54,7 +54,9 @@ class _ConnectionTester(QThread):
     done = Signal(bool, str)      # (是否成功, 失败原因)
 
     def __init__(self, api_key: str, model: str, parent=None) -> None:
-        super().__init__(parent)
+        # U03：不要以 SettingsPage 为父对象。页面销毁会让父对象连带析构运行中的
+        # QThread，进程直接 0xC0000409 崩溃（审查用 2 秒延迟连接复现）。
+        super().__init__(None)
         self._api_key = api_key
         self._model = model
 
@@ -127,6 +129,7 @@ class SettingsPage(QWidget):
         main_layout.addLayout(body, 1)
 
         self.nav_list.setCurrentRow(0)
+        self.destroyed.connect(self._stop_tester)
 
         # 底部保存栏
         bottom = QHBoxLayout()
@@ -509,6 +512,20 @@ class SettingsPage(QWidget):
         self.save_status.setText(self.tr("settings.saved_hint"))
         self.saved.emit()
 
+    def _stop_tester(self, *_args) -> None:
+        """页面销毁时先让连接测试线程结束，避免 QThread 运行中被析构（U03）。"""
+        tester = getattr(self, "_tester", None)
+        if tester is None:
+            return
+        try:
+            tester.requestInterruption()
+            tester.quit()
+        except Exception:                      # noqa: BLE001 - 已在收尾阶段，忽略
+            pass
+        if tester.isRunning():
+            tester.wait(3000)
+        self._tester = None
+
     def test_connection(self):
         """测连通性：走后台线程，界面不冻结；按钮期间禁用，结束后恢复。"""
         key = self.api_key_edit.text().strip()
@@ -520,7 +537,7 @@ class SettingsPage(QWidget):
 
         self.test_btn.setEnabled(False)
         self.test_status.setText(self.tr("settings.api.testing"))
-        self._tester = _ConnectionTester(key, model, self)
+        self._tester = _ConnectionTester(key, model)          # 无父对象：生命周期自管
         self._tester.done.connect(self._on_test_done)
         self._tester.finished.connect(self._tester.deleteLater)
         self._tester.start()

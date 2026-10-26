@@ -38,6 +38,19 @@ class Library:
         return {"path": str(self.path), "last_used": self.last_used}
 
 
+
+def _backup_path(path: Path) -> Path:
+    """给已存在的文件找一个不冲突的备份名（同目录、带时间戳）。"""
+    from datetime import datetime
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    candidate = path.with_name(f"{path.name}.{stamp}.bak")
+    index = 1
+    while candidate.exists():
+        candidate = path.with_name(f"{path.name}.{stamp}-{index}.bak")
+        index += 1
+    return candidate
+
 class LibraryRegistry:
     """仓库目录 + 当前激活仓库（用户可手动改绑）。"""
 
@@ -109,7 +122,11 @@ class LibraryRegistry:
             destination = target / filename
             try:
                 if destination.exists():
-                    destination.unlink()
+                    # S6：别 unlink —— 注册表损坏时旧数据可能正是用户唯一的库。
+                    # 改成留一份带时间戳的备份，再搬历史文件过去。
+                    backup = _backup_path(destination)
+                    destination.replace(backup)
+                    logger.warning("迁移前已备份已有文件：%s → %s", destination, backup)
                 shutil.move(str(source), str(destination))
             except OSError as exc:               # noqa: BLE001
                 logger.warning("迁移旧数据失败（%s）：%s", source, exc)
@@ -122,6 +139,9 @@ class LibraryRegistry:
         name = (name or "").strip()
         if not name:
             raise ValueError("仓库名不能为空")
+        # S7：库名会成为目录名，必须挡掉能跳出库根的输入
+        if name in (".", "..") or any(sep in name for sep in ("/", "\\")) or ".." in name:
+            raise ValueError(f"仓库名不合法：{name}")
         data = self._read()
         libraries = data.setdefault("libraries", {})
         if name in libraries:

@@ -174,3 +174,34 @@ def test_api_key_is_masked_by_default(page):
     assert widget.api_key_edit.echoMode() == QLineEdit.Normal, "点显示后应可见"
     widget.api_key_toggle.setChecked(False)
     assert widget.api_key_edit.echoMode() == QLineEdit.Password, "再点应恢复掩码"
+
+
+def test_page_destruction_stops_tester(page, monkeypatch):
+    """U03：销毁设置页前必须结束连接测试线程（否则进程 0xC0000409 崩溃）。"""
+    widget, _manager = page
+
+    class _SlowTester:
+        def __init__(self):
+            self.stopped = False
+            self.waited = 0
+
+        def requestInterruption(self):
+            self.stopped = True
+
+        def quit(self):
+            self.stopped = True
+
+        def isRunning(self):
+            return True
+
+        def wait(self, ms):
+            self.waited = ms
+            return True
+
+    tester = _SlowTester()
+    widget._tester = tester
+    widget._stop_tester()
+
+    assert tester.stopped, "退出前必须请求线程停止"
+    assert tester.waited > 0, "还要 wait 等它真正结束"
+    assert widget._tester is None
