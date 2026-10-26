@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs>
+  <linearGradient id="coal" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#4D4B4A"/><stop offset=".6" stop-color="#343335"/><stop offset="1" stop-color="#25272C"/></linearGradient>
+  <linearGradient id="chest" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#454347"/><stop offset="1" stop-color="#2C2D33"/></linearGradient>
+  <linearGradient id="ear" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#F4BC9F"/><stop offset="1" stop-color="#D99A83"/></linearGradient>
+</defs>
+<ellipse cx="31" cy="59.3" rx="22" ry="1.6" fill="#393332" opacity=".16"/>
+<path d="M46 54C59 58 61 43 55 40C51 38 49 43 53 45C56 48 53 53 47 49" fill="none" stroke="#6C6563" stroke-width="6.8" stroke-linecap="round"/>
+<path d="M46 54C59 58 61 43 55 40C51 38 49 43 53 45C56 48 53 53 47 49" fill="none" stroke="#38373C" stroke-width="5.2" stroke-linecap="round"/>
+<path d="M17 37C13 42 12 52 17 57C22 61 40 61 46 56C50 52 47 42 42 37Z" fill="url(#chest)" stroke="#706A69" stroke-width=".8"/>
+<path d="M8 29L10 10Q11 7 14 10L23 16Q31 13 39 16L48 10Q52 7 53 12L54 30C57 40 46 44 31 44C16 44 5 40 8 29Z" fill="url(#coal)" stroke="#79706A" stroke-width=".85" stroke-linejoin="round"/>
+<path d="M13 15L14 24L22 19Z" fill="url(#ear)"/>
+<path d="M49 15L42 19L51 24Z" fill="url(#ear)"/>
+<path d="M11 33L16 34M11 37L16 36M45 34L50 33M45 36L50 37" fill="none" stroke="#B6A99A" stroke-width=".8" stroke-linecap="round" opacity=".72"/>
+<path d="M15 43Q31 47 47 42" fill="none" stroke="#A3B497" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="31.5" cy="46.5" r="2.6" fill="$STATE" stroke="#C8D4B7" stroke-width=".8"/>
+<path d="M21 49L21 56Q23 59 26 57M38 49L38 56Q36 59 33 57" fill="none" stroke="#57545A" stroke-width=".9" stroke-linecap="round"/>
+</svg>

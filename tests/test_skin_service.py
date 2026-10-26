@@ -31,6 +31,21 @@ def test_discovers_skins_and_picks_default(skins):
     assert skins.default_id in ids
 
 
+def test_only_new_skins_are_shipped_and_bunny_is_default(skins):
+    assert {item["id"] for item in skins.available()} == {
+        "mochi_bunny", "ink_cat", "sky_whale", "page_spirit",
+        "chestnut_corgi", "mint_dragon", "maple_fox", "dusk_owl"}
+    assert skins.default_id == "mochi_bunny"
+
+
+@pytest.mark.parametrize("old_id", ["default", "deepseek", "glass", "neon", "polygon", "whalegirl", "classic"])
+def test_removed_skin_falls_back_without_writing(old_id, skins_dir, fake_config):
+    fake_config["skin"] = old_id
+    service = SkinService(fake_config, skins_dir)
+    assert service.current_id == "mochi_bunny"
+    assert fake_config["skin"] == old_id
+
+
 def test_referenced_svg_files_exist(skins_dir):
     """清单里引用的每个 SVG 都必须真实存在（改名/漏打包的第一道防线）。"""
     missing: list[str] = []
@@ -55,7 +70,7 @@ def test_every_state_renders_all_parts(skins, state):
 def test_eye_variant_follows_state(skins):
     assert skins.eye_variant("idle") == "sleep"
     assert skins.eye_variant("disabled") == "sleep"
-    assert skins.eye_variant("error") == "open"
+    assert skins.eye_variant("error") == "alert"
 
 
 def test_apply_colors_replaces_placeholders(skins):
@@ -65,8 +80,8 @@ def test_apply_colors_replaces_placeholders(skins):
 
 
 def test_set_skin_persists_to_config(skins, fake_config):
-    assert skins.set_skin("default") == "default"
-    assert fake_config.get("skin") == "default"
+    assert skins.set_skin("mochi_bunny") == "mochi_bunny"
+    assert fake_config.get("skin") == "mochi_bunny"
 
 
 def test_set_skin_ignores_unknown_id(skins):
@@ -91,3 +106,19 @@ def test_state_tokens_cover_pet_fallback_colors():
     from core.widgets.pet_window import _FALLBACK_COLORS
 
     assert set(_FALLBACK_COLORS) <= set(STATE_TOKENS)
+
+
+@pytest.mark.parametrize("skin_id", ["mochi_bunny", "ink_cat", "sky_whale", "page_spirit",
+                                     "chestnut_corgi", "mint_dragon", "maple_fox", "dusk_owl"])
+def test_new_skins_have_distinct_expressions_and_valid_svg(skins, skin_id):
+    from PySide6.QtSvg import QSvgRenderer
+
+    ids = {item["id"] for item in skins.available()}
+    assert skin_id in ids
+    assert skins.status_overlay_enabled(skin_id)
+    for state in STATE_TOKENS:
+        for part in PARTS:
+            svg = skins.part_svg(part, state, skin_id=skin_id, colors={"STATE": "#ef6b61"})
+            assert svg and QSvgRenderer(svg.encode("utf-8")).isValid(), (skin_id, state, part)
+    for part in ("eye_left", "mouth"):
+        assert skins.part_svg(part, "ok", skin_id=skin_id) != skins.part_svg(part, "error", skin_id=skin_id)

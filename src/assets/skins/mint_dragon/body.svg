@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs>
+<linearGradient id="mint" x2=".2" y2="1"><stop stop-color="#B7E8D4"/><stop offset="1" stop-color="#75BFAA"/></linearGradient>
+<linearGradient id="ivory" x2="0" y2="1"><stop stop-color="#FFF9DE"/><stop offset="1" stop-color="#EBDFB4"/></linearGradient></defs>
+<ellipse cx="30" cy="59" rx="24" ry="2" fill="#4D8678" opacity=".13"/>
+<path d="M17 34Q8 25 4 30L5 46L11 42L15 47L21 40M42 34Q51 25 57 30L57 45L51 41L47 47L39 40" fill="#8FCBBF" stroke="#5E9F90" stroke-width=".8"/>
+<path d="M6 32L16 41M55 32L45 41" stroke="#B9E6D7" stroke-width="1.4"/>
+<path d="M40 48C49 47 54 52 57 46C60 40 56 38 54 41C52 44 56 45 57 43Q62 53 53 57Q44 60 37 54" fill="url(#mint)" stroke="#5E9F90" stroke-width=".9"/>
+<path d="M15 39Q10 46 15 55Q29 63 43 55Q48 46 41 38Z" fill="url(#mint)" stroke="#5E9F90" stroke-width=".8"/>
+<ellipse cx="29" cy="48" rx="10" ry="10" fill="url(#ivory)"/>
+<path d="M23 47Q29 49 35 47M22 51Q29 53 36 51" fill="none" stroke="#D7CAA0" stroke-width=".7"/>
+<path d="M17 19Q11 13 17 6Q19 13 23 17M36 17Q41 12 42 6Q49 13 42 20" fill="url(#ivory)" stroke="#BDCAA8" stroke-width=".8"/>
+<path d="M11 23L6 20Q6 27 13 29M45 23L51 20Q51 27 44 29" fill="#99D0B8" stroke="#5E9F90" stroke-width=".7"/>
+<path d="M9 29C9 18 19 15 29 15C40 15 48 19 48 29Q50 42 29 43Q8 42 9 29Z" fill="url(#mint)" stroke="#5E9F90" stroke-width=".8"/>
+<path d="M24 19Q29 14 34 19Q29 22 24 19Z" fill="#D5EFCD"/>
+<ellipse cx="15" cy="32" rx="3.8" ry="2.1" fill="#E8B3A4" opacity=".55"/><ellipse cx="42" cy="32" rx="3.8" ry="2.1" fill="#E8B3A4" opacity=".55"/>
+<ellipse cx="26" cy="31" rx=".8" ry=".65" fill="#589A83"/><ellipse cx="32" cy="31" rx=".8" ry=".65" fill="#589A83"/>
+<path d="M16 43Q10 43 14 49Q18 52 21 48M40 43Q46 43 43 49Q39 52 36 48" fill="#A8DCC5" stroke="#5E9F90" stroke-width=".65"/>
+<ellipse cx="20" cy="57" rx="6" ry="2.6" fill="#9ED3BB" stroke="#5E9F90" stroke-width=".6"/><ellipse cx="38" cy="57" rx="6" ry="2.6" fill="#9ED3BB" stroke="#5E9F90" stroke-width=".6"/>
+<path d="M28 41L31 44L28 47L25 44Z" fill="$STATE" stroke="#FFF6D6" stroke-width=".8"/>
+</svg>

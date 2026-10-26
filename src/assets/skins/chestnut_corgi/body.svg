@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs>
+<linearGradient id="fur" x2=".3" y2="1"><stop stop-color="#F6C07B"/><stop offset="1" stop-color="#D99352"/></linearGradient>
+<linearGradient id="cream" x2=".4" y2="1"><stop stop-color="#FFF9E8"/><stop offset="1" stop-color="#F2DDAC"/></linearGradient></defs>
+<ellipse cx="29" cy="59" rx="21" ry="2" fill="#80532F" opacity=".13"/>
+<path d="M44 43C50 38 57 42 56 47Q54 52 48 50" fill="url(#fur)" stroke="#BC7C48" stroke-width=".7"/>
+<path d="M13 40Q7 47 13 56Q28 62 46 56Q52 48 44 40Z" fill="url(#fur)" stroke="#BC7C48" stroke-width=".8"/>
+<path d="M22 44Q30 41 37 44L39 55Q29 59 21 54Z" fill="url(#cream)"/>
+<path d="M11 26C7 18 7 4 13 4Q23 8 25 21M35 21Q40 5 48 4C55 6 53 21 48 27" fill="url(#fur)" stroke="#BC7C48" stroke-width=".9"/>
+<path d="M13 20Q10 9 14 9Q20 12 21 21M40 21Q43 11 48 9Q51 12 47 22" fill="#E7A59A"/>
+<path d="M7 30C7 19 18 17 29 17C43 17 52 21 52 31Q51 44 29 45Q8 44 7 30Z" fill="url(#fur)" stroke="#BC7C48" stroke-width=".8"/>
+<path d="M27 18Q22 25 24 29C17 27 11 30 12 35Q14 43 29 43Q44 42 46 35C47 30 40 27 34 29Q35 23 31 18Z" fill="url(#cream)"/>
+<ellipse cx="13" cy="33" rx="3.4" ry="1.9" fill="#E59282" opacity=".48"/><ellipse cx="45" cy="33" rx="3.4" ry="1.9" fill="#E59282" opacity=".48"/>
+<path d="M27 31Q30 29 33 31Q32 34 30 34Q28 34 27 31Z" fill="#624C3E"/>
+<path d="M15 42Q30 48 45 42L38 51L30 46L23 51Z" fill="#8FAEB8" stroke="#6E919B" stroke-width=".6"/>
+<circle cx="30" cy="46" r="2.2" fill="$STATE" stroke="#F9F5E6" stroke-width=".7"/>
+<path d="M13 51Q10 59 18 59Q23 59 21 52M36 52Q34 59 42 59Q48 58 45 51" fill="url(#cream)" stroke="#BC7C48" stroke-width=".65"/>
+<path d="M15 57V59M18 57V59M39 57V59M42 57V59" stroke="#D7BE90" stroke-width=".6"/>
+</svg>

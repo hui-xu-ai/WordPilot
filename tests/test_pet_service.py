@@ -61,18 +61,27 @@ def test_size_is_clamped_and_persisted():
 def test_skin_and_visibility_persist():
     config = _Config()
     service = PetService.instance(config)
-    service.set_skin("neon")
+    service.set_skin("ink_cat")
     service.set_visible(False)
-    assert config.get("pet.skin") == "neon"
+    assert config.get("pet.skin") == "ink_cat"
     assert config.get("pet.visible") is False
 
 
 def test_defaults_without_config():
     service = PetService.instance(None)
     assert service.size == DEFAULT_SIZE
-    assert service.skin == "classic"
+    assert service.size == 70
+    assert service.skin == "mochi_bunny"
     service.update_geometry(0, 0)
     assert service.anchor_point() == (0 + DEFAULT_SIZE + 8, 0)
+
+
+def test_saved_size_is_not_replaced_by_new_default():
+    config = _Config({"pet.size": 96, "pet.skin": "default"})
+    service = PetService.instance(config)
+    assert service.size == 96
+    assert service.skin == "mochi_bunny"
+    assert config.get("pet.skin") == "default", "只在读取时回退，不改写历史配置"
 
 def test_plugin_actions_only_when_active():
     """插件注册的右键快捷项：插件没启用就不显示（用户要求）。"""

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.services.api_client import DeepSeekClient
+from core.services.skin_service import DEFAULT_SKIN_ID
 from core.services.theme_service import USER_QSS
 
 #: 界面语言与提示词语言共用的可选语种
@@ -440,7 +441,7 @@ class SettingsPage(QWidget):
                           self.i18n.current if self.i18n is not None else "zh_CN")
         self._select_data(self.prompt_language_combo, self.config.get("prompt_language", "zh_CN"))
         self._select_data(self.skin_combo,
-                          self.skins.current_id if self.skins is not None else "default")
+                          self.skins.current_id if self.skins is not None else DEFAULT_SKIN_ID)
 
     @staticmethod
     def _select_data(combo: QComboBox, value):

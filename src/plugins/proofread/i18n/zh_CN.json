@@ -25,7 +25,7 @@
   "bubble.delete": "　删除　",
   "pet.tooltip": "智能校对：左键切换建议气泡，右键菜单，拖拽移动",
   "pet.state_label": "当前状态：",
-  "pet.state.idle": "无错误",
+  "pet.state.idle": "休息中（等待校对）",
   "pet.state.error": "有修改建议",
   "pet.state.busy": "校对中",
   "pet.state.disabled": "未启用",
@@ -62,5 +62,5 @@
   "monitor.too_short": "句子太短，跳过",
   "prompt.placeholder_notice": "请校对以下文本。文本中的[IMG0]、[EQ1]等标签代表图片或公式，请保持这些标签完全不变，只修正文字错误：\n",
   "pet.menu.plugins": "插件",
-  "pet.state.ok": "无错误"
+  "pet.state.ok": "校对通过"
 }

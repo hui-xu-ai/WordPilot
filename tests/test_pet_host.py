@@ -54,10 +54,10 @@ def test_apply_skin_records_and_switches():
     window = _FakeWindow()
     host._window = window
 
-    host.apply_skin("neon")
-    assert window.skins == ["neon"], "皮肤必须真正切到窗口"
-    assert service.skin == "neon", "内核要记住选择"
-    assert config.get("pet.skin") == "neon", "配置要持久化"
+    host.apply_skin("ink_cat")
+    assert window.skins == ["ink_cat"], "皮肤必须真正切到窗口"
+    assert service.skin == "ink_cat", "内核要记住选择"
+    assert config.get("pet.skin") == "ink_cat", "配置要持久化"
 
 
 def test_skin_switch_keeps_size():
@@ -68,5 +68,5 @@ def test_skin_switch_keeps_size():
     window = _FakeWindow()
     host._window = window
 
-    host.apply_skin("deepseek")
+    host.apply_skin("sky_whale")
     assert window.sizes[-1] == 96, "切皮肤后要按内核尺寸重新套用"

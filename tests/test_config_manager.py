@@ -11,6 +11,14 @@ import json
 from core.services import config_manager as cm_mod
 
 
+def test_new_config_uses_shipped_default_skin(config_env):
+    from core.services.skin_service import DEFAULT_SKIN_ID, SkinService
+
+    manager = cm_mod.ConfigManager()
+    assert manager.get("skin") == DEFAULT_SKIN_ID == "mochi_bunny"
+    assert DEFAULT_SKIN_ID in {skin["id"] for skin in SkinService(manager).available()}
+
+
 def test_corrupt_config_is_backed_up_not_destroyed(config_env):
     cfg_file = config_env / "MWindow_config.json"
     cfg_file.write_text("{ 这不是 JSON", encoding="utf-8")

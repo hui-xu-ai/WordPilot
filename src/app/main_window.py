@@ -48,6 +48,7 @@ from app.title_bar import TitleBar
 from app.ui_registry import QtUiRegistry
 from core.kernel import Kernel
 from core.services.config_manager import ConfigManager
+from core.services.skin_service import DEFAULT_SKIN_ID
 from infra.utils import resource_path
 
 logger = logging.getLogger(__name__)
@@ -406,7 +407,7 @@ class MainWindow(PagesMixin, QMainWindow):
         if self.i18n is not None:
             self.kernel.set_language(self.config.get("ui_language", "zh_CN"))
         # 桌宠皮肤：内核广播 skin.changed，桌宠窗口收到后重绘
-        self.kernel.set_skin(self.config.get("skin", "default"))
+        self.kernel.set_skin(self.config.get("skin", DEFAULT_SKIN_ID))
         # 主题可能已变更（设置页内部已应用），这里同步外壳
         self.apply_style()
         self.retranslateUi()

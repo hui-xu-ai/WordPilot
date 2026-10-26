@@ -36,13 +36,17 @@ def check(cond: bool, msg: str) -> None:
 
 
 print("=== 1) 资源目录与源码一致 ===")
+source_skin_ids = {path.name for path in (ROOT / "src/assets/skins").iterdir() if path.is_dir()}
+bundled_skin_ids = {path.name for path in (INTERNAL / "assets/skins").glob("*") if path.is_dir()}
+check(source_skin_ids == bundled_skin_ids, "打包皮肤目录与源码一致（不遗留已删除皮肤）")
 # 数据资源（图标/皮肤/主题/语言包/插件清单）必须落在文件树里；
 # .py 模块走 PYZ，不参与文件树比对（见第 1b 节）。
 def data_names(root: Path) -> set[str]:
     return {p.name for p in root.glob("*") if p.is_file() and p.suffix != ".py"}
 
 
-for rel in ("assets/icons", "assets/skins/default", "assets/themes", "assets/i18n", "plugins"):
+skin_relpaths = tuple("assets/skins/" + path.name for path in sorted((ROOT / "src/assets/skins").iterdir()) if path.is_dir())
+for rel in ("assets/icons", "assets/themes", "assets/i18n", "plugins") + skin_relpaths:
     src_dir = ROOT / "src" / rel
     dst_dir = INTERNAL / rel
     check(dst_dir.is_dir(), f"{rel}/ 随包分发")
@@ -58,7 +62,7 @@ if toc.is_file():
     toc_text = toc.read_text(encoding="utf-8", errors="ignore")
     for pid in ("proofread", "navigator", "image_toolbox", "clipboard", "reference"):
         check(f"plugins.{pid}.plugin" in toc_text, f"模块 plugins.{pid}.plugin 已收集")
-    check("plugins.proofread.pet_window" in toc_text, "模块 plugins.proofread.pet_window 已收集")
+    check("core.widgets.pet_window" in toc_text, "模块 core.widgets.pet_window 已收集")
     # P8：主窗口新增的 app 层模块（由 main_window 静态 import，理论上自动收集，此处兜底断言）
     for mod in ("app.title_bar", "app.settings_page"):
         check(mod in toc_text, f"模块 {mod} 已收集（P8 无边框标题栏 / 设置页）")

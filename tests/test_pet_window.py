@@ -237,3 +237,95 @@ def test_context_menu_builds(qapp):
     assert any("pet.menu" in str(label) or label for label in labels)
     submenus = [action.menu().title() for action in menu.actions() if action.menu() is not None]
     assert submenus, "至少应有「外观皮肤」「插件」等子菜单"
+
+
+def test_pending_status_is_independent_of_bubble_visibility(pet_cls):
+    pet = _pet(pet_cls)
+    pet.set_suggestion("原文", "修改后的内容", 1, 4)
+    pet.bubble.hide()
+    assert pet.has_pending_suggestion()
+    pet._on_ignored("原文", -1, -1, "原文")
+    assert not pet.has_pending_suggestion()
+
+
+def test_only_a_new_suggestion_triggers_attention(pet_cls):
+    pet = _pet(pet_cls)
+
+    class Canvas:
+        calls = 0
+
+        def notify_suggestion(self):
+            self.calls += 1
+
+    canvas = Canvas()
+    pet.canvas = canvas
+    pet._canvas_global_pos = lambda: None
+    pet.set_suggestion("原文", "改文", 1, 4)
+    pet.set_suggestion("原文", "改文", 1, 4)
+    assert canvas.calls == 1
+    pet.set_suggestion("另一原文", "另一改文", 5, 10)
+    assert canvas.calls == 2
+    pet.set_suggestion("原文", "原文", 1, 4)
+    assert canvas.calls == 2
+
+
+def test_real_pet_and_plugin_keep_status_until_handled(qapp, skins_dir):
+    from PySide6.QtTest import QTest
+
+    from core.services.skin_service import SkinService
+    from core.widgets.pet_window import PetWindow
+    from plugins.proofread.plugin import ProofreadPlugin
+
+    config = _Cfg({"skin": "mochi_bunny", "auto_show_suggestion": False})
+    pet = PetWindow(config, skins=SkinService(config, skins_dir))
+    plugin = ProofreadPlugin()
+    plugin.floating_btn = pet
+    pet.bubbleToggled.connect(plugin._on_bubble_toggled)
+    try:
+        plugin._on_suggestion("原句", "改后的句子", -1, -1)
+        assert not pet.bubble.isVisible()
+        assert pet.state() == "error" and pet.has_pending_suggestion()
+        pet.toggle_bubble()
+        pet.toggle_bubble()
+        assert pet.state() == "error"
+        pet._on_ignored("原句", -1, -1, "原句")
+        assert pet.state() == "idle" and not pet.has_pending_suggestion()
+        plugin._on_suggestion("无须修改", "无须修改", -1, -1)
+        assert pet.state() == "ok"
+        QTest.qWait(2200)
+        assert pet.state() == "idle"
+    finally:
+        pet.canvas.stop_animation()
+        pet.bubble.close()
+        pet.close()
+
+
+@pytest.mark.parametrize(("skin_id", "name"), [
+    ("chestnut_corgi", "栗子柯基"), ("mint_dragon", "薄荷小龙"),
+    ("maple_fox", "枫糖小狐"), ("dusk_owl", "暮色小鸮"),
+])
+def test_added_skin_can_be_selected_from_menu_at_70px(qapp, skins_dir, skin_id, name):
+    from core.services.pet_service import PetService
+    from core.services.skin_service import SkinService
+    from core.widgets.pet_window import PetWindow
+
+    PetService.reset_instance()
+    config = _Cfg({"skin": "mochi_bunny", "pet.size": 70})
+    PetService.instance(config)
+    pet = PetWindow(config, skins=SkinService(config, skins_dir))
+    try:
+        menu = pet._build_menu()
+        menu_actions = menu.actions()
+        skin_menu = menu_actions[0].menu()
+        actions = {action.text(): action for action in skin_menu.actions()}
+        assert len(actions) == 8
+        assert name in actions
+        actions[name].trigger()
+        assert pet._skins.current_id == skin_id
+        assert config["skin"] == skin_id
+        assert pet.width() == pet.canvas.width() == 70
+    finally:
+        pet.canvas.stop_animation()
+        pet.bubble.close()
+        pet.close()
+        PetService.reset_instance()

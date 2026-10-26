@@ -24,7 +24,8 @@
   "ui_language": "zh_CN",
   "prompt_language": "zh_CN",
   "theme": "light",
-  "skin": "default",
+  "skin": "mochi_bunny",
+  "pet.size": 70,
   "pet.position": null,
   "exclude_patterns": [
     "参考文献",

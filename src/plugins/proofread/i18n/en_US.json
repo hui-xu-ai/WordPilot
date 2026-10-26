@@ -15,7 +15,7 @@
   "bubble.delete": " DELETE ",
   "pet.tooltip": "Smart proofreading: left click toggles the bubble, right click opens the menu, drag to move",
   "pet.state_label": "Status: ",
-  "pet.state.idle": "No issues",
+  "pet.state.idle": "Resting (awaiting proofreading)",
   "pet.state.error": "Suggestions available",
   "pet.state.busy": "Proofreading",
   "pet.state.disabled": "Disabled",

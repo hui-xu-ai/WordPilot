@@ -73,6 +73,7 @@ class ProofreadPlugin(PluginBase):
         self._dashboard_page = None                    # 智能纠错页（外壳惰性构造后回填）
         self._enabled = True
         self._state = "idle"
+        self._ok_generation = 0
         self._cursor_worker: _CursorProofWorker | None = None
 
     # ---------------- 生命周期 ----------------
@@ -89,6 +90,7 @@ class ProofreadPlugin(PluginBase):
             lambda msg: ctx.ui.status(self.tr("status.debug", msg=msg), 2000))
         self.monitor.suggestion_ready.connect(self._on_suggestion)
         self.monitor.proofing_started.connect(self._on_proofing_started)
+        self.monitor.proofing_failed.connect(self._on_proofing_failed)
         self.monitor.status_update.connect(lambda msg: ctx.ui.status(msg, 3000))
         self.monitor.start()
 
@@ -285,7 +287,7 @@ class ProofreadPlugin(PluginBase):
 
     # ---------------- 桌宠状态机 ----------------
     def set_state(self, state: str) -> None:
-        """切换桌宠状态：idle(无错) / error(有错) / busy(校对中) / disabled(未启用)。"""
+        """idle为中性休息，ok才表示已校对通过，error表示仍有待处理建议。"""
         state = state if state in STATE_TOKENS else "idle"
         if state == self._state:
             return
@@ -300,16 +302,21 @@ class ProofreadPlugin(PluginBase):
         return self._state
 
     def _sync_state(self) -> None:
-        """按当前开关与气泡内容推导应显示的状态。"""
-        if self.ctx is None:
-            return
+        """建议是否待处理独立于气泡显隐；设置刷新不打断正在检查或通过反馈。"""
         if not self._enabled:              # 宠物显隐归内核，插件启用与否只影响校对功能
             self.set_state("disabled")
             return
-        if self.floating_btn is not None and self.floating_btn.bubble.isVisible():
+        if self._has_pending_suggestion():
             self.set_state("error")
-        else:
+        elif self._state not in ("busy", "ok"):
             self.set_state("idle")
+
+    def _has_pending_suggestion(self) -> bool:
+        pet = self.floating_btn
+        if pet is None:
+            return False
+        check = getattr(pet, "has_pending_suggestion", None)
+        return bool(check()) if callable(check) else bool(getattr(pet, "_pending_suggestion", None))
 
     # ---------------- 能力 ----------------
     def is_enabled(self) -> bool:
@@ -328,9 +335,7 @@ class ProofreadPlugin(PluginBase):
 
     def _apply_visibility(self) -> None:
         """只切换**校对状态**，绝不碰宠物窗口（宠物归内核，启停校对不该让它消失）。"""
-        if self.floating_btn is None or self.ctx is None:
-            return
-        self.set_state("idle" if self._enabled else "disabled")
+        self._sync_state()
 
     def refresh_visibility(self) -> None:
         """设置项中「显示悬浮按钮」变化后由外壳或设置对话框调用。"""
@@ -365,23 +370,32 @@ class ProofreadPlugin(PluginBase):
         self.floating_btn.set_suggestion(original, corrected,
                                         -1 if start is None else start,
                                         -1 if end is None else end)
-        if has_diff:
+        if not self._enabled:
+            self.set_state("disabled")
+        elif has_diff:
             self.set_state("error")
         else:
             self._show_ok()
 
     def _show_ok(self) -> None:
         """正确表情：停留 2 秒后静默回到打盹（期间来了新结果就不回落）。"""
+        if not getattr(self, "_enabled", True):
+            self.set_state("disabled")
+            return
+        self._ok_generation = getattr(self, "_ok_generation", 0) + 1
+        generation = self._ok_generation
         self.set_state("ok")
-        QTimer.singleShot(2000, self._ok_revert)
+        QTimer.singleShot(2000, lambda: self._ok_revert(generation))
 
-    def _ok_revert(self) -> None:
+    def _ok_revert(self, generation=None) -> None:
+        if generation is not None and generation != self._ok_generation:
+            return
         if self._state == "ok":
             self.set_state("idle")
 
     def _on_bubble_toggled(self, visible: bool) -> None:
-        """气泡关闭（用户已在确认/忽略中做出抉择）-> 错误表情回落到打盹。"""
-        if not visible and self._state == "error":
+        """收起只改变可见性；应用/忽略已清除待处理建议时才回落。"""
+        if not visible and self._state == "error" and not self._has_pending_suggestion():
             self.set_state("idle")
 
     def proof_cursor(self) -> None:
@@ -400,7 +414,7 @@ class ProofreadPlugin(PluginBase):
             if api is None:
                 self._status(self.tr("status.api_missing"))
                 return
-            self.set_state("busy")
+            self._on_proofing_started()
             worker = _CursorProofWorker(api, current, self)
             worker.done.connect(self._on_cursor_proof_done)
             worker.finished.connect(self._on_cursor_worker_finished)
@@ -417,7 +431,7 @@ class ProofreadPlugin(PluginBase):
         """后台校对结果回到主线程：失败绝不落到 `_show_ok()`（那会显示成"检查过、无错"）。"""
         if corrected is None:
             self._log_exception(f"{self.tr('log.proof_cursor_failed')}（{reason}）")
-            self.set_state("idle")
+            self._on_proofing_failed(reason)
             return
         has_diff = corrected.strip() != original.strip()
         if has_diff:
@@ -539,7 +553,14 @@ class ProofreadPlugin(PluginBase):
         self.refresh_visibility()
 
     def _on_proofing_started(self) -> None:
-        self.set_state("busy")
+        if self._enabled:
+            if self.floating_btn is not None:
+                self.floating_btn.set_suggestion("", "")
+            self.set_state("busy")
+
+    def _on_proofing_failed(self, reason: str) -> None:
+        """检查失败没有通过语义；暂停期间迟到的结果也保持灰色。"""
+        self.set_state("idle" if getattr(self, "_enabled", True) else "disabled")
 
     def _status(self, message: str, timeout: int = 3000) -> None:
         if self.ctx is not None:

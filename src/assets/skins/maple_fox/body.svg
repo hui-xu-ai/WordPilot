@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs>
+<linearGradient id="fur" x2=".2" y2="1"><stop stop-color="#EFA85E"/><stop offset="1" stop-color="#CF763C"/></linearGradient>
+<linearGradient id="cream" x2=".4" y2="1"><stop stop-color="#FFF9E5"/><stop offset="1" stop-color="#F0D5AA"/></linearGradient></defs>
+<ellipse cx="33" cy="59" rx="25" ry="2" fill="#865033" opacity=".13"/>
+<path d="M37 47C44 40 46 24 55 26C65 29 62 47 55 54Q47 61 36 56Z" fill="url(#fur)" stroke="#A9683F" stroke-width=".8"/>
+<path d="M49 31Q50 24 56 27C63 30 62 40 58 44Q56 36 51 39L53 34Z" fill="url(#cream)"/>
+<path d="M13 40Q8 48 15 56Q27 62 42 55Q46 47 38 39Z" fill="url(#fur)" stroke="#A9683F" stroke-width=".75"/>
+<path d="M21 43Q25 39 28 44Q32 39 36 43Q39 48 28 55Q17 48 21 43Z" fill="url(#cream)"/>
+<path d="M11 25L10 5Q12 2 25 20M32 19Q45 2 47 5L46 27" fill="url(#fur)" stroke="#A9683F" stroke-width=".9"/>
+<path d="M14 18L14 9L22 20M37 20L44 9L43 21" fill="#765344"/>
+<path d="M8 28Q10 18 27 17Q43 17 48 28L52 32L46 33L48 37Q40 44 28 43Q15 44 8 37L10 33L5 31Z" fill="url(#fur)" stroke="#A9683F" stroke-width=".8"/>
+<path d="M10 30Q16 28 25 32L28 29L31 32Q40 28 47 30Q46 41 28 42Q11 41 10 30Z" fill="url(#cream)"/>
+<ellipse cx="13" cy="34" rx="3.2" ry="1.7" fill="#E9A08C" opacity=".5"/><ellipse cx="43" cy="34" rx="3.2" ry="1.7" fill="#E9A08C" opacity=".5"/>
+<path d="M25 30Q28 28 31 30Q29 33 28 33Q27 33 25 30Z" fill="#684B3C"/>
+<path d="M13 49Q10 57 18 58Q24 58 21 51M34 51Q32 58 40 58Q45 57 42 49" fill="#765344"/>
+<path d="M14 43Q17 44 20 43L21 48L18 50L15 47Z" fill="#B4C7A3"/>
+<path d="M18 44L21 46L18 48L15 46Z" fill="$STATE" stroke="#FFF1D4" stroke-width=".65"/>
+</svg>

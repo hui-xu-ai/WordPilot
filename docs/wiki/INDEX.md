@@ -1,6 +1,6 @@
 # Wiki 索引
 
-> 由 `proj wiki index` 生成（内容确定性，可重复跑）｜条目：17
+> 由 `proj wiki index` 生成（内容确定性，可重复跑）｜条目：18
 
 ## .
 - [WordPilot 工作区（pydev 预设）](AGENTS.md) — 2603 B
@@ -10,6 +10,7 @@
 - [架构说明 · ARCHITECTURE](docs/ARCHITECTURE.md) — 13714 B
 - [打包与运行 · BUILD](docs/BUILD.md) — 2203 B
 - [开发与更新规范 · DEVELOPMENT](docs/DEVELOPMENT.md) — 5739 B
+- [桌宠皮肤与状态](docs/PET_SKINS.md) — 2111 B
 - [插件开发指南 · PLUGIN GUIDE](docs/PLUGIN_GUIDE.md) — 9208 B
 - [路线图 · ROADMAP](docs/ROADMAP.md) — 4479 B
 - [ADR-001 采用 pydev 项目布局与记忆分离](docs/adr/001-onboarding-layout.md) — 1964 B

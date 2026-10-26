@@ -15,10 +15,12 @@ import logging
 
 from PySide6.QtCore import QObject, QPoint, Signal
 
+from core.services.skin_service import DEFAULT_SKIN_ID, SkinService
+
 logger = logging.getLogger(__name__)
 
 CONFIG_PREFIX = "pet"
-DEFAULT_SIZE = 96
+DEFAULT_SIZE = 70
 MIN_SIZE = 32          # 画布会同步缩放，小尺寸也完整
 MAX_SIZE = 100
 
@@ -36,7 +38,7 @@ class PetService(QObject):
         self._config = config
         self._pos: QPoint | None = None
         self._size = DEFAULT_SIZE
-        self._skin = "classic"
+        self._skin = DEFAULT_SKIN_ID
         self._visible = False
         # 插件快捷项：{plugin_id: [{label, callback, order}]}，只显示已启用插件的
         self._actions: dict[str, list[dict]] = {}
@@ -75,7 +77,8 @@ class PetService(QObject):
 
     def _load(self) -> None:
         self._size = int(self._get("size", DEFAULT_SIZE) or DEFAULT_SIZE)
-        self._skin = str(self._get("skin", "classic") or "classic")
+        configured_skin = str(self._get("skin", DEFAULT_SKIN_ID) or DEFAULT_SKIN_ID)
+        self._skin = SkinService({"skin": configured_skin}).current_id or DEFAULT_SKIN_ID
         # 历史 bug 曾把"窗口隐藏"当成用户选择写进配置，导致宠物永远不出现。
         # 只有当用户显式切换过（hidden_by_user=True）才尊重 pet.visible。
         self._visible = (bool(self._get("visible", True))
@@ -116,7 +119,7 @@ class PetService(QObject):
         self.geometryChanged.emit()
 
     def set_skin(self, skin: str) -> None:
-        skin = (skin or "classic").strip() or "classic"
+        skin = (skin or DEFAULT_SKIN_ID).strip() or DEFAULT_SKIN_ID
         if skin == self._skin:
             return
         self._skin = skin

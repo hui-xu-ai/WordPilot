@@ -12,8 +12,8 @@ from PySide6.QtWidgets import QApplication      # noqa: E402
 
 app = QApplication([])                           # noqa: F401
 
-from core.services.skin_service import SkinService        # noqa: E402
-from plugins.proofread.pet_window import PetWindow        # noqa: E402
+from core.services.skin_service import DEFAULT_SKIN_ID, SkinService        # noqa: E402
+from core.widgets.pet_window import PetWindow        # noqa: E402
 
 
 class Cfg(dict):
@@ -53,7 +53,7 @@ pet._save_position()
 print("pet.position:", cfg.get("pet.position"))
 
 print("\n=== 5) 换肤 ===")
-skins.set_skin("default")
+skins.set_skin(DEFAULT_SKIN_ID)
 pet.set_services(skins=skins)
 print("current skin:", skins.current_id, "| canvas:", pet.canvas.width(), pet.canvas.height())
 

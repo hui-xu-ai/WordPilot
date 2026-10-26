@@ -13,6 +13,9 @@ from core.services.word_constants import wdConst as constants  # word常量修�
 
 logger = logging.getLogger(__name__)
 
+
+class ProofingFailedError(RuntimeError):
+    """校对未完成，不能作为“与原文相同/通过”的结果交给桌宠。"""
 # 标记清除已拆到 word_marks（性能改造见该模块）；此处保留再导出供旧调用方使用
 from plugins.proofread.word_marks import clear_error_marks  # noqa: E402,F401
 
@@ -319,6 +322,7 @@ class WordMonitor(QThread):
     status_update = Signal(str)
     #: 即将发起一次校对（供桌宠切到 busy 状态）
     proofing_started = Signal()
+    proofing_failed = Signal(str)
 
     def __init__(self, config, api, ignore_mgr=None, i18n=None):
         super().__init__()
@@ -357,6 +361,7 @@ class WordMonitor(QThread):
         self.debug_signal.emit(self.tr("monitor.started"))
         try:
             while self.running:
+                proofing = False
                 try:
                     if self.proof_enabled:  # ← 新增判断  --修改22
                         word = get_word_app()
@@ -399,6 +404,7 @@ class WordMonitor(QThread):
                             current_text and len(current_text) >= 8):
                             
                             self.status_update.emit(self.tr("monitor.proofing_selection"))
+                            proofing = True
                             self.proofing_started.emit()
                             try:
                                 clear_error_marks(sentence_range.Start, sentence_range.End)
@@ -412,8 +418,13 @@ class WordMonitor(QThread):
                                         self.status_update.emit(self.tr("monitor.suggestion_ready"))
                                     else:
                                         self.status_update.emit(self.tr("monitor.no_error"))
+                                else:
+                                    self.proofing_failed.emit(self.tr("monitor.too_short"))
+                                    self.status_update.emit(self.tr("monitor.too_short"))
                             except Exception as e:
+                                self.proofing_failed.emit(str(e))
                                 self.status_update.emit(self.tr("monitor.selection_failed", error=e))
+                            proofing = False
 
                         # 更新 last_selection_range
                         if sel_start is not None:
@@ -437,13 +448,15 @@ class WordMonitor(QThread):
                                     if not prev_complete and is_complete:
                                         # 句子刚完成，触发校对
                                         self.status_update.emit(self.tr("monitor.sentence_detected"))
-                                        self.proofing_started.emit()
 
                                         # 检查忽略列表
                                         if self.ignore_mgr and self.ignore_mgr.is_ignored(current_text):
                                             self.status_update.emit(self.tr("monitor.ignored"))
                                             self.sentence_state[sent_key] = (current_text, is_complete)
                                             continue
+
+                                        proofing = True
+                                        self.proofing_started.emit()
 
                                         # 调用统一校对函数（内部处理分词、缓存、API、标记）
                                         pure, corrected, start_pos, end_pos = proof_sentence(
@@ -462,7 +475,9 @@ class WordMonitor(QThread):
                                                                                 ms=latency) if latency
                                                                         else self.tr("monitor.no_error"))
                                         else:
+                                            self.proofing_failed.emit(self.tr("monitor.too_short"))
                                             self.status_update.emit(self.tr("monitor.too_short"))
+                                        proofing = False
 
                                         # 更新状态
                                         self.sentence_state[sent_key] = (current_text, is_complete)
@@ -474,7 +489,13 @@ class WordMonitor(QThread):
                                     self.sentence_state[sent_key] = (current_text, is_complete)
 
                     time.sleep(0.2)
+                except ProofingFailedError as e:
+                    self.proofing_failed.emit(str(e))
+                    self.status_update.emit(self.tr("monitor.error", error=e))
+                    time.sleep(1)
                 except Exception as e:
+                    if proofing:
+                        self.proofing_failed.emit(str(e))
                     self.debug_signal.emit(self.tr("monitor.error", error=e))
                     self.status_update.emit(self.tr("monitor.open_word"))
                     time.sleep(1)
@@ -509,9 +530,12 @@ def proof_sentence(sentence_range, api, config, i18n=None):
     # 3. 缓存查询（SQLite，键统一为 body_text；proof_text 内部用同一键读写）
     corrected_full = get_default_cache().get(body_text)
     if not corrected_full:
-        corrected_full = api.proof_text(api_prompt, cache_key=body_text) if api else raw_text
+        if api is None:
+            raise ProofingFailedError("API client is unavailable")
+        corrected_full = api.proof_text(api_prompt, cache_key=body_text)
     if not corrected_full:
-        corrected_full = raw_text
+        reason = getattr(api, "last_error", "") or "API returned no correction result"
+        raise ProofingFailedError(reason)
 
     # 4. 提取 AI 返回的正文，并强制恢复原始尾部
     body_new, _ = split_trailing_chars(corrected_full)
@@ -573,4 +597,4 @@ def split_trailing_chars(text):
     match = re.search(r'[。？！!?][\s\r\n]*$', text)
     if match:
         return text[:match.start()], text[match.start():]
-    return text, ''        
+    return text, ''

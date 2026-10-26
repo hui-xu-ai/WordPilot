@@ -106,10 +106,10 @@ def test_pet_controls_reach_core_service(page):
     assert service.size == 96, "滑块必须写进核心尺寸"
 
     index = next((i for i in range(widget.skin_combo.count())
-                  if widget.skin_combo.itemData(i) == "deepseek"), -1)
-    assert index >= 0, "皮肤下拉应包含 deepseek"
+                  if widget.skin_combo.itemData(i) == "sky_whale"), -1)
+    assert index >= 0, "皮肤下拉应包含 sky_whale"
     widget.skin_combo.setCurrentIndex(index)
-    assert service.skin == "deepseek", "外观页切皮肤必须写进核心皮肤"
+    assert service.skin == "sky_whale", "外观页切皮肤必须写进核心皮肤"
 
 
 def test_pet_size_survives_skin_change(page):
@@ -135,5 +135,17 @@ def test_pet_size_survives_skin_change(page):
     host = PetHost.instance()
     fake = _FakeWindow()
     host._window = fake
-    host.apply_skin("neon")
+    host.apply_skin("ink_cat")
     assert fake.sizes[-1] == service.size == 96, "切皮肤后要按内核尺寸续用"
+
+
+def test_all_eight_skin_choices_are_available(page):
+    from core.services.skin_service import SkinService
+
+    original, manager = page
+    widget = type(original)(manager, skins=SkinService(manager))
+    try:
+        names = {widget.skin_combo.itemText(i) for i in range(widget.skin_combo.count())}
+        assert names == {"奶团兔", "墨墨猫", "浮游鲸", "书页灵", "栗子柯基", "薄荷小龙", "枫糖小狐", "暮色小鸮"}
+    finally:
+        widget.deleteLater()

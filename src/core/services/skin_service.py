@@ -22,13 +22,20 @@ logger = logging.getLogger(__name__)
 
 #: 桌宠状态 -> 主题令牌（颜色即状态：绿=无错/正确 / 红=有错 / 黄=校对中 / 灰=未启用）
 STATE_TOKENS = {
-    "idle": "color.state.ok",      # 打盹休息（闭眼）
+    "idle": "color.state.off",     # 休息不等于校对通过
     "ok": "color.state.ok",        # 校对正确（开心笑，2 秒后回落 idle）
     "error": "color.state.error",  # 有修改建议（皱眉，等用户决策）
     "busy": "color.state.busy",
     "disabled": "color.state.off",
 }
 DEFAULT_STATE = "idle"
+DEFAULT_SKIN_ID = "mochi_bunny"
+
+# 新皮肤用固定的高对比状态装饰；角色本色独立于主题和状态。
+STATE_COLORS = {
+    "idle": "#9096a0", "ok": "#36ad59", "error": "#ef6b61",
+    "busy": "#e6a232", "disabled": "#9096a0",
+}
 
 
 class SkinService:
@@ -82,7 +89,7 @@ class SkinService:
 
     @property
     def default_id(self) -> str:
-        return "default" if "default" in self._manifests else (
+        return DEFAULT_SKIN_ID if DEFAULT_SKIN_ID in self._manifests else (
             sorted(self._manifests)[0] if self._manifests else "")
 
     def available(self) -> list[dict]:
@@ -116,6 +123,11 @@ class SkinService:
     def layout(self, skin_id: str | None = None) -> dict:
         manifest = self._manifest(skin_id)
         return dict(manifest.get("layout", {})) if manifest else {}
+
+    def status_overlay_enabled(self, skin_id: str | None = None) -> bool:
+        """可选的共享光环/角标；旧皮肤保持原有绘制协议。"""
+        manifest = self._manifest(skin_id)
+        return bool(manifest and manifest.get("status_overlay", False))
 
     def part_svg(self, name: str, state: str = DEFAULT_STATE, *,
                  skin_id: str | None = None, colors: dict[str, str] | None = None) -> str:

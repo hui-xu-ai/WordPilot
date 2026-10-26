@@ -8,8 +8,8 @@
 
 外观：
     造型来自皮肤包（assets/skins/<id>/skin.json + SVG 分部件），
-    主体颜色即状态色——绿=无错 / 红=有错 / 黄=校对中 / 灰=未启用，
-    配合眨眼与呼吸两个小动作，让「有没有错误」一眼可见。
+    新皮肤保持角色本色，用绿色勾/珊瑚红叹号、光环与表情区分关键状态；
+    休息为中性，配合眨眼、呼吸和新建议的一次轻跳。
 
 交互：
     左键单击   切换建议气泡
@@ -18,7 +18,6 @@
 """
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import (QEasingCurve, QPoint, QRect, QRectF, Qt, QTimer,
@@ -29,7 +28,7 @@ from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication, QMenu, QVBoxLayout, QWidget
 
-from core.services.skin_service import STATE_TOKENS
+from core.services.skin_service import STATE_COLORS, STATE_TOKENS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -37,13 +36,7 @@ if TYPE_CHECKING:
 WINDOW_ID = "proofread.pet"
 
 #: 状态 -> 回退色（主题服务不可用时兜底，保证桌宠永远看得见）
-_FALLBACK_COLORS = {
-    "idle": "#107c10",
-    "ok": "#107c10",
-    "error": "#c42b1c",
-    "busy": "#d83b01",
-    "disabled": "#8a8a8a",
-}
+_FALLBACK_COLORS = STATE_COLORS
 
 
 class PetCanvas(QWidget):
@@ -55,6 +48,7 @@ class PetCanvas(QWidget):
         self._theme = theme
         self._state = "idle"
         self._breathe = 0.0          # 0~1，呼吸相位强度
+        self._attention = 0.0
         self._blink = 1.0            # 眼睛纵向缩放，1=睁开
         self.setObjectName("petCanvas")
 
@@ -78,12 +72,20 @@ class PetCanvas(QWidget):
         self._breathe_anim.setEasingCurve(QEasingCurve.InOutSine)
         self._breathe_anim.setLoopCount(-1)
         self._breathe_anim.valueChanged.connect(self._set_breathe)
+        self._attention_anim = QVariantAnimation(self)
+        self._attention_anim.setDuration(480)
+        self._attention_anim.setKeyValues([(0, 0.0), (0.35, 1.0), (0.7, 0.35), (1, 0.0)])
+        self._attention_anim.setEasingCurve(QEasingCurve.InOutSine)
+        self._attention_anim.valueChanged.connect(self._set_attention)
 
     # ---------------- 状态 ----------------
     def set_state(self, state: str) -> None:
         if state == self._state:
             return
         self._state = state if state in STATE_TOKENS else "idle"
+        if self._state != "error":
+            self._attention_anim.stop()
+            self._attention = 0.0
         self.update()
 
     def state(self) -> str:
@@ -122,6 +124,8 @@ class PetCanvas(QWidget):
         """主题/皮肤切换后刷新引用并立即重绘。"""
         if skins is not None:
             self._skins = skins
+            self._anim = skins.animation()
+            self._breathe_anim.setDuration(int(self._anim["breathe_interval_ms"]))
             width, height = skins.size()
             self.setFixedSize(width, height)
         if theme is not None:
@@ -138,6 +142,18 @@ class PetCanvas(QWidget):
     def stop_animation(self) -> None:
         self._ticker.stop()
         self._breathe_anim.stop()
+        self._attention_anim.stop()
+        self._attention = 0.0
+
+    def notify_suggestion(self) -> None:
+        """仅在新建议到达时轻跳一次；动画只影响角色绘制，不移动窗口。"""
+        if self._state != "disabled" and self._skins is not None and self._skins.status_overlay_enabled():
+            self._attention_anim.stop()
+            self._attention_anim.start()
+
+    def _set_attention(self, value) -> None:
+        self._attention = float(value)
+        self.update()
 
     def _set_breathe(self, value) -> None:
         self._breathe = float(value)
@@ -161,8 +177,10 @@ class PetCanvas(QWidget):
 
     # ---------------- 绘制 ----------------
     def state_color(self) -> QColor:
+        if self._skins is not None and self._skins.status_overlay_enabled():
+            return QColor(STATE_COLORS[self._state])
         token = STATE_TOKENS.get(self._state, STATE_TOKENS["idle"])
-        fallback = _FALLBACK_COLORS.get(self._state, "#107c10")
+        fallback = _FALLBACK_COLORS.get(self._state, STATE_COLORS["idle"])
         value = self._theme.token(token, fallback) if self._theme is not None else fallback
         return QColor(value)
 
@@ -183,38 +201,9 @@ class PetCanvas(QWidget):
         finally:
             painter.end()
     def _paint(self, painter: QPainter) -> None:
-        rect = getattr(self, "_paint_rect", None) or self.rect()
-        if self._skins is None or not self._skins.current_id:
-            self._paint_fallback(painter, rect)
-            return
+        from core.widgets.pet_render import paint_pet
 
-        # 呼吸：整体轻微缩放，围绕底部中心（脚不动，像在喘气）
-        scale = 1.0 + float(self._anim.get("breathe_scale", 0.045)) * math.sin(
-            2 * math.pi * self._breathe)
-        painter.translate(rect.center().x(), rect.bottom())
-        painter.scale(scale, scale)
-        painter.translate(-rect.center().x(), -rect.bottom())
-
-        colors = self._colors()
-        self._draw(painter, "body", rect, colors)
-
-        layout = self._skins.layout()
-        # 闭眼状态（打盹/停用）不眨眼
-        eyes_open = self._skins.eye_variant(self._state) == "open"
-        for name in ("eye_left", "eye_right"):
-            box = layout.get(name)
-            if not box:
-                continue
-            target = QRectF(box["x"], box["y"], box["w"], box["h"])
-            if eyes_open and self._blink < 1.0:
-                # 眨眼：以眼睛中心为轴压扁
-                shrink = target.height() * (1 - self._blink)
-                target = target.adjusted(0, shrink / 2, 0, -shrink / 2)
-            self._draw(painter, name, target, colors)
-
-        box = layout.get("mouth")
-        if box:
-            self._draw(painter, "mouth", QRectF(box["x"], box["y"], box["w"], box["h"]), colors)
+        paint_pet(self, painter)
 
     def _draw(self, painter: QPainter, part: str, target, colors: dict[str, str]) -> None:
         svg = self._skins.part_svg(part, self._state, colors=colors)
@@ -365,6 +354,9 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
         self._reflow_keeping_pet()
 
     # ---------------- 气泡 ----------------
+    def has_pending_suggestion(self) -> bool:
+        return self._pending_suggestion is not None
+
     def set_suggestion(self, original, corrected, start=-1, end=-1) -> None:
         """收到校对结果：无差异则记 idle，有差异则记 error 并按配置弹出气泡。"""
         anchor = self._canvas_global_pos()          # 显示气泡前的宠物位置快照
@@ -375,7 +367,11 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
             self._bubble_anchor = anchor
             self._after_bubble_change()
             return
+        previous = self._pending_suggestion
         self._pending_suggestion = (original, corrected, start, end)
+        canvas = getattr(self, "canvas", None)
+        if canvas is not None and self._pending_suggestion != previous:
+            canvas.notify_suggestion()
         self.bubble.show_suggestion(original, corrected, None, self.config,
                                     start=start, end=end)
         if not self.config.get("auto_show_suggestion", True):

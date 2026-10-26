@@ -20,6 +20,8 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet
 
+from core.services.skin_service import DEFAULT_SKIN_ID
+
 logger = logging.getLogger(__name__)
 
 # 程序目录下的 config 子文件夹
@@ -107,7 +109,7 @@ class ConfigManager:
         # 窗口治理：几何记忆与各窗口置顶偏好
         config.setdefault("geometry", {})
         # 桌宠（P4）：皮肤与屏幕位置
-        config.setdefault("skin", "default")
+        config.setdefault("skin", DEFAULT_SKIN_ID)
         config.setdefault("pet.position", None)
 
         # ---- 已废弃键的一次性清理 ----

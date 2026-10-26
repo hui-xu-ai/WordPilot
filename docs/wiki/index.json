@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root": ".",
-  "count": 17,
+  "count": 18,
   "entries": [
     {
       "path": "AGENTS.md",
@@ -240,6 +240,18 @@
       "tags": [],
       "bytes": 5739,
       "mtime": "2026-10-24T07:25:32.549159+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/PET_SKINS.md",
+      "title": "桌宠皮肤与状态",
+      "headings": [
+        "桌宠皮肤与状态",
+        "皮肤资源协议"
+      ],
+      "tags": [],
+      "bytes": 2111,
+      "mtime": "2026-10-25T15:55:23.684750+00:00",
       "archive": false
     },
     {

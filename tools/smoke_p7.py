@@ -69,7 +69,7 @@ pet = proof.floating_btn
 from core.services.skin_service import SkinService
 skins = kernel.services.get("skins")
 assert skins.eye_variant("idle") == "sleep", "idle 应为闭眼打盹"
-assert skins.eye_variant("error") == "open"
+assert skins.eye_variant("error") == "alert"
 proof.set_state("idle")
 idle_mouth = skins.part_svg("mouth", "idle")
 print("idle  -> eyes:", skins.eye_variant("idle"), "| mouth svg len:", len(idle_mouth))

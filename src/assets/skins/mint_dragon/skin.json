@@ -1,0 +1,64 @@
+{
+  "id": "mint_dragon",
+  "name": "薄荷小龙",
+  "version": "1.0",
+  "author": "WordPilot",
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "status_overlay": true,
+  "parts": {
+    "body": "body.svg",
+    "eye_left": "eye.svg",
+    "eye_right": "eye.svg"
+  },
+  "mouths": {
+    "idle": "mouth_sleep.svg",
+    "ok": "mouth_happy.svg",
+    "error": "mouth_error.svg",
+    "busy": "mouth_busy.svg",
+    "disabled": "mouth_off.svg"
+  },
+  "layout": {
+    "eye_left": {
+      "x": 15,
+      "y": 23,
+      "w": 8,
+      "h": 10
+    },
+    "eye_right": {
+      "x": 35,
+      "y": 23,
+      "w": 8,
+      "h": 10
+    },
+    "mouth": {
+      "x": 24,
+      "y": 34,
+      "w": 11,
+      "h": 7
+    }
+  },
+  "eyes": {
+    "open": "eye.svg",
+    "sleep": "eyes_sleep.svg",
+    "happy": "eyes_happy.svg",
+    "alert": "eyes_alert.svg",
+    "focused": "eyes_focused.svg"
+  },
+  "eye_states": {
+    "idle": "sleep",
+    "ok": "happy",
+    "error": "alert",
+    "busy": "focused",
+    "disabled": "sleep"
+  },
+  "animation": {
+    "blink_interval_ms": 3900,
+    "blink_duration_ms": 140,
+    "breathe_interval_ms": 2800,
+    "breathe_scale": 0.015
+  },
+  "notes": "角色本色固定；仅小配饰使用 $STATE。状态光环与大角标由共用渲染器绘制；眼睛与嘴按五种校对状态分层切换。"
+}
