@@ -8,6 +8,9 @@ import time
 from PySide6.QtCore import QThread, Signal
 
 from core.services.proof_cache import get_default_cache
+from plugins.proofread.tokenized_sentence import TokenizedSentence
+from plugins.proofread.context_window import (context_cache_key, debate_seconds,
+                                              surrounding_text)
 from core.services.word_bridge import get_word_app, com_initialized
 from core.services.word_constants import wdConst as constants  # word常量修改  2026.05.19
 
@@ -23,82 +26,6 @@ wdUnderlineWavy = constants.wdUnderlineWavy
 wdColorRed = constants.wdColorRed
 
 
-class TokenizedSentence:
-    """将 Word 句子 Range 解析为带对象信息的 token 列表"""
-    def __init__(self, sentence_range):
-        self.range = sentence_range.Duplicate
-        self.tokens = []          # 每个元素: {'text': str, 'start': int, 'end': int, 'type': 'text'|'image'|'formula'}
-        self.pure_text = ""       # 纯文本视图，对象用占位符表示
-        self._tokenize()
-
-    def _tokenize(self):
-        # 使用 Range.Words 遍历，并识别对象
-        r = self.range.Duplicate
-        for i in range(1, r.Words.Count + 1):
-            word = r.Words(i)
-            if word.InlineShapes.Count > 0:
-                self.tokens.append({
-                    'text': f'[IMG{len(self.tokens)}]',
-                    'start': word.Start,
-                    'end': word.End,
-                    'type': 'image'
-                })
-            elif word.OMaths.Count > 0:
-                self.tokens.append({
-                    'text': f'[EQ{len(self.tokens)}]',
-                    'start': word.Start,
-                    'end': word.End,
-                    'type': 'formula'
-                })
-            else:
-                self.tokens.append({
-                    'text': word.Text,
-                    'start': word.Start,
-                    'end': word.End,
-                    'type': 'text'
-                })
-        self.pure_text = "".join([t['text'] for t in self.tokens])
-
-    def get_text_for_api(self):
-        """返回发给 AI 的文本（占位符形式）"""
-        return self.pure_text
-
-    def has_special_objects(self):
-        """判断是否包含图像或公式"""
-        return any(t['type'] in ('image', 'formula') for t in self.tokens)
-        
-#  分块替换句子--修改18
-    def get_blocks(self):           
-        """
-        返回分块列表，每个块是 {'type':'text'/'object', 'content':...}
-           - 对于文本块，content 是原始文本
-           - 对于对象块，content 是包含占位符和位置信息的字典
-        """
-        blocks = []
-        for t in self.tokens:
-            if t['type'] == 'text':
-                blocks.append({'type': 'text', 'content': t['text']})
-            else:
-                blocks.append({
-                    'type': 'object',
-                    'content': {
-                        'placeholder': t['text'],
-                        'start': t['start'],
-                        'end': t['end'],
-                    }
-                })
-        return blocks
-    def find_placeholder_positions(self, corrected_text):
-        """
-        在修正文本中按顺序查找所有占位符的出现位置（可能因文本变化而移位）。
-        返回列表 [(placeholder, start_char_index, end_char_index), ...]
-        """        
-        pattern = re.compile(r'\[(IMG|EQ)\d+\]')
-        positions = []
-        for m in pattern.finditer(corrected_text):
-            positions.append((m.group(), m.start(), m.end()))
-        return positions
-#  分块替换句子--修改18
 def token_based_mark_differences(original_tokens, corrected_sequence, sentence_range):
     """
     基于 token 序列的差异标记。
@@ -353,6 +280,10 @@ class WordMonitor(QThread):
         return self._i18n.prompt_tr(f"proofread.{key}", **params)
 
     # word_monitor.py - class WordMonitor       --修改18 重写校对逻辑
+    def _debounce_seconds(self) -> float:
+        """U08：把设置里的 debounce_ms 换成秒（实现见 context_window）。"""
+        return debate_seconds(self.config)
+
     def run(self):
         with com_initialized():
             self._run_loop()
@@ -488,7 +419,8 @@ class WordMonitor(QThread):
                                     # 文本无变化，只更新完成状态
                                     self.sentence_state[sent_key] = (current_text, is_complete)
 
-                    time.sleep(0.2)
+                    # U08：防抖间隔读配置（设置页写了 debounce_ms，之前固定 0.2s 不生效）
+                    time.sleep(self._debounce_seconds())
                 except ProofingFailedError as e:
                     self.proofing_failed.emit(str(e))
                     self.status_update.emit(self.tr("monitor.error", error=e))
@@ -508,6 +440,7 @@ class WordMonitor(QThread):
         self.debug_signal.emit(self.tr("monitor.stop_requested"))
         
 ###   --修改21
+
 def proof_sentence(sentence_range, api, config, i18n=None):
     tokenized = TokenizedSentence(sentence_range)
     raw_text = tokenized.get_text_for_api()
@@ -527,12 +460,19 @@ def proof_sentence(sentence_range, api, config, i18n=None):
     if has_placeholder:
         api_prompt = prompt_tr("prompt.placeholder_notice") + raw_text
 
+    # U08：设置里的"上下文前后字数"此前只存不用——这里真正读出来拼进提示词，
+    # 让模型看得到前后文（但只允许改目标句，返回仍按句子解析）。
+    context_text = surrounding_text(sentence_range, config)
+    if context_text:
+        api_prompt = f"上下文（仅供理解，不要修改）：{context_text}\n\n待校对句子：{api_prompt}"
+
     # 3. 缓存查询（SQLite，键统一为 body_text；proof_text 内部用同一键读写）
-    corrected_full = get_default_cache().get(body_text)
+    cache_key = context_cache_key(body_text, context_text)
+    corrected_full = get_default_cache().get(cache_key)
     if not corrected_full:
         if api is None:
             raise ProofingFailedError("API client is unavailable")
-        corrected_full = api.proof_text(api_prompt, cache_key=body_text)
+        corrected_full = api.proof_text(api_prompt, cache_key=cache_key)
     if not corrected_full:
         reason = getattr(api, "last_error", "") or "API returned no correction result"
         raise ProofingFailedError(reason)

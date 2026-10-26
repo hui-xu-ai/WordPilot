@@ -54,8 +54,13 @@ def test_translate_empty_input_returns_none(api_client):
 
 
 def test_test_connection_false_on_failure(api_client, monkeypatch):
-    monkeypatch.setattr(api_mod.requests, "post",
-                        lambda *a, **k: (_ for _ in ()).throw(OSError("x")))
+    # T02：客户端走 `_session().post`，补丁要打在 session 上；
+    # 打在 requests.post 上等于没打，测试会真的尝试联网（审查在本机代理上拦到过一次）。
+    class _BoomSession:
+        def post(self, *args, **kwargs):
+            raise OSError("x")
+
+    monkeypatch.setattr(api_mod, "_session", lambda: _BoomSession())
     assert api_client.test_connection() is False
 
 
