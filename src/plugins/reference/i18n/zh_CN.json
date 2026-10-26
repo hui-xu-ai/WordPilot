@@ -152,5 +152,7 @@
   "library.delete.tip": "删除当前文献集（进回收区，可恢复）",
   "panel.hide": "隐藏详情",
   "panel.show": "显示详情",
-  "overlay.no_match": "引用 {label} 在库里没有对应文献，可点「同步本文」后再试"
+  "overlay.no_match": "引用 {label} 在库里没有对应文献，可点「同步本文」后再试",
+  "switch.into_blank": "已使用当前空白仓库：{name}",
+  "switch.into_current": "已装入当前仓库：{name}"
 }

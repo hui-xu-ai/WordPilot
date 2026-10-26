@@ -29,6 +29,18 @@ def suggest_library_name(existing: list[str], doc_name: str) -> str:
     return name
 
 
+def _is_blank_library(plugin) -> bool:
+    """当前库是否为空（没有任何文献）。空库 = 用户专门建来装这份文档的。"""
+    try:
+        store = getattr(plugin, "_store", None)
+        refs = getattr(store, "all", None) if store is not None else None
+        if callable(refs):
+            return len(refs()) == 0
+    except Exception:                          # noqa: BLE001 - 取不到就当作非空
+        return False
+    return False
+
+
 def route_before_import(plugin, doc_path: str, doc_name: str,
                         keys: set[str], stats: dict) -> bool:
     """入库前把库切到"这份文档该去的仓库"，避免多个文档合并进同一个库。
@@ -56,6 +68,14 @@ def route_before_import(plugin, doc_path: str, doc_name: str,
         plugin._libraries.bind_document(doc_path, plan.library)
         stats["switch_text"] = plugin.tr("switch.auto", library=plan.library,
                                          percent=int(plan.score * 100))
+        return True
+
+    if plan.action == NEW and _is_blank_library(plugin):
+        # 用户刚手动建了一个空仓库并选中它 —— 这时"同步本文"就该往这个空仓库里装，
+        # 不需要再弹窗（空库不存在混库风险，这正是用户建它的目的）。
+        plugin._libraries.bind_document(doc_path, plugin._libraries.active_name())
+        stats["switch_text"] = plugin.tr("switch.into_blank",
+                                         name=plugin._libraries.active_name())
         return True
 
     if plan.action in (NEW, PROMPT):

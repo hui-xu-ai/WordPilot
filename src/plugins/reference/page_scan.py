@@ -137,7 +137,15 @@ class ScanMixin:
             self.append_status(self.tr("switch.created", name=dialog.new_name))
             self._rescan_after_choice()
         else:
-            self.append_status(self.tr("switch.stay"))
+            # "保持当前不动" = 用**当前库**装这份文档（用户点的就是这个意思）。
+            # 之前的实现只是什么都不做，于是空白库永远同步不进去。
+            current = getattr(plugin, "_active_name", "") or ""
+            if bundle and current:
+                plugin.bind_document(doc_path, current)
+                self.append_status(self.tr("switch.into_current", name=current))
+                self._rescan_after_choice()
+            else:
+                self.append_status(self.tr("switch.stay"))
 
     def _rescan_after_choice(self) -> None:
         """用户做出选择后重新扫描一次：此时绑定已存在，会直接入库。"""

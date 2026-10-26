@@ -152,5 +152,7 @@
   "library.delete.tip": "Delete this library (moves to trash)",
   "panel.hide": "Hide details",
   "panel.show": "Show details",
-  "overlay.no_match": "Citation {label} not found in this library; try Sync first"
+  "overlay.no_match": "Citation {label} not found in this library; try Sync first",
+  "switch.into_blank": "Using current empty library: {name}",
+  "switch.into_current": "Imported into current library: {name}"
 }
