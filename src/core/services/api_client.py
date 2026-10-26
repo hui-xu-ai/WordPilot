@@ -53,7 +53,7 @@ class DeepSeekClient:
         else:
             self.api_key = config.get("api_key", "")
         self.model = config.get("model", "deepseek-v4-flash")
-        self.base_url = "https://api.deepseek.com/v1/chat/completions"
+        self.base_url = self._resolve_base_url(config)
         self.last_messages = None
         self.last_usage = None
         self.last_api_success = False
@@ -62,6 +62,36 @@ class DeepSeekClient:
         #: 最近一次真实网络往返耗时（ms）；命中本地缓存时不更新
         self.last_latency_ms = 0
         self._warm_up_connection()
+
+    @staticmethod
+    def _resolve_base_url(config) -> str:
+        """B07：配置里的 api_endpoint 必须生效（此前固定官方 URL，形同摆设）。
+
+        支持"主机根"与"完整 chat/completions 路径"两种写法。
+        """
+        default = "https://api.deepseek.com/v1/chat/completions"
+        try:
+            raw = (config.get("api_endpoint", "") or "").strip()
+        except Exception:                      # noqa: BLE001
+            return default
+        if not raw:
+            return default
+        if not raw.lower().startswith(("http://", "https://")):
+            return default                     # 非法 scheme 回退，避免把 key 发到奇怪地方
+        if raw.rstrip("/").endswith("/chat/completions"):
+            return raw
+        return raw.rstrip("/") + "/v1/chat/completions"
+
+    def _cache_policy_tag(self, prompt_key: str) -> str:
+        """B05：缓存键带上模型 + 该场景的提示词指纹，换策略后不复用旧结果。"""
+        import hashlib
+
+        try:
+            template = (self.config.get(prompt_key) or "").strip()
+        except Exception:                      # noqa: BLE001
+            template = ""
+        digest = hashlib.sha1(f"{self.model}|{prompt_key}|{template}".encode("utf-8"))
+        return f"{self.model or 'unknown'}#{digest.hexdigest()[:10]}"
 
     def _warm_up_connection(self) -> None:
         """后台预热连接：首个校对请求省掉 TLS 握手（约 100~300ms）。
@@ -118,6 +148,9 @@ class DeepSeekClient:
         key = cache_key if cache_key is not None else text
         if cache_namespace:
             key = f"{cache_namespace}:{key}"
+        # B05：只有文本 + 场景是不够的——换模型或改提示词后仍会命中旧结果。
+        # 把模型与提示词指纹并进键里，策略一变就自然不复用。
+        key = f"{self._cache_policy_tag(prompt_key)}:{key}"
         cache = get_default_cache()
         cached = cache.get(key)
         if cached is not None:
