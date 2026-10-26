@@ -182,10 +182,20 @@ class PluginManager:
         """
         if not getattr(manifest, "_user_provided", False):
             return importlib.import_module(self._entry_path(manifest))
-        module_name = f"user_plugins.{manifest.id}.{manifest.entry_module}"
-        if module_name in sys.modules:
-            return sys.modules[module_name]
-        entry_file = self._plugin_dir(manifest) / f"{manifest.entry_module}.py"
+
+        plugin_dir = self._plugin_dir(manifest)
+        package_name = f"user_plugins.{manifest.id}"
+
+        # S4：升级后磁盘文件换了，但 sys.modules 里还是旧模块——先清掉这个插件的
+        # 全部模块，下面的 exec_module 才会读到新代码。历史上只能重启程序。
+        self._purge_user_modules(package_name)
+
+        # S3：外装多文件插件要能 `from .helper import X`，所以必须先把
+        # `user_plugins` 与 `user_plugins.<id>` 两个包建出来并设 __path__。
+        self._ensure_user_package(package_name, plugin_dir)
+
+        module_name = f"{package_name}.{manifest.entry_module}"
+        entry_file = plugin_dir / f"{manifest.entry_module}.py"
         spec = importlib.util.spec_from_file_location(module_name, entry_file)
         if spec is None or spec.loader is None:
             raise PluginError(f"插件入口不可加载: {entry_file}")
@@ -193,6 +203,27 @@ class PluginManager:
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
         return module
+
+    @staticmethod
+    def _purge_user_modules(package_name: str) -> None:
+        """删掉 `<package>` 及其子模块的缓存（升级/重装后强制读新文件）。"""
+        for name in [n for n in sys.modules
+                     if n == package_name or n.startswith(package_name + ".")]:
+            sys.modules.pop(name, None)
+
+    @staticmethod
+    def _ensure_user_package(package_name: str, plugin_dir: Path) -> None:
+        """建立 user_plugins / user_plugins.<id> 包对象，使相对导入可用（S3）。"""
+        import types
+
+        if "user_plugins" not in sys.modules:
+            top = types.ModuleType("user_plugins")
+            top.__path__ = []                      # 标记为包，避免被当成普通模块
+            sys.modules["user_plugins"] = top
+        package = types.ModuleType(package_name)
+        package.__path__ = [str(plugin_dir)]
+        package.__package__ = package_name
+        sys.modules[package_name] = package
 
     def load(self, manifest: PluginManifest, force: bool = False) -> PluginRecord:
         """加载单个插件。force=True 时忽略启用状态（用于将来从界面手动启用）。"""
@@ -203,6 +234,17 @@ class PluginManager:
             record.instance = None
             logger.info("插件未启用，已跳过: %s", manifest.id)
             return record
+
+        # S5：拓扑排序只保证"先加载依赖"，但依赖可能加载失败/被禁用。
+        # 这里在实例化之前再看一眼依赖记录，避免依赖方照样显示 ACTIVE。
+        for dep in manifest.deps:
+            dep_record = self._records.get(dep)
+            dep_state = getattr(dep_record, "state", None)
+            if dep_state != PluginState.ACTIVE:
+                record.state = PluginState.FAILED
+                record.error = f"依赖插件 [{dep}] 未激活（{dep_state or '未加载'}）"
+                logger.error("插件 [%s] 加载失败：%s", manifest.id, record.error)
+                return record
 
         # 插件词条要在 activate() 之前就绪，否则菜单 label 无法翻译
         self._register_plugin_i18n(manifest)
