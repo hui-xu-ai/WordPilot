@@ -324,7 +324,15 @@ class ReferenceOverlay(QWidget):
         self._drag_offset: QPoint | None = None
         self._dismissed_key = ""
 
-        self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        # 不用 `Qt.Tool`：工具窗在某些环境（远程桌面 / 缩放 / 丢焦点）下会"存在但不显示"，
+        # 而 Qt 仍报 isVisible=True、isExposed=True（用户现场：日志说在显示、屏幕上看不到）。
+        # 有属主（宠物窗口）时用 `Qt.Window`：仍是顶层窗，但跟随属主一起显示。
+        flags = Qt.Window if parent is not None else Qt.Tool
+        self.setWindowFlags(flags | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        # 也**不再**用 WA_TranslucentBackground：分层窗口在部分环境里被合成成全透明
+        # （Windows 说可见、程序抓屏有内容，人眼却看不到）。整窗改不透明，圆角由 QSS 画。
+        self.setAttribute(Qt.WA_TranslucentBackground, False)
+        self.setAutoFillBackground(True)
         # 透明只为圆角抗锯齿；卡片本身用不透明底色绘制（否则压在白色 Word 上看不出边界）
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setObjectName("referenceOverlay")
@@ -391,7 +399,8 @@ class ReferenceOverlay(QWidget):
             pass
         return x, y
 
-    def show_entries(self, entries: list[OverlayEntry], anchor: tuple[int, int]) -> None:
+    def show_entries(self, entries: list[OverlayEntry], anchor: tuple[int, int],
+                     pet_rect: tuple[int, int, int, int] | None = None) -> None:
         visible = entries[:MAX_VISIBLE]
         if not visible:
             self.hide_overlay()
@@ -400,7 +409,8 @@ class ReferenceOverlay(QWidget):
         self._fit_height()
         self.adjustSize()
         area = self._work_area(anchor)
-        x, y = place_near(anchor[0], anchor[1], self.width(), self.height(), area)
+        x, y = place_near(anchor[0], anchor[1], self.width(), self.height(), area,
+                          pet_rect=pet_rect)
         self.move(x, y)
         self.show()
         self.raise_()

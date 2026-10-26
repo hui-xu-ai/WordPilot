@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 
-def _make_plugin(tmp_path, monkeypatch, failing: bool):
+def _make_plugin(tmp_path, monkeypatch, failing: bool, providers=()):
     from plugins.reference import plugin as plugin_module
 
     plugin = plugin_module.ReferencePlugin.__new__(plugin_module.ReferencePlugin)
@@ -39,7 +39,7 @@ def _make_plugin(tmp_path, monkeypatch, failing: bool):
 
     class _Result:
         references = [object(), object()]
-        provider_citations: list = []
+        provider_citations = list(providers)
 
     class _FakeDocEntry:
         pass
@@ -67,3 +67,28 @@ def test_failure_does_not_mark_cached(tmp_path, monkeypatch):
         result = None
 
     assert plugin._bib_cache == {}, "写失败后不能标记为已导入（否则重试被跳过）"
+
+
+def test_provider_citations_are_imported_too(tmp_path, monkeypatch):
+    """域里带元数据的引用必须一起入库 —— 否则点引用拿不到卡片，只能点「同步本文」。
+
+    实测：Zotero 文档切过去后 `命中引用但没有可显示卡片`，点一次「同步本文」就好，
+    区别就是 `scan_active_document` 把 `provider_citations` 也 `upsert` 了，
+    而监听路径的 `import_bibliography` 只入文末列表。
+    """
+    from plugins.reference import plugin as plugin_module
+
+    class _Citation:
+        def __init__(self, reference):
+            self.reference = reference
+
+    class _NoMeta:
+        reference = None                       # 空壳域（EndNote shell）不能入库
+
+    providers = [_Citation(object()), _Citation(object()), _NoMeta()]
+    plugin = _make_plugin(tmp_path, monkeypatch, failing=False, providers=providers)
+
+    plugin._import_bibliography("C:/docs/论文.docx", "论文.docx")
+
+    assert plugin._store.written == 4, (
+        f"文末列表 2 条 + 域引用 2 条（空壳不算）应为 4，实际 {plugin._store.written}")

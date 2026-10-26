@@ -81,6 +81,7 @@
   "watch.no_word": "Word not connected (will reconnect automatically)",
   "watch.scanning": "Building citation index…",
   "watch.scanned": "Citation index ready: {count} anchors",
+  "watch.cached": "Citation index loaded from cache: {count} anchors",
   "overlay.close_tip": "Close",
   "status.reloaded": "Reloaded",
   "action.scan.tip": "Scan the current Word document",

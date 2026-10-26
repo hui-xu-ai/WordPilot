@@ -77,7 +77,12 @@ def on_document_switched(plugin, name: str) -> None:
       而且点引用时用的还是旧库的数据（于是"点了没弹窗"）；
     - 清 dismissed / signature：旧文档里"点了不再提示"的记录不能影响新文档。
     """
-    switch_to_bound_library(plugin, name)
+    # `name` 只是 Word 的**文件名**，而绑定表是按**全路径**存的：直接拿 name 去查
+    # 永远查不到（用户现场：切文档后仓库不跟着切，只有扫描线程里的
+    # `_ensure_scan_library()` 才顺带切一次，看起来要等好几秒）。
+    watch = getattr(plugin, "_watch", None)
+    identity = str(getattr(watch, "_last_doc_identity", "") or "") or name
+    switch_to_bound_library(plugin, identity)
     apply_document_name(plugin, name)
     plugin._dismissed = set()
     plugin._shown_signature = ()

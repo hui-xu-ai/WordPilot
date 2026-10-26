@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import TYPE_CHECKING
 
 from core.sdk.plugin_base import PluginBase
@@ -26,7 +27,7 @@ from plugins.reference.bib_import import import_bibliography
 from plugins.reference.doc_bindings import bind_doc
 from plugins.reference.overlay_debug import hint_missing_reference
 from plugins.reference.pet_anchor import (pet_anchor_point, pet_preferred,
-                                          resolve_window)
+                                          pet_screen_rect, resolve_window)
 from plugins.reference.watch_bridge import connect_watch, on_document_switched
 from plugins.reference.watch_bridge import push_current_document
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
@@ -48,6 +49,88 @@ def _label_from_key(anchor_key: str) -> str:
     return anchor_key.rsplit(marker, 1)[-1] if marker in anchor_key else ""
 
 
+def _screen_of(x: int, y: int) -> str:
+    """某个屏幕坐标落在哪块屏（名字@原点）。"""
+    try:
+        from PySide6.QtCore import QPoint
+        from PySide6.QtGui import QGuiApplication
+
+        screen = QGuiApplication.screenAt(QPoint(int(x), int(y))) or QGuiApplication.primaryScreen()
+        area = screen.geometry()
+        return f"{screen.name()}@{area.x()},{area.y()}"
+    except Exception:                      # noqa: BLE001
+        return "?"
+
+
+def _same_document(a: str, b: str) -> bool:
+    """判断两个"文档身份"是不是同一篇（路径 vs 文件名混用也要认出来）。
+
+    `WordWatch` 里 `doc_identity = FullName or doc_name`：Read FullName 失败时会退化成
+    纯文件名，而 payload 里带的是全路径。直接比较字符串会把**当前文档的命中**当成过期
+    丢掉（实测：点 Zotero 的引用被丢弃，②③④ 全不出现）。所以按文件名比较。
+    """
+    if not a or not b:
+        return True
+    if os.path.normcase(a) == os.path.normcase(b):
+        return True
+    return os.path.normcase(os.path.basename(a)) == os.path.normcase(os.path.basename(b))
+
+
+def _pet_window():
+    """宠物窗口（已证明可见）：拿它给悬浮卡当属主，避免"窗口存在但不显示"。"""
+    try:
+        from core.services.pet_host import PetHost
+
+        window = PetHost.instance().window()
+        return window if window is not None and window.isVisible() else None
+    except Exception:                      # noqa: BLE001 - 拿不到就退化成独立窗口
+        return None
+
+
+def _force_topmost(widget) -> None:
+    """用 Win32 把窗口压到最上层（Qt 的 flags 在少数环境不生效）。
+
+    必须声明 `argtypes`：不声明时 `HWND_TOPMOST(-1)` 会按 32 位 int 传递，64 位下被截断，
+    `SetWindowPos` 直接返回 0（实测"强制置顶=失败"，卡片因此被别的置顶窗口盖住）。
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int,
+                                        ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                        ctypes.c_uint]
+        user32.SetWindowPos.restype = wintypes.BOOL
+        swp_nosize, swp_nomove, swp_noactivate, swp_showwindow = 0x1, 0x2, 0x10, 0x40
+        user32.SetWindowPos(wintypes.HWND(int(widget.winId())), wintypes.HWND(-1), 0, 0, 0, 0,
+                            swp_nomove | swp_nosize | swp_noactivate | swp_showwindow)
+    except Exception:                      # noqa: BLE001 - 置顶失败不影响功能
+        pass
+
+
+def _pet_on_work_screen(pet_rect) -> bool:
+    """宠物是否和"前台窗口"在同一块屏（不在同一块，用户就看不到贴着它的卡片）。
+
+    老用户现场：宠物在副屏 Mi Monitor(1920..3840)，Word 在主屏 → 卡片贴着宠物画在副屏，
+    用户只看到"没弹窗"。取不到窗口信息时按"同屏"处理（维持原规则，不乱跳）。
+    """
+    if pet_rect is None:
+        return True
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        rect = wintypes.RECT()
+        user32.GetWindowRect(user32.GetForegroundWindow(), ctypes.byref(rect))
+        foreground = _screen_of((rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2)
+        pet = _screen_of(pet_rect[0] + pet_rect[2] // 2, pet_rect[1] + pet_rect[3] // 2)
+        return foreground == pet
+    except Exception:                      # noqa: BLE001
+        return True
+
+
 class ReferencePlugin(PluginBase):
     """参考文献助手：主页面 + 数据层 + 解析层 + 选区悬浮窗。"""
 
@@ -61,6 +144,7 @@ class ReferencePlugin(PluginBase):
         self._dismissed: set[str] = set()
         self._scan_cache: ScanCache | None = None
         self._last_point: tuple[int, int] = (200, 200)
+        self._last_pet_rect: tuple[int, int, int, int] | None = None
         self._last_items: list[dict] = []
         self._shown_signature: tuple[str, ...] = ()
         self._bib_cache: dict[str, float] = {}     # 文档路径 → 已导入的 mtime
@@ -130,7 +214,11 @@ class ReferencePlugin(PluginBase):
 
     def _ensure_overlay(self) -> ReferenceOverlay:
         if self._overlay is None:
+            # 用**宠物窗口**当属主：独立顶层窗口在这台机器上出现过"Windows 说可见、
+            # 抓屏里有、人眼看不到"。属主窗口（owned window）一定跟随属主显示，
+            # 而宠物窗口已被证明是可见的（用户一直看得见它）。
             self._overlay = ReferenceOverlay(self._store, self.tr,
+                                        parent=_pet_window(),
                                         note_service=self._note_service,
                                         on_pick=self._on_note_picked)
             self._overlay.dismissed.connect(self._on_overlay_dismissed)
@@ -159,18 +247,19 @@ class ReferencePlugin(PluginBase):
         label = item.get("label") or _label_from_key(anchor_key)
 
         reference = store.get(anchor_key)
-        if reference is None and item.get("kind") == "label_fallback" and item.get("reference") is None:
-            # EndNote 空壳域 / 纯文本编号都会走这里：按"文中的编号"到库里找同编号的文献。
-            # 之前这里是直接 return None，于是用户点引用**毫无反应**（审查里也没有覆盖）。
-            reference = store.find_by_label(label)
-            if reference is None:
-                return None                # 库里确实没有这条 → 不打扰
         if reference is None and item.get("reference") is not None:
-            try:                                   # 域里带元数据 → 顺手入库
+            try:                                   # 域里带元数据 → 顺手入库（键最准）
                 reference = store.upsert(item["reference"])
             except ReferenceStoreError as exc:
                 logger.warning("自动导入文献失败：%s", exc)
                 reference = item["reference"]
+        if reference is None:
+            # 锚点键查不到就按**文中编号**兜底：重建/换库后条目的 ref_key 会变（`zotero:906`
+            # 变成 doi/标题键），旧实现只在 `label_fallback` 时才兜底，于是换库后点了只有
+            # 空白卡（实测诊断行 `有文献=0/1`）。
+            reference = store.find_by_label(label)
+            if reference is None and item.get("kind") == "label_fallback":
+                return None                # 空壳域 + 库里没有同编号 → 不打扰
         if reference is None and doc_name and label:
             anchor = store.anchor_for(doc_name, label)   # 用户之前绑定过
             if anchor is not None:
@@ -196,6 +285,15 @@ class ReferencePlugin(PluginBase):
         store = self._store
         if store is None or not isinstance(payload, dict):
             return
+        # 过期命中必须丢掉：切文档瞬间，监听线程里上一份文档的命中会被延迟送到 GUI，
+        # 若照旧处理，会拿 A 文档的锚点去 B 库查（→ 空白卡 `有文献=0/1`），
+        # 并把 A 的文末列表写进 B 库（实测 22:42:32：EndNote 的 43 条写进了 zotero）。
+        payload_doc = str(payload.get("doc_path") or "")
+        current_doc = str(getattr(getattr(self, "_watch", None), "_last_doc_identity", "") or "")
+        if payload_doc and current_doc and not _same_document(payload_doc, current_doc):
+            logger.info("丢弃过期命中：来自 %s，当前是 %s",
+                        os.path.basename(payload_doc), os.path.basename(current_doc))
+            return
         try:
             store.reload_if_changed()
         except ReferenceStoreError as exc:
@@ -208,6 +306,7 @@ class ReferencePlugin(PluginBase):
         pet_anchor = self._pet_anchor_point()
         if pet_anchor is not None and self._pet_preferred():
             self._last_point = pet_anchor
+            self._last_pet_rect = self._pet_rect()
         self._import_bibliography(payload.get("doc_path") or "",
                                   payload.get("doc_name") or "")
 
@@ -228,16 +327,38 @@ class ReferencePlugin(PluginBase):
         overlay = self._ensure_overlay()
         signature = tuple(entry.anchor_key for entry in entries)
         if signature == self._shown_signature and overlay.isVisible():
+            # 这条日志是"卡片到底有没有显示"的判据：有它说明程序**认为**已经显示着。
+            # `raise_()` 必须有：用户在 Word 里点击会把 Word 提到前面，之后每次命中都走
+            # 这条早退分支 → 卡片再也回不到前台（用户现场：日志说显示、屏幕上看不到）。
+            overlay.raise_()
+            _force_topmost(overlay)                # 每次命中都重新压到最上层
+            logger.info("悬浮卡已在显示，同组引用不重画：%d 张 pos=%s 库=%s",
+                        len(entries), (overlay.x(), overlay.y()),
+                        getattr(self, "_active_name", ""))
             return                                  # 同一组锚点且已在显示 → 不重画，避免闪烁
         self._shown_signature = signature
         point = overlay._clamp_to_screen(*self._last_point)
-        logger.info("显示引用卡片：%d 张 pos=%s 库=%s",
-                    len(entries), point, getattr(self, "_active_name", ""))
-        overlay.show_entries(entries, point)
+        with_ref = sum(1 for entry in entries if entry.title)
+        # 宠物在别的屏（用户看不到）→ 放弃"贴宠物"，退回光标定位，保证卡片出现在眼前。
+        anchor_pet = self._last_pet_rect
+        if not _pet_on_work_screen(anchor_pet):
+            anchor_pet = None
+        logger.info("显示引用卡片：%d 张 pos=%s 库=%s 有文献=%d/%d 宠物矩形=%s",
+                    len(entries), point, getattr(self, "_active_name", ""),
+                    with_ref, len(entries), anchor_pet)
+        overlay.show_entries(entries, point, pet_rect=anchor_pet)
+        _force_topmost(overlay)
+        logger.info("悬浮卡落点：左上=(%d,%d) 尺寸=%dx%d 库=%s",
+                    overlay.x(), overlay.y(), overlay.width(), overlay.height(),
+                    getattr(self, "_active_name", ""))
 
     def _pet_anchor_point(self):
         """宠物作为定位锚点（窗口查找与几何兜底见 pet_anchor）。"""
         return pet_anchor_point(resolve_window(getattr(self, "ctx", None)))
+
+    def _pet_rect(self):
+        """宠物窗口矩形（贴宠物上方用；见 overlay_geometry.place_near）。"""
+        return pet_screen_rect(resolve_window(getattr(self, "ctx", None)))
 
     @staticmethod
     def _pet_preferred() -> bool:
@@ -261,8 +382,11 @@ class ReferencePlugin(PluginBase):
             pass
 
     def _watch_status_text(self, code: str) -> str:
-        if code.startswith("watch.scanned:"):
-            return self.tr("watch.scanned", count=code.split(":", 1)[1])
+        for prefix in ("watch.scanned:", "watch.cached:"):
+            if code.startswith(prefix):
+                # 之前只处理了 scanned:，`cached:18` 会原样落到 `tr()` 里 → 缺少翻译 →
+                # 界面直接显示 `reference.watch.cached:18`（用户看到的就是这行"报错"）。
+                return self.tr(prefix[:-1], count=code.split(":", 1)[1])
         mapping = {
             "watch.starting": "watch.starting",
             "watch.no_word": "watch.no_word",
@@ -581,7 +705,8 @@ class ReferencePlugin(PluginBase):
         entry = self._entry_for_item({"anchor_key": anchor_key, "doc_name": doc_name,
                                       "label": label, "reference": None})
         if entry is not None:
-            self._ensure_overlay().show_entries([entry], self._last_point)
+            self._ensure_overlay().show_entries([entry], self._last_point,
+                                                pet_rect=self._last_pet_rect)
 
     # ---------------- 生命周期 ----------------
     def deactivate(self) -> None:

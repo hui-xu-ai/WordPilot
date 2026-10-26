@@ -275,6 +275,7 @@ class WordWatch(QThread):
         self._index = DocIndex()
         self._last_anchor = ""
         self._last_status = ""
+        self._healed: set[tuple] = set()              # BUG-2 自愈：同一篇文档只重扫一次
 
     def stop(self) -> None:
         self._running = False
@@ -332,6 +333,7 @@ class WordWatch(QThread):
             return
 
         doc_identity = self._doc_identity(word) or doc_name
+        self._last_doc_identity = doc_identity        # 供 GUI 侧按**全路径**切绑定库
         if doc_name != getattr(self, "_last_doc_name", None):
             self._last_doc_name = doc_name
             self.documentChanged.emit(doc_name)
@@ -343,13 +345,20 @@ class WordWatch(QThread):
             signature = document_signature(word.ActiveDocument)
         except Exception:                      # noqa: BLE001 - 取不到指纹就退回按路径判断
             signature = None
-        if self._index.needs_rescan(doc_identity, signature):
+        needs = self._index.needs_rescan(doc_identity, signature)
+        if needs:
             doc_path, fp = self._document_fingerprint(word)
             cached = None
             if self._cache is not None:
                 cached = self._cache.load_anchors(doc_path, fp)
             if cached is not None:
                 count = self._index.load(doc_identity, cached)
+                # **必须**把当前内容指纹记进索引：`DocIndex.load()` 不写 signature，
+                # 它会一直保持 `clear()` 后的 (0, 0)，而 (0,0) ≠ 实时指纹 ⇒ 每一轮
+                # `needs_rescan` 都为真 ⇒ 每轮都在这里重扫并 return，**永远走不到读光标、
+                # 提取编号那一步**（用户现场：点了引文 ②③④ 全不出现，日志每轮都是 rescan）。
+                if signature is not None:
+                    self._index.signature = signature
                 self._emit_status(f"watch.cached:{count}")
             else:
                 self._emit_status("watch.scanning")
@@ -357,7 +366,9 @@ class WordWatch(QThread):
                 if self._cache is not None:
                     self._cache.save_anchors(doc_path, fp, doc_name, self._index.anchors)
                 self._emit_status(f"watch.scanned:{count}")
-            self._handle_miss()
+            # 这里**不能**调 `_handle_miss()`：重扫只说明"索引还没建好"，不是"光标离开引用"。
+            # 之前它会把卡片当成 miss，超过 CLEAR_AFTER_MS(600ms) 就发 citationCleared，
+            # 用户现象正是"弹窗闪一下就自己关"（切文档时连着几轮都在重扫）。
             return
 
         try:
@@ -380,6 +391,13 @@ class WordWatch(QThread):
         except Exception:                  # noqa: BLE001 - 文字解析失败不影响域锚点
             logger.debug("角标文字解析失败（忽略）", exc_info=True)
             text_labels = []
+        if not anchors and (text_labels or not self._index.anchors):
+            # BUG-2 自愈：① 索引里有锚点却一个都不命中光标，而这里确实有引用文字；
+            # ② 索引干脆是空的（实测 21:47:52：索引锚点=0 已扫=True 需重扫=False →
+            #    监听线程认定"这篇已扫过"，于是一直用空索引，只能点「同步本文」才恢复）。
+            if self._heal_index(word, doc_identity, signature):
+                anchors = (self._index.lookup_all(position)
+                           or self._index.lookup_all(position - 1))
         if anchors or text_labels:
             self._last_anchor = anchors[0].anchor_key if anchors else ""
             self._cleared = False
@@ -395,6 +413,27 @@ class WordWatch(QThread):
             self.citationFound.emit(payload)
         else:
             self._handle_miss()
+
+    def _heal_index(self, word, doc_identity: str, signature) -> bool:
+        """索引与光标对不上（或索引是空的）时重扫一次；同一篇文档只做一次，避免反复扫 COM。
+
+        为什么需要：`needs_rescan` 只看"文档身份 + 内容指纹"，一旦索引被清空或被缓存填成
+        空表，它会认为"这篇已经扫过"，监听线程就再也不重扫 —— 用户只能点「同步本文」。
+        返回 True 表示确实重扫了，调用方应重试查表。
+        """
+        key = (doc_identity, signature)
+        if key in self._healed:
+            return False
+        self._healed.add(key)
+        try:
+            self._index.clear()
+            count = self._index.rescan(word)
+        except Exception:                  # noqa: BLE001 - 自愈失败不能打死监听线程
+            logger.exception("索引自愈重扫失败")
+            return False
+        logger.info("BUG-2 自愈：索引与光标不符，已重扫（%s，%d 个锚点）",
+                    self._index.doc_name, count)
+        return True
 
     @staticmethod
     def _document_fingerprint(word) -> tuple[str, tuple[int, int] | None]:

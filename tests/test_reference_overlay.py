@@ -27,6 +27,22 @@ def test_flip_left_when_not_enough_room_on_right():
     assert x + 300 <= 1920 and x < 1800, "右边放不下必须翻到左侧"
 
 
+def test_card_bottom_center_sits_above_pet():
+    """用户要求：位置统一 —— 卡片底部中间在宠物头像正上方（不翻边、不夹屏幕）。"""
+    pet = (1700, 400, 70, 70)
+    x, y = place_near(1234, 567, 360, 300, AREA, pet_rect=pet)
+    assert x + 360 // 2 == pet[0] + 70 // 2, "水平居中对齐宠物中心"
+    assert y + 300 == pet[1] - 8, "底边贴在宠物顶部上方 8px"
+
+
+def test_card_may_hang_outside_screen_when_pet_near_top():
+    """宠物贴屏幕顶部时卡片允许露到屏幕外（用户自己挪宠物，不要自动夹进来）。"""
+    pet = (1700, 100, 70, 70)
+    x, y = place_near(0, 0, 360, 300, AREA, pet_rect=pet)
+    assert y < 0
+    assert x + 360 // 2 == pet[0] + 70 // 2
+
+
 def test_flip_above_when_not_enough_room_below():
     _x, y = place_near(100, 1000, 300, 200, AREA)
     assert y + 200 <= 1040 and y < 1000, "下边放不下必须翻到上方"
