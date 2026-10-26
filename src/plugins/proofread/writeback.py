@@ -104,7 +104,16 @@ def apply_correction(plugin, corrected_text: str, start: int | None = None,
             if tail_text and corrected_text.endswith(tail_text):
                 corrected_body = corrected_text[:-len(tail_text)]
 
-            replace_range.Text = corrected_body
+            try:
+                replace_range.Text = corrected_body
+            except Exception as exc:           # noqa: BLE001 - COM 会抛 pywintypes.com_error
+                # 表格单元格 / 域 / 受保护区域：Word 拒绝删除该范围。
+                # 不弹"替换失败"，改走"只清标记 + 提示手动修改"，避免用户看到原始 COM 报错。
+                logger.warning("替换失败（可能是表格/域）：%s", exc)
+                clear_error_marks(sent_range.Start, sent_range.End)
+                plugin._notify_manual_edit()
+                plugin._status(plugin.tr("status.manual_only"))
+                return False
             applied = True
             plugin._status(plugin.tr("status.applied"))
 

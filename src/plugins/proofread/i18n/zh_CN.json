@@ -67,5 +67,6 @@
   "error.stale_title": "建议已过期",
   "error.stale_body": "生成建议后原文已经改变（切换了文档或继续编辑）。为避免覆盖当前内容，本次未写回，请重新校对这一段。",
   "pet.menu.pause_proofread": "暂停校对",
-  "pet.menu.resume_proofread": "继续校对"
+  "pet.menu.resume_proofread": "继续校对",
+  "status.manual_only": "这段位于表格或域内，只清除了标记，请手动修改"
 }

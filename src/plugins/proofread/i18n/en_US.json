@@ -67,5 +67,6 @@
   "error.stale_title": "Suggestion expired",
   "error.stale_body": "The text changed after this suggestion was created (document switched or edited). Nothing was written; please proofread this sentence again.",
   "pet.menu.pause_proofread": "Pause proofreading",
-  "pet.menu.resume_proofread": "Resume proofreading"
+  "pet.menu.resume_proofread": "Resume proofreading",
+  "status.manual_only": "Inside a table or field: marks cleared, please edit manually"
 }

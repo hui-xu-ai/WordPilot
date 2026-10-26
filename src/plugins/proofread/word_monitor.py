@@ -543,7 +543,10 @@ def split_trailing_chars(text):
     tail 包括末尾的结束符（。？！!?）及其后可能跟随的空白、回车等。
     若无结束符，tail 为空。
     """
-    match = re.search(r'[。？！!?][\s\r\n]*$', text)
+    # Word 的特殊标记：\x07 单元格/行结束、\x0b 换行、\x0c 分页。
+    # 它们不能进替换范围（否则报"无法删除范围"），必须算作尾部。
+    match = re.search(r'[。？！!?][\s\r\n\x07\x0b\x0c]*$'
+                      r'|[\r\n\x07\x0b\x0c]+$', text)
     if match:
         return text[:match.start()], text[match.start():]
     return text, ''
