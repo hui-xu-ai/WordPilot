@@ -136,5 +136,7 @@
   "app.settings.pet_size": "桌宠尺寸",
   "app.settings.pet_visible": "显示桌宠",
   "settings.api.key_show": "显示",
-  "settings.api.key_hide": "隐藏"
+  "settings.api.key_hide": "隐藏",
+  "pet.menu.pause_proofread": "暂停校对",
+  "pet.menu.resume_proofread": "继续校对"
 }

@@ -136,5 +136,7 @@
   "app.settings.pet_size": "Pet size",
   "app.settings.pet_visible": "Show pet",
   "settings.api.key_show": "Show",
-  "settings.api.key_hide": "Hide"
+  "settings.api.key_hide": "Hide",
+  "pet.menu.pause_proofread": "Pause proofreading",
+  "pet.menu.resume_proofread": "Resume proofreading"
 }

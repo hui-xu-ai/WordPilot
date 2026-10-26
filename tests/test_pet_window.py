@@ -329,3 +329,22 @@ def test_added_skin_can_be_selected_from_menu_at_70px(qapp, skins_dir, skin_id, 
         pet.bubble.close()
         pet.close()
         PetService.reset_instance()
+
+
+def test_context_menu_pause_label_follows_state(qapp, monkeypatch):
+    """右键菜单要按当前状态显示「暂停校对」或「继续校对」，且不带勾选框。"""
+    pet = _make_pet()
+
+    labels: list[str] = []
+    monkeypatch.setattr(pet, "_proofread_enabled", lambda: True)
+    menu = pet._build_menu()
+    labels = [action.text() for action in menu.actions()]
+    assert any("pause_proofread" in text for text in labels), f"校对中应显示「暂停校对」：{labels}"
+
+    monkeypatch.setattr(pet, "_proofread_enabled", lambda: False)
+    menu = pet._build_menu()
+    labels = [action.text() for action in menu.actions()]
+    assert any("resume_proofread" in text for text in labels), f"已暂停应显示「继续校对」：{labels}"
+
+    checkable = [action.text() for action in menu.actions() if action.isCheckable()]
+    assert not any("proofread" in text for text in checkable), "校对项不应再是可勾选项"

@@ -40,10 +40,11 @@ class PetMenuMixin:
                 tools_menu.addAction(label, handler)
 
         menu.addSeparator()
-        toggle = menu.addAction(self.tr("pet.menu.toggle_proofread"),
-                                self.proofreadToggleRequested.emit)
-        toggle.setCheckable(True)
-        toggle.setChecked(self._proofread_enabled())
+        # 按**当前状态**显示将要发生的动作：校对中 →「暂停校对」；已暂停 →「继续校对」。
+        # 原来是可勾选的「暂停/继续校对」，勾与不勾都读不出当前处于哪种状态（用户反馈语义不明）。
+        running = self._proofread_enabled()
+        key = "pet.menu.resume_proofread" if not running else "pet.menu.pause_proofread"
+        menu.addAction(self.tr(key), self.proofreadToggleRequested.emit)
 
         bubble_action = menu.addAction(self.tr("pet.menu.toggle_bubble"), self.toggle_bubble)
         bubble_action.setCheckable(True)
