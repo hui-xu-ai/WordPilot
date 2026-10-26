@@ -75,7 +75,7 @@
   "col.doi": "DOI",
   "action.scan": "扫描本文",
   "status.scanning": "正在扫描当前文档…",
-  "status.scan_done": "扫描完成：{doc} · 参考文献 {bibliography} 条 · 带数据引用 {provider} 条 · 入库 {imported} 条 · 锚点 {anchors} 个",
+  "status.scan_done": "扫描完成 · 参考文献 {bibliography} 条 · 带数据引用 {provider} 条 · 入库 {imported} 条 · 锚点 {anchors} 个",
   "status.scan_failed": "扫描失败：{error}",
   "watch.starting": "监听启动中…",
   "watch.no_word": "未连接 Word（打开 Word 后会自动重连）",

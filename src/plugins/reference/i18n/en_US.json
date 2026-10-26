@@ -75,7 +75,7 @@
   "col.doi": "DOI",
   "action.scan": "Scan document",
   "status.scanning": "Scanning the active document…",
-  "status.scan_done": "Scan finished: {doc} · {bibliography} bibliography entries · {provider} citations with data · {imported} imported · {anchors} anchors",
+  "status.scan_done": "Scan done · {bibliography} references · {provider} provider citations · {imported} imported · {anchors} anchors",
   "status.scan_failed": "Scan failed: {error}",
   "watch.starting": "Starting selection watcher…",
   "watch.no_word": "Word not connected (will reconnect automatically)",

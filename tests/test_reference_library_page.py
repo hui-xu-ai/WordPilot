@@ -190,7 +190,7 @@ def test_translations_are_resolved_not_raw_keys(page):
     widget, _store, _index = page
     assert widget.search_edit.placeholderText() == "搜索…"
     assert widget.filter_actions["all"].text() == "全部"
-    assert widget.open_csv_action.text() == "打开CSV"
+    assert widget.excel_action.text() == "打开CSV"
     assert "reference." not in widget.panel_title.text()
 
 
@@ -223,10 +223,10 @@ def test_right_panel_labels_are_translated(page):
     assert all("cite_label" not in text for text in labels)
     assert widget.read_labels["title"].text() == ""
 
-def test_refresh_action_exists(page):
-    """刷新入口存在（按用户要求收进 ⋯ 菜单，不再占工具栏）。"""
+def test_refresh_button_exists(page):
+    """刷新按钮按用户要求放回明面（与库切换/新建/删除同一行）。"""
     widget, _store, _index = page
-    assert widget.refresh_action.text() != ""
+    assert widget.refresh_btn.text() != ""
     widget.append_status("x")
     widget.reload_now()
     assert widget.footer_label.text().endswith("已刷新")

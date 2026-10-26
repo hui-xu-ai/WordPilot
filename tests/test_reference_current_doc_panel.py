@@ -54,17 +54,6 @@ def test_current_document_defaults_to_placeholder(page):
     assert "—" in page.doc_label.text()
 
 
-def test_panel_can_collapse_and_restore(page):
-    page._splitter.setSizes([700, 400])
-    page.panel_toggle.setChecked(False)
-    page.toggle_panel()
-    assert not page.panel_stack.isVisible(), "折叠后右栏应隐藏"
-
-    page.panel_toggle.setChecked(True)
-    page.toggle_panel()
-    assert page._splitter.sizes()[1] == 400, "展开应恢复折叠前宽度"
-
-
 def test_document_signal_is_forwarded(monkeypatch, tmp_path):
     """监听线程的 documentChanged 应更新页面标签（插件侧接线）。"""
     from plugins.reference.plugin import ReferencePlugin

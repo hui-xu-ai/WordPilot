@@ -97,35 +97,44 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
 
-        # ---- 顶部一条工具栏 ----
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(6)
-        # ---- 分区 1：仓库（选库 / 新建 / 删除）----
-        # 方案阶段 2：先告诉用户"当前是哪份文件、属于哪个文献集"
+        # ---- 第一行：当前文件 + 文献集（选/新建/删除/刷新）----
+        row_top = QHBoxLayout()
+        row_top.setSpacing(6)
         self.doc_label = QLabel("")
         self.doc_label.setObjectName("hintLabel")
+        self.doc_label.setMinimumWidth(240)          # 之前显示不全：给足宽度 + 省略号
+        self.doc_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.current_document = ""
-        toolbar.addWidget(self.doc_label)
-        toolbar.addWidget(group_separator())
+        row_top.addWidget(self.doc_label)
+        row_top.addWidget(group_separator())
 
-        self.build_library_combo(toolbar)
+        self.build_library_combo(row_top)
 
-        # 仓库的增删是低频管理动作：按方案收进"更多 → 管理文献集"
+        self.new_lib_btn = QPushButton()
+        self.new_lib_btn.clicked.connect(self.prompt_new_library)
+        row_top.addWidget(self.new_lib_btn)
 
-        # ---- 分区 2：检索与筛选 ----
+        self.del_lib_btn = QPushButton()
+        self.del_lib_btn.clicked.connect(self.confirm_delete_library)
+        row_top.addWidget(self.del_lib_btn)
+
+        self.refresh_btn = QPushButton()
+        self.refresh_btn.clicked.connect(self.reload_now)
+        row_top.addWidget(self.refresh_btn)
+        row_top.addStretch(1)
+        layout.addLayout(row_top)
+
+        # ---- 第二行：搜索 + 筛选 + 同步 + 更多 ----
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(6)
         self.search_edit = QLineEdit()
         self.search_edit.textChanged.connect(self._apply_filter)
         toolbar.addWidget(self.search_edit, 1)
 
         self.build_filter_menu(toolbar, _FILTERS)
+        self.filter_btn.setFixedWidth(84)             # 用户要求：筛选框短一点
 
-
-        # ---- 分区 3：条目与数据操作 ----
         toolbar.addWidget(group_separator())
-        self.new_ref_btn = QPushButton()
-        self.new_ref_btn.clicked.connect(self.start_new)     # 新建参考（原藏在 ⋯ 菜单）
-        toolbar.addWidget(self.new_ref_btn)
-
         self.scan_btn = QPushButton()
         self.scan_btn.clicked.connect(self.scan_document)
         toolbar.addWidget(self.scan_btn)
@@ -133,11 +142,7 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         self.more_btn = QToolButton()
         self.more_btn.setPopupMode(QToolButton.InstantPopup)
         self.menu = QMenu(self.more_btn)
-        self.new_lib_action = self.menu.addAction("", self.prompt_new_library)
-        self.del_lib_action = self.menu.addAction("", self.confirm_delete_library)
-        self.menu.addSeparator()
-        self.refresh_action = self.menu.addAction("", self.reload_now)
-        self.open_csv_action = self.menu.addAction("", self.open_csv)
+        self.excel_action = self.menu.addAction("", self.open_csv)
         self.menu.addSeparator()
         self.import_action = self.menu.addAction("", self.import_csv)
         self.export_action = self.menu.addAction("", self.export_csv)
@@ -145,12 +150,6 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         self.more_btn.setMenu(self.menu)
         toolbar.addWidget(self.more_btn)
 
-        # 右栏折叠（窄窗口/只想看列表时用）
-        self.panel_toggle = QToolButton()
-        self.panel_toggle.setCheckable(True)
-        self.panel_toggle.setChecked(True)
-        self.panel_toggle.clicked.connect(self.toggle_panel)
-        toolbar.addWidget(self.panel_toggle)
         layout.addLayout(toolbar)
 
         self.progress = QProgressBar()
@@ -205,17 +204,12 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
             self.filter_actions[name].setText(self.tr(key))
         self.filter_actions["orphan"].setText(self.tr("filter.orphan"))
         self._refresh_doc_label()
-        self.panel_toggle.setText(self.tr("panel.toggle"))
-        self.panel_toggle.setToolTip(self.tr("panel.toggle.tip"))
-        self.new_lib_action.setText(self.tr("library.new"))
-        self.new_ref_btn.setText(self.tr("action.new_reference"))
-        self.del_lib_action.setText(self.tr("library.delete"))
+        self.new_lib_btn.setText(self.tr("library.new"))
+        self.del_lib_btn.setText(self.tr("library.delete"))
         self.scan_btn.setText(self.tr("action.sync_doc"))
         self.scan_btn.setToolTip(self.tr("action.scan.tip"))
-        self.new_lib_action.setText(self.tr("library.new"))
-        self.del_lib_action.setText(self.tr("library.delete"))
-        self.refresh_action.setText(self.tr("action.reload"))
-        self.open_csv_action.setText(self.tr("action.open_csv"))
+        self.refresh_btn.setText(self.tr("action.reload"))
+        self.excel_action.setText(self.tr("action.open_csv"))
         self.more_btn.setText("⋯")
         self.more_btn.setToolTip(self.tr("action.more"))
         self.import_action.setText(self.tr("action.import"))

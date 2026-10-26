@@ -171,24 +171,15 @@ class PanelChromeMixin:
         self.current_document = name or ""
         self._refresh_doc_label()
 
-    def toggle_panel(self, checked: bool | None = None) -> None:
-        """折叠/展开右侧详情栏：折叠=隐藏面板（保留原宽度供展开时恢复）。"""
-        panel = getattr(self, "panel_stack", None)
-        if panel is None or not hasattr(self, "_splitter"):
-            return
-        if self.panel_toggle.isChecked():
-            panel.setVisible(True)
-            restore = getattr(self, "_panel_width", 0) or PANEL_WIDTH
-            sizes = self._splitter.sizes()
-            self._splitter.setSizes([max(sizes[0], 320), restore])
-        else:
-            sizes = self._splitter.sizes()
-            self._panel_width = sizes[1] or PANEL_WIDTH
-            panel.setVisible(False)
-
     def _refresh_doc_label(self) -> None:
+        """显示当前文件：过长时中间省略（配合最小宽度与 tooltip，避免"显示不全"）。"""
+        name = self.current_document or "—"
+        metrics = self.doc_label.fontMetrics()
+        available = max(self.doc_label.width() - 8, 120)
+        shown = metrics.elidedText(name, Qt.ElideMiddle, available)
         template = self.tr("toolbar.current_doc")
-        self.doc_label.setText(template.replace("{name}", self.current_document or "—"))
+        self.doc_label.setText(template.replace("{name}", shown))
+        self.doc_label.setToolTip(name)
 
     def _collect(self) -> Reference:
         key = self._current_key or f"manual:{uuid.uuid4().hex[:8]}"

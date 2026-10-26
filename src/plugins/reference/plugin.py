@@ -156,9 +156,12 @@ class ReferencePlugin(PluginBase):
         label = item.get("label") or _label_from_key(anchor_key)
 
         reference = store.get(anchor_key)
-        if (reference is None and item.get("kind") == "label_fallback"
-                and item.get("reference") is None):
-            return None                    # 编号兜底只对"库里已有这条文献"的情况弹窗
+        if reference is None and item.get("kind") == "label_fallback" and item.get("reference") is None:
+            # EndNote 空壳域 / 纯文本编号都会走这里：按"文中的编号"到库里找同编号的文献。
+            # 之前这里是直接 return None，于是用户点引用**毫无反应**（审查里也没有覆盖）。
+            reference = store.find_by_label(label)
+            if reference is None:
+                return None                # 库里确实没有这条 → 不打扰
         if reference is None and item.get("reference") is not None:
             try:                                   # 域里带元数据 → 顺手入库
                 reference = store.upsert(item["reference"])
