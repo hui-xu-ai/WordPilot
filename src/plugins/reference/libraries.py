@@ -35,7 +35,8 @@ class Library:
     last_used: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict:
-        return {"path": str(self.path), "last_used": self.last_used}
+        """只存**目录名**（相对 libraries_dir）：换根目录/复制数据后仍然正确。"""
+        return {"path": self.path.name, "last_used": self.last_used}
 
 
 
@@ -74,6 +75,15 @@ class LibraryRegistry:
     def libraries_dir(self) -> Path:
         return self.root / "libraries"
 
+    def _library_dir(self, name: str, entry: dict | None = None) -> Path:
+        """库目录：兼容历史数据（存的是绝对路径时只取末级目录名）。"""
+        stored = (entry or {}).get("path") or name
+        return self.libraries_dir / Path(str(stored)).name
+
+    @property
+    def bindings_path(self) -> Path:
+        return self.root / "doc_bindings.json"
+
     # ---------------- 读写 ----------------
     def _read(self) -> dict:
         if not self.registry_path.exists():
@@ -103,7 +113,7 @@ class LibraryRegistry:
         if name:
             entry = self._read().get("libraries", {}).get(name)
             if entry:
-                return Path(entry["path"])
+                return self._library_dir(name, entry)
         return self.libraries_dir / DEFAULT_NAME
 
     def ensure_default(self) -> str:
@@ -145,7 +155,7 @@ class LibraryRegistry:
         data = self._read()
         libraries = data.setdefault("libraries", {})
         if name in libraries:
-            return Path(libraries[name]["path"])
+            return self._library_dir(name, libraries[name])
         target = self.libraries_dir / name
         target.mkdir(parents=True, exist_ok=True)
         libraries[name] = Library(name, target).to_dict()
@@ -166,7 +176,7 @@ class LibraryRegistry:
         if len(libraries) <= 1:
             raise ValueError("至少保留一个仓库")
 
-        directory = Path(libraries[name]["path"])
+        directory = self._library_dir(name, libraries[name])
         trash = self.libraries_dir / "_trash"
         trash.mkdir(parents=True, exist_ok=True)
         from datetime import datetime
@@ -197,23 +207,42 @@ class LibraryRegistry:
         data["libraries"] = libraries
         if data.get("active") == name:
             data["active"] = next(iter(libraries))
-        # 该库的文档绑定一起清掉，避免下次扫描切到不存在的库
-        bindings = data.get("doc_bindings", {}) or {}
-        data["doc_bindings"] = {path: lib for path, lib in bindings.items() if lib != name}
         self._write(data)
+        # 该库的文档绑定一起清掉，避免下次扫描切到不存在的库
+        bindings = self.doc_bindings()
+        if bindings:
+            self._write_bindings({path: lib for path, lib in bindings.items() if lib != name})
         logger.info("已删除文献仓库：%s（移到 %s）", name, trash)
         return trash
 
     def doc_bindings(self) -> dict[str, str]:
-        """文档路径 → 仓库名（手动改绑或上次自动判定）。"""
-        return dict(self._read().get("doc_bindings", {}))
+        """文档路径 → 仓库名（独立文件；首次读取时从旧 libraries.json 迁移）。"""
+        if self.bindings_path.exists():
+            try:
+                return dict(json.loads(self.bindings_path.read_text(encoding="utf-8")))
+            except Exception as exc:               # noqa: BLE001 - 坏文件按空处理
+                logger.warning("读取文档绑定失败：%s", exc)
+                return {}
+        legacy = dict(self._read().get("doc_bindings", {}) or {})
+        if legacy:                                 # 老数据迁移一次
+            self._write_bindings(legacy)
+            data = self._read()
+            if data.pop("doc_bindings", None) is not None:
+                self._write(data)
+        return legacy
+
+    def _write_bindings(self, bindings: dict[str, str]) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
+        tmp = self.bindings_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(bindings, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(self.bindings_path)
 
     def bind_document(self, document_path: str, library: str) -> None:
         if not document_path or not library:
             return
-        data = self._read()
-        data.setdefault("doc_bindings", {})[document_path] = library
-        self._write(data)
+        bindings = self.doc_bindings()
+        bindings[document_path] = library
+        self._write_bindings(bindings)
 
     def set_active(self, name: str) -> Path:
         data = self._read()
@@ -223,4 +252,4 @@ class LibraryRegistry:
         libraries[name]["last_used"] = time.time()
         data["active"] = name
         self._write(data)
-        return Path(libraries[name]["path"])
+        return self._library_dir(name, libraries[name])
