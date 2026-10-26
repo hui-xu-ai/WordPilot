@@ -5,6 +5,10 @@
 """
 from __future__ import annotations
 
+import uuid
+
+from plugins.reference.reference_store import Reference
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
@@ -157,4 +161,46 @@ class PanelEditMixin:
         self.panel_title.setText(self.tr("panel.new"))
         self.panel_stack.setCurrentIndex(1)
         self.title_edit.setFocus()
+
+
+class PanelChromeMixin:
+    """工具栏上的「当前文件」与右栏折叠（从 library_page 抽出控制行数）。"""
+
+    def set_current_document(self, name: str) -> None:
+        """界面上的"当前文件"（Word 里切换文档时由监听信号推过来）。"""
+        self.current_document = name or ""
+        self._refresh_doc_label()
+
+    def toggle_panel(self, checked: bool | None = None) -> None:
+        """折叠/展开右侧详情栏（记住宽度，展开时恢复）。"""
+        if not hasattr(self, "_splitter"):
+            return
+        sizes = self._splitter.sizes()
+        if self.panel_toggle.isChecked():
+            restore = getattr(self, "_panel_width", PANEL_WIDTH) or PANEL_WIDTH
+            self._splitter.setSizes([max(sizes[0], 320), restore])
+        else:
+            self._panel_width = sizes[1] or PANEL_WIDTH
+            self._splitter.setSizes([sum(sizes), 0])
+
+    def _refresh_doc_label(self) -> None:
+        template = self.tr("toolbar.current_doc")
+        self.doc_label.setText(template.replace("{name}", self.current_document or "—"))
+
+    def _collect(self) -> Reference:
+        key = self._current_key or f"manual:{uuid.uuid4().hex[:8]}"
+        return Reference(
+            ref_key=key,
+            provider="" if self._current_key else "manual",
+            cite_label=self.label_edit.text().strip(),
+            title=self.title_edit.text().strip(),
+            authors=self.authors_edit.text().strip(),
+            year=self.year_edit.text().strip(),
+            container=self.container_edit.text().strip(),
+            doi=self.doi_edit.text().strip(),
+            type=self.type_edit.text().strip(),
+            tags=[tag.strip() for tag in self.tags_edit.text().split(";") if tag.strip()],
+            starred=self.starred_check.isChecked(),
+            note=self.note_edit.toPlainText(),
+        )
 

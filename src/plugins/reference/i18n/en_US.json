@@ -142,5 +142,8 @@
   "overlay.note_available": "Master notes available (not adopted)",
   "overlay.master_diff": "Master library differs; this library keeps its own note",
   "action.sync_doc": "Sync this document",
-  "library.belong": "Library"
+  "library.belong": "Library",
+  "toolbar.current_doc": "File: {name}",
+  "panel.toggle": "Details",
+  "panel.toggle.tip": "Show/hide the details panel"
 }

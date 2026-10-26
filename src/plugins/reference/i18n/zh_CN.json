@@ -142,5 +142,8 @@
   "overlay.note_available": "总库有可选备注（未采用）",
   "overlay.master_diff": "总库有不同内容，当前子库备注保持不变",
   "action.sync_doc": "同步本文",
-  "library.belong": "所属子库"
+  "library.belong": "所属子库",
+  "toolbar.current_doc": "当前文件：{name}",
+  "panel.toggle": "详情",
+  "panel.toggle.tip": "显示/隐藏右侧详情栏"
 }

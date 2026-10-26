@@ -262,7 +262,8 @@ class WordWatch(QThread):
 
     citationFound = Signal(object)         # dict，见 resolve_selection
     citationCleared = Signal()
-    statusChanged = Signal(str)            # 连接状态/扫描进度（供页面状态栏显示）
+    statusChanged = Signal(str)
+    documentChanged = Signal(str)        # 当前文档名（方案：界面显示"当前文件"）            # 连接状态/扫描进度（供页面状态栏显示）
 
     def __init__(self, parent=None, cache=None) -> None:
         super().__init__(parent)
@@ -331,6 +332,9 @@ class WordWatch(QThread):
             return
 
         doc_identity = self._doc_identity(word) or doc_name
+        if doc_name != getattr(self, "_last_doc_name", None):
+            self._last_doc_name = doc_name
+            self.documentChanged.emit(doc_name)
 
         signature = None
         try:

@@ -80,11 +80,28 @@ class ReferencePlugin(PluginBase):
         ctx.ui.add_page("page_label", self._build_page, order=20,
                         icon="book", plugin_id="reference")
         self._start_watch()
+        self._connect_doc_signal()
         ctx.logger.info(self.tr("log.activated"))
 
     def _migrate_legacy_notes(self) -> None:
         """把旧版分散在各子库目录里的 notes.csv 合并进全局总库（实现见 notes_migration）。"""
         migrate_legacy_notes(self._libraries, self._master_notes)
+
+    def _connect_doc_signal(self) -> None:
+        """把监听线程的"当前文档"推给页面（跨线程自动走队列连接）。"""
+        watch = getattr(self, "_watch", None)
+        if watch is None or not hasattr(watch, "documentChanged"):
+            return
+        watch.documentChanged.connect(self._on_document_changed)
+
+    def _on_document_changed(self, name: str) -> None:
+        page = getattr(self, "_page", None)
+        setter = getattr(page, "set_current_document", None)
+        if callable(setter):
+            try:
+                setter(name)
+            except Exception:                  # noqa: BLE001 - 页面可能已销毁
+                logger.debug("更新当前文件显示失败", exc_info=True)
 
     def _build_page(self):
         if self._page is None:

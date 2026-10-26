@@ -29,7 +29,8 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog, 
 
 from plugins.reference.page_libraries import (FILTERS as _FILTERS_FROM_PAGE_LIBRARIES,
                                              LibraryMixin, group_separator)
-from plugins.reference.page_panel import PANEL_WIDTH, PanelEditMixin, build_panel
+from plugins.reference.page_panel import (PANEL_WIDTH, PanelChromeMixin,
+                                          PanelEditMixin, build_panel)
 from plugins.reference.page_scan import ScanMixin
 from plugins.reference.reference_store import (Anchor, Reference, ReferenceStore,
                                                ReferenceStoreError)
@@ -45,7 +46,8 @@ _ORPHAN_COLUMNS = ("doc_name", "cite_label", "anchor_key")
 _FILTERS = _FILTERS_FROM_PAGE_LIBRARIES
 
 
-class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
+class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
+                  LibraryMixin, QWidget):
     """文献库管理页。"""
 
     def __init__(self, ctx: "PluginContext", store: ReferenceStore,
@@ -98,7 +100,13 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
         toolbar = QHBoxLayout()
         toolbar.setSpacing(6)
         # ---- 分区 1：仓库（选库 / 新建 / 删除）----
-        # 原先一排十几个按钮挤在一起、也没有删除入口（用户反馈：功能没有分区）。
+        # 方案阶段 2：先告诉用户"当前是哪份文件、属于哪个文献集"
+        self.doc_label = QLabel("")
+        self.doc_label.setObjectName("hintLabel")
+        self.current_document = ""
+        toolbar.addWidget(self.doc_label)
+        toolbar.addWidget(group_separator())
+
         self.build_library_combo(toolbar)
 
         # 仓库的增删是低频管理动作：按方案收进"更多 → 管理文献集"
@@ -135,6 +143,13 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
         self.dir_action = self.menu.addAction("", self.open_directory)
         self.more_btn.setMenu(self.menu)
         toolbar.addWidget(self.more_btn)
+
+        # 右栏折叠（窄窗口/只想看列表时用）
+        self.panel_toggle = QToolButton()
+        self.panel_toggle.setCheckable(True)
+        self.panel_toggle.setChecked(True)
+        self.panel_toggle.clicked.connect(self.toggle_panel)
+        toolbar.addWidget(self.panel_toggle)
         layout.addLayout(toolbar)
 
         self.progress = QProgressBar()
@@ -150,6 +165,7 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
 
         # ---- 表格 + 右栏 ----
         splitter = QSplitter(Qt.Horizontal)
+        self._splitter = splitter
         self.table = QTableWidget(0, len(_TABLE_COLUMNS))
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
@@ -185,6 +201,9 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
         for name, key in _FILTERS:
             self.filter_actions[name].setText(self.tr(key))
         self.filter_actions["orphan"].setText(self.tr("filter.orphan"))
+        self._refresh_doc_label()
+        self.panel_toggle.setText(self.tr("panel.toggle"))
+        self.panel_toggle.setToolTip(self.tr("panel.toggle.tip"))
         self.new_lib_action.setText(self.tr("library.new"))
         self.new_ref_btn.setText(self.tr("action.new_reference"))
         self.del_lib_action.setText(self.tr("library.delete"))
@@ -489,23 +508,6 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
         if not self._current_key:
             return
         self.panel_stack.setCurrentIndex(1)
-
-    def _collect(self) -> Reference:
-        key = self._current_key or f"manual:{uuid.uuid4().hex[:8]}"
-        return Reference(
-            ref_key=key,
-            provider="" if self._current_key else "manual",
-            cite_label=self.label_edit.text().strip(),
-            title=self.title_edit.text().strip(),
-            authors=self.authors_edit.text().strip(),
-            year=self.year_edit.text().strip(),
-            container=self.container_edit.text().strip(),
-            doi=self.doi_edit.text().strip(),
-            type=self.type_edit.text().strip(),
-            tags=[tag.strip() for tag in self.tags_edit.text().split(";") if tag.strip()],
-            starred=self.starred_check.isChecked(),
-            note=self.note_edit.toPlainText(),
-        )
 
     def save_current(self) -> None:
         reference = self._collect()
