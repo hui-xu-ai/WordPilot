@@ -29,6 +29,8 @@ from core.services.window_manager import CloseBehavior, Layer, Mode
 from core.services.word_bridge import get_word_app
 from core.widgets.pet_window import WINDOW_ID as PET_WINDOW_ID
 from core.widgets.pet_window import PetWindow
+from plugins.proofread.state_sync import push_proofread_state
+from plugins.proofread.writeback import apply_correction
 from plugins.proofread.word_monitor import (
     TokenizedSentence,
     WordMonitor,
@@ -158,7 +160,10 @@ class ProofreadPlugin(PluginBase):
                 theme=theme, skins=skins, i18n=i18n, tr=self.tr,
                 tools_provider=self._plugin_tools,
             )
+            push_proofread_state(self, self._enabled, pet)   # 初始状态对齐
             pet.proofreadToggleRequested.connect(self.toggle)
+            pet.proofreadToggleRequested.connect(
+                lambda: pet.set_proofread_enabled(self._enabled))
             pet.settingsRequested.connect(self._open_settings)
             pet.bubbleToggled.connect(self._on_bubble_toggled)
             return pet
@@ -336,8 +341,13 @@ class ProofreadPlugin(PluginBase):
         if self.monitor is not None:
             self.monitor.proof_enabled = self._enabled
         self._apply_visibility()
+        self._push_state_to_pet()
         if self.ctx is not None:
             self.ctx.events.emit("proofread.toggled", self._enabled)
+
+    def _push_state_to_pet(self) -> None:
+        """把当前启停状态推给桌宠窗口（实现见 state_sync）。"""
+        push_proofread_state(self, self._enabled, getattr(self, "floating_btn", None))
 
     def toggle(self) -> None:
         self.set_enabled(not self._enabled)
@@ -450,101 +460,9 @@ class ProofreadPlugin(PluginBase):
 
     def apply_correction(self, corrected_text: str, start: int | None = None,
                          end: int | None = None, original_text: str | None = None) -> None:
-        """把建议写回 Word。
-
-        含图片/公式的句子无法安全地整体替换，只清除标记并提示手动修改；
-        纯文本句则只替换主体部分，保留句尾的段落符等不可见字符。
-        """
-        import time as _time
-
-        started = _time.perf_counter()
-        word = None
-        prev_screen_updating = None
-        try:
-            word = get_word_app()
-            doc = word.ActiveDocument
-            # 替换期间冻结重绘：Word 默认每次 COM 变更都重画，长句/大文档上很吃时间
-            try:
-                prev_screen_updating = word.ScreenUpdating
-                word.ScreenUpdating = False
-            except Exception:      # 某些受保护视图不允许改，忽略即可
-                prev_screen_updating = None
-
-            start, end = self.normalize_span(start, end)
-            if start is not None and end is not None:
-                sent_range = doc.Range(start, end)
-            else:
-                sent_range = get_sentence_range(word.Selection)
-
-            if sent_range.Start >= sent_range.End:
-                self._status(self.tr("status.sentence_not_found"))
-                return
-
-            tokenized = TokenizedSentence(sent_range)
-            has_object = any(b['type'] == 'object' for b in tokenized.get_blocks())
-            sent_text = sent_range.Text
-
-            # 分离主体和尾部
-            body_text, tail_text = split_trailing_chars(sent_text)
-
-            # B01：写回前校验原文。生成建议后若用户切了文档或继续编辑，
-            # 这里按旧坐标写下去会覆盖别的文本（审查用真实 Word 复现过）。
-            #
-            # 注意：`sent_range.Text` 会带上句首空白/制表符，而建议里存的原文是纯文本，
-            # 若按原样比较，正常写回也会被判"已过期"（表现为点了应用毫无反应）。
-            # 因此比对前先去掉所有空白；并且只要当前文本**包含**原文就放行。
-            # 含图片/公式的句子只清标记、不写文本，天然不会覆盖别人的内容，
-            # 因此不参与"原文是否变化"的判定（否则占位符与对象字符不同，正常操作也被拦）。
-            if original_text is not None and not has_object:
-                expected_body, _ = split_trailing_chars((original_text or "").strip())
-                expected_norm = re.sub(r"\s+", "", expected_body)
-                current_norm = re.sub(r"\s+", "", body_text)
-                pure_norm = re.sub(r"\s+", "", getattr(tokenized, "pure_text", "") or "")
-                matched = bool(expected_norm) and (
-                    expected_norm in current_norm or
-                    (bool(pure_norm) and expected_norm in pure_norm))
-                if matched:
-                    logger.debug("写回前校验通过")
-                if not matched:
-                    logger.warning("拒绝写回：原句已变化（%r ≠ %r）",
-                                   current_norm[:40], expected_norm[:40])
-                    self._status(self.tr("status.stale_suggestion"))
-                    self._warn_stale_suggestion()
-                    return
-
-            if has_object:
-                # 有图片/公式：弹窗提示手动修改，仅清除标记
-                clear_error_marks(sent_range.Start, sent_range.End)
-                self._notify_manual_edit()
-                self._status(self.tr("status.marks_cleared"))
-            else:
-                # 纯文本：直接替换主体，保留尾部
-                clear_error_marks(sent_range.Start, sent_range.End)
-
-                # 确定要替换的范围（仅主体部分）
-                if tail_text:
-                    replace_range = doc.Range(sent_range.Start, sent_range.Start + len(body_text))
-                else:
-                    replace_range = sent_range.Duplicate
-
-                # 去掉 corrected_text 中可能包含的尾部字符
-                corrected_body = corrected_text
-                if tail_text and corrected_text.endswith(tail_text):
-                    corrected_body = corrected_text[:-len(tail_text)]
-
-                replace_range.Text = corrected_body
-                self._status(self.tr("status.applied"))
-
-        except Exception as exc:
-            QMessageBox.warning(None, self.tr("error.replace_title"),
-                                self.tr("error.replace_failed", error=exc))
-        finally:
-            if word is not None and prev_screen_updating is not None:
-                try:
-                    word.ScreenUpdating = prev_screen_updating
-                except Exception:
-                    pass
-            logger.info("apply_correction 用时 %.0f ms", (_time.perf_counter() - started) * 1000)
+        """把建议写回 Word（实现见 writeback.apply_correction）。"""
+        apply_correction(self, corrected_text, start=start, end=end,
+                         original_text=original_text)
 
     def _warn_stale_suggestion(self) -> None:
         warn_stale(self.tr)

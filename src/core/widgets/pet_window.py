@@ -533,6 +533,12 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
         self.canvas.stop_animation()
         super().hideEvent(event)
 
+    _proofread_on: bool = True        # 默认在校对状态，插件启动后会同步真实值
+
+    def set_proofread_enabled(self, enabled: bool) -> None:
+        """由校对插件把真实状态推过来（菜单按它显示「暂停校对/继续校对」）。"""
+        self._proofread_on = bool(enabled)
+
     def _proofread_enabled(self) -> bool:
         """当前是否在"校对中"（右键菜单据此显示勾选状态）。"""
         try:

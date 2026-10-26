@@ -62,10 +62,12 @@ def _make_plugin(mod, monkeypatch, current_text: str):
     plugin._warn_stale_suggestion = lambda: warnings.append("stale")
     plugin.normalize_span = mod.ProofreadPlugin.normalize_span
 
-    monkeypatch.setattr(mod, "get_word_app", lambda: _FakeWord(doc))
-    monkeypatch.setattr(mod, "TokenizedSentence", _FakeTokenized)
-    monkeypatch.setattr(mod, "clear_error_marks", lambda *a, **k: None)
-    monkeypatch.setattr(mod, "QMessageBox", type("Q", (), {
+    from plugins.proofread import writeback as wb
+
+    monkeypatch.setattr(wb, "get_word_app", lambda: _FakeWord(doc))
+    monkeypatch.setattr(wb, "TokenizedSentence", _FakeTokenized)
+    monkeypatch.setattr(wb, "clear_error_marks", lambda *a, **k: None)
+    monkeypatch.setattr(wb, "QMessageBox", type("Q", (), {
         "warning": staticmethod(lambda *a, **k: warnings.append("warning")),
         "information": staticmethod(lambda *a, **k: None),
     }))
@@ -107,7 +109,8 @@ def test_matching_original_still_applies(mod, monkeypatch):
             return _Recorder(self.text, start)
 
     doc = _Doc("这是原来的句子。")
-    monkeypatch.setattr(mod, "get_word_app", lambda: _FakeWord(doc))
+    from plugins.proofread import writeback as wb
+    monkeypatch.setattr(wb, "get_word_app", lambda: _FakeWord(doc))
 
     plugin.apply_correction("这是修改后的句子。", 0, 8,
                             original_text="这是原来的句子。")

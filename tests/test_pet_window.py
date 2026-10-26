@@ -360,3 +360,16 @@ def test_pause_menu_keys_exist_in_plugin_i18n():
         data = json.loads((root / f"{lang}.json").read_text(encoding="utf-8"))
         for key in ("pet.menu.pause_proofread", "pet.menu.resume_proofread"):
             assert key in data, f"{lang} 缺 {key}（菜单会显示原始 key）"
+
+
+def test_menu_reflects_pushed_state(qapp):
+    """插件把真实启停状态推过来后，菜单必须跟着变（否则永远显示同一个动作）。"""
+    pet = _make_pet()
+
+    pet.set_proofread_enabled(True)
+    labels = [action.text() for action in pet._build_menu().actions()]
+    assert any("pause_proofread" in text for text in labels), labels
+
+    pet.set_proofread_enabled(False)
+    labels = [action.text() for action in pet._build_menu().actions()]
+    assert any("resume_proofread" in text for text in labels), labels
