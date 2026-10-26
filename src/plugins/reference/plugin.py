@@ -20,6 +20,7 @@ from plugins.reference.overlay import OverlayEntry, ReferenceOverlay
 from plugins.reference.reference_index import ReferenceIndex
 from plugins.reference.libraries import LibraryRegistry
 from plugins.reference.notes import NoteService, NoteStore
+from plugins.reference.notes_migration import migrate_legacy_notes
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
 from plugins.reference.matching import SnapshotStore, cite_key_set, diff
 from plugins.reference.scan_cache import ScanCache, fingerprint
