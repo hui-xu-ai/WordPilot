@@ -348,3 +348,15 @@ def test_context_menu_pause_label_follows_state(qapp, monkeypatch):
 
     checkable = [action.text() for action in menu.actions() if action.isCheckable()]
     assert not any("proofread" in text for text in checkable), "校对项不应再是可勾选项"
+
+
+def test_pause_menu_keys_exist_in_plugin_i18n():
+    """桌宠的 tr 走 proofread 插件词条；缺键就会在菜单里显示成 `xxx.pause_proofread`。"""
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "src" / "plugins" / "proofread" / "i18n"
+    for lang in ("zh_CN", "en_US"):
+        data = json.loads((root / f"{lang}.json").read_text(encoding="utf-8"))
+        for key in ("pet.menu.pause_proofread", "pet.menu.resume_proofread"):
+            assert key in data, f"{lang} 缺 {key}（菜单会显示原始 key）"

@@ -65,5 +65,7 @@
   "settings.save_failed": "Save failed",
   "status.stale_suggestion": "Suggestion expired (text changed); not applied",
   "error.stale_title": "Suggestion expired",
-  "error.stale_body": "The text changed after this suggestion was created (document switched or edited). Nothing was written; please proofread this sentence again."
+  "error.stale_body": "The text changed after this suggestion was created (document switched or edited). Nothing was written; please proofread this sentence again.",
+  "pet.menu.pause_proofread": "Pause proofreading",
+  "pet.menu.resume_proofread": "Resume proofreading"
 }

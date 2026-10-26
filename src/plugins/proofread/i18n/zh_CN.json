@@ -65,5 +65,7 @@
   "pet.state.ok": "校对通过",
   "status.stale_suggestion": "建议已过期（原文已变化），未写回",
   "error.stale_title": "建议已过期",
-  "error.stale_body": "生成建议后原文已经改变（切换了文档或继续编辑）。为避免覆盖当前内容，本次未写回，请重新校对这一段。"
+  "error.stale_body": "生成建议后原文已经改变（切换了文档或继续编辑）。为避免覆盖当前内容，本次未写回，请重新校对这一段。",
+  "pet.menu.pause_proofread": "暂停校对",
+  "pet.menu.resume_proofread": "继续校对"
 }
