@@ -19,18 +19,28 @@ logger = logging.getLogger(__name__)
 
 
 def apply_correction(plugin, corrected_text: str, start: int | None = None,
-                     end: int | None = None, original_text: str | None = None) -> None:
+                     end: int | None = None, original_text: str | None = None,
+                     doc_identity: str | None = None) -> bool:
     """把建议写回 Word。
 
     含图片/公式的句子无法安全地整体替换，只清除标记并提示手动修改；
     纯文本句则只替换主体部分，保留句尾的段落符等不可见字符。
     """
     started = time.perf_counter()
+    applied = False
     word = None
     prev_screen_updating = None
     try:
         word = get_word_app()
         doc = word.ActiveDocument
+        # G1：来源文档必须仍是当前文档，否则坐标毫无意义（A 的建议写到 B 上）
+        if doc_identity:
+            current = str(getattr(doc, "FullName", "") or "")
+            if current and current != doc_identity:
+                logger.warning("拒绝写回：当前文档已切换（%s ≠ %s）", current, doc_identity)
+                plugin._status(plugin.tr("status.stale_suggestion"))
+                plugin._warn_stale_suggestion()
+                return False
         # 替换期间冻结重绘：Word 默认每次 COM 变更都重画，长句/大文档上很吃时间
         try:
             prev_screen_updating = word.ScreenUpdating
@@ -67,15 +77,16 @@ def apply_correction(plugin, corrected_text: str, start: int | None = None,
             expected_norm = re.sub(r"\s+", "", expected_body)
             current_norm = re.sub(r"\s+", "", body_text)
             pure_norm = re.sub(r"\s+", "", getattr(tokenized, "pure_text", "") or "")
+            # G1：必须"等价"，不能是包含关系 —— 否则"新增前缀 + 原句"会被整体替换，丢掉前缀。
             matched = bool(expected_norm) and (
-                expected_norm in current_norm or
-                (bool(pure_norm) and expected_norm in pure_norm))
+                expected_norm == current_norm or
+                (bool(pure_norm) and expected_norm == pure_norm))
             if not matched:
                 logger.warning("拒绝写回：原句已变化（%r ≠ %r）",
                                current_norm[:40], expected_norm[:40])
                 plugin._status(plugin.tr("status.stale_suggestion"))
                 plugin._warn_stale_suggestion()
-                return
+                return False
 
         if has_object:
             clear_error_marks(sent_range.Start, sent_range.End)
@@ -94,6 +105,7 @@ def apply_correction(plugin, corrected_text: str, start: int | None = None,
                 corrected_body = corrected_text[:-len(tail_text)]
 
             replace_range.Text = corrected_body
+            applied = True
             plugin._status(plugin.tr("status.applied"))
 
     except Exception as exc:               # noqa: BLE001 - 写回失败必须让用户看见
@@ -105,4 +117,6 @@ def apply_correction(plugin, corrected_text: str, start: int | None = None,
                 word.ScreenUpdating = prev_screen_updating
             except Exception:              # noqa: BLE001
                 pass
-        logger.info("apply_correction 用时 %.0f ms", (time.perf_counter() - started) * 1000)
+        logger.info("apply_correction 用时 %.0f ms（成功=%s）",
+                    (time.perf_counter() - started) * 1000, applied)
+    return applied

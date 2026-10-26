@@ -68,14 +68,22 @@ def token_based_mark_differences(original_tokens, corrected_sequence, sentence_r
             logger.debug("标记 token 区间失败（%s-%s）", first_token_start, last_token_end, exc_info=True)
 #  分块替换句子--修改18
 
-def mark_text_differences(original, corrected, start, end):
+def mark_text_differences(original, corrected, start, end, document=None):
     """
     保留旧版本兼容性（纯文本版本），实际调用新标记逻辑。
     如果句子包含对象，则使用 token_based_mark_differences。
+
+    G2：标记必须落在**生成建议时的那份文档**上。旧实现重新读 `ActiveDocument`，
+    用户在等待期间切到 B，就会拿 A 的旧坐标去画 B 的格式。
     """
     try:
         word = get_word_app()
-        doc = word.ActiveDocument
+        doc = document if document is not None else word.ActiveDocument
+        current = word.ActiveDocument
+        if (str(getattr(current, "FullName", "") or "")
+                != str(getattr(doc, "FullName", "") or "")):
+            logger.warning("跳过标记：当前文档已切换（%s）", getattr(doc, "FullName", ""))
+            return
         sentence_range = doc.Range(start, end)
     except Exception:
         return
@@ -487,7 +495,8 @@ def proof_sentence(sentence_range, api, config, i18n=None):
 
     # 6. 标记差异（对比 raw_text 和 corrected_with_tail）
     mark_text_differences(raw_text, corrected_with_tail,
-                          sentence_range.Start, sentence_range.End)
+                          sentence_range.Start, sentence_range.End,
+                          document=getattr(sentence_range, "Document", None))
 
     # 7. 清除占位符和尾部标记
     clear_marks_on_objects_and_ending(sentence_range, body_len=len(body_text))

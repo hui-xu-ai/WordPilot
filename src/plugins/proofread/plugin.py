@@ -384,6 +384,13 @@ class ProofreadPlugin(PluginBase):
         if self.floating_btn is None:
             return
         start, end = self.normalize_span(start, end)
+        # G1：记下建议来自哪份文档，写回前复核（切文档后旧坐标不能再用）
+        try:
+            from core.services.word_bridge import get_word_app
+
+            self._suggestion_doc = str(get_word_app().ActiveDocument.FullName or "")
+        except Exception:                      # noqa: BLE001 - 取不到就退化为不校验
+            self._suggestion_doc = ""
         has_diff = bool(original and corrected and original.strip() != corrected.strip())
         # 控件层仍以 -1 表示"无范围"，归一化后在这里转换，避免把哨兵值传到 COM
         self.floating_btn.set_suggestion(original, corrected,
@@ -459,10 +466,16 @@ class ProofreadPlugin(PluginBase):
             self._show_ok()
 
     def apply_correction(self, corrected_text: str, start: int | None = None,
-                         end: int | None = None, original_text: str | None = None) -> None:
-        """把建议写回 Word（实现见 writeback.apply_correction）。"""
-        apply_correction(self, corrected_text, start=start, end=end,
-                         original_text=original_text)
+                         end: int | None = None, original_text: str | None = None,
+                         doc_identity: str | None = None) -> bool:
+        """把建议写回 Word（实现见 writeback.apply_correction）。
+
+        doc_identity：生成建议时所在文档的全路径；不传时用本次建议记录的来源文档。
+        """
+        return apply_correction(self, corrected_text, start=start, end=end,
+                                original_text=original_text,
+                                doc_identity=doc_identity
+                                or getattr(self, "_suggestion_doc", "") or None)
 
     def _warn_stale_suggestion(self) -> None:
         warn_stale(self.tr)

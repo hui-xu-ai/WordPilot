@@ -568,7 +568,9 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
     # ---------------- 建议回调 ----------------
     def _on_accepted(self, corrected, start, end, original) -> None:
         if self._correction_handler is not None:
-            self._correction_handler(corrected, start=start, end=end)
+            # G1：把生成建议时的原句一起交出去 —— 否则写回无法判断"这段文字是否已被改动"，
+            # 在 A 得到的建议可能把 B 文档的内容覆盖掉。
+            self._correction_handler(corrected, start=start, end=end, original_text=original)
         self._discard_suggestion()
 
     def _on_ignored(self, text, start, end, original) -> None:
