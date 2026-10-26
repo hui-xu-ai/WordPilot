@@ -125,6 +125,7 @@ class _EntryCard(QFrame):
 
         self.note_edit = QTextEdit()
         self.note_edit.setObjectName("referenceNote")
+        self._dirty = False                       # 用户是否真的改过（程序化填充不算）
         self.note_edit.setPlainText(entry.note)
         self.note_edit.setFixedHeight(56)      # 三行左右：用户反馈两行显示不全
         self.note_edit.setPlaceholderText(tr("overlay.note_placeholder"))
@@ -146,6 +147,7 @@ class _EntryCard(QFrame):
             self.note_edit.blockSignals(True)
             self.note_edit.setPlainText(text)
             self.note_edit.blockSignals(False)
+            self._dirty = False
         self._refresh_note_meta()
 
     def _refresh_note_meta(self) -> None:
@@ -169,7 +171,12 @@ class _EntryCard(QFrame):
         self.notes_btn.setText(template.replace("{count}", str(len(notes))))
         self.notes_btn.setVisible(bool(notes))
         if text and not self.note_edit.toPlainText():
-            self.note_edit.setPlainText(text)     # 自动填充/跟随：先把内容显示出来
+            # 只在**显示**层面补上内容：必须屏蔽信号，否则会启动 800ms 自动保存，
+            # 用户什么都没输入也被写进库（与页面侧已保存的备注互相覆盖）。
+            self.note_edit.blockSignals(True)
+            self.note_edit.setPlainText(text)
+            self.note_edit.blockSignals(False)
+            self._dirty = False
 
     def _open_picker(self) -> None:
         if self._note_service is None:
@@ -211,6 +218,7 @@ class _EntryCard(QFrame):
         self._refresh_note_meta()
 
     def _on_text_changed(self) -> None:
+        self._dirty = True                        # 只有真实输入才需要保存
         self._timer.start()
 
     def flush(self) -> None:
@@ -218,6 +226,9 @@ class _EntryCard(QFrame):
             self._timer.stop()
         if getattr(self, "note_edit", None) is None:
             return
+        if not getattr(self, "_dirty", False):
+            return                                # 没改过 → 不写库（读十次也不写）
+        self._dirty = False
         self.noteEdited.emit(self._entry.anchor_key, self.note_edit.toPlainText())
 
     @property

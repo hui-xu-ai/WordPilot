@@ -276,11 +276,11 @@ class ReferencePlugin(PluginBase):
         self._shown_signature = ()
 
     def _on_note_picked(self, ref_key: str, note_id: str) -> None:
-        """子库挑选总库备注（跟随；note_id 为空表示"新建总库备注"暂不处理）。"""
+        """用户显式采用总库某条备注（复制进子库并记录来源）。"""
         if not note_id:
             return
         try:
-            self._note_service.set_inherit(ref_key, note_id)
+            self._note_service.adopt_master_note(ref_key, note_id)
         except ReferenceStoreError as exc:
             logger.warning("保存挑选的备注失败：%s", exc)
             return
