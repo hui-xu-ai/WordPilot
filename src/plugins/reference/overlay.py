@@ -329,10 +329,8 @@ class ReferenceOverlay(QWidget):
         # 有属主（宠物窗口）时用 `Qt.Window`：仍是顶层窗，但跟随属主一起显示。
         flags = Qt.Window if parent is not None else Qt.Tool
         self.setWindowFlags(flags | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        # 也**不再**用 WA_TranslucentBackground：分层窗口在部分环境里被合成成全透明
-        # （Windows 说可见、程序抓屏有内容，人眼却看不到）。整窗改不透明，圆角由 QSS 画。
-        self.setAttribute(Qt.WA_TranslucentBackground, False)
-        self.setAutoFillBackground(True)
+        # 半透明只为圆角抗锯齿；卡片本身用不透明底色绘制（否则压在白色 Word 上看不出边界）
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
         # 透明只为圆角抗锯齿；卡片本身用不透明底色绘制（否则压在白色 Word 上看不出边界）
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setObjectName("referenceOverlay")
