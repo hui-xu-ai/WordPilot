@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -48,6 +49,9 @@ class ReferenceIndex:
     def __init__(self, db_path: str | Path | None = None) -> None:
         self._path = Path(db_path) if db_path is not None else None
         self._conn: sqlite3.Connection | None = None
+        # 扫描/切换库发生在 QThread 里：连接必须允许跨线程使用并用锁串行化
+        # （否则主线程建的连接在扫描线程 close 会抛 ProgrammingError，审查 S9）
+        self._lock = threading.RLock()
 
     # ---------------- 连接与路径 ----------------
     @property
@@ -59,17 +63,22 @@ class ReferenceIndex:
         return self._path
 
     def _connect(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self._conn = sqlite3.connect(str(self.path))
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.executescript(_SCHEMA)
-        return self._conn
+        with self._lock:
+            if self._conn is None:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.executescript(_SCHEMA)
+            return self._conn
 
     def close(self) -> None:
-        if self._conn is not None:
-            self._conn.close()
-            self._conn = None
+        with self._lock:
+            if self._conn is not None:
+                try:
+                    self._conn.close()
+                except Exception:              # noqa: BLE001 - 已关闭/跨线程都不该炸
+                    logger.debug("关闭引用索引连接失败", exc_info=True)
+                self._conn = None
 
     # ---------------- 同步 ----------------
     def _read_meta(self, key: str) -> str | None:

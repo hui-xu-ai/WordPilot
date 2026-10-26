@@ -103,15 +103,17 @@ class ScanCache:
         if not path or fp is None:
             return
         payload = json.dumps([asdict(anchor) for anchor in anchors], ensure_ascii=False)
+        row = self._row(path)
+        # 文件变了（指纹不同）就不能再认为"参考文献列表已导入"（审查 S2）
+        still_imported = 1 if row and (row[0], row[1]) == fp and row[4] else 0
         with self._lock, self._connect() as conn:
             conn.execute(
                 "INSERT INTO doc_scan (path, mtime_ns, size, doc_name, anchors, bibliography_done)"
-                " VALUES (?, ?, ?, ?, ?, COALESCE((SELECT bibliography_done FROM doc_scan"
-                " WHERE path = ?), 0))"
+                " VALUES (?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(path) DO UPDATE SET"
                 " mtime_ns=excluded.mtime_ns, size=excluded.size, doc_name=excluded.doc_name,"
-                " anchors=excluded.anchors",
-                (path, fp[0], fp[1], doc_name, payload, path))
+                " anchors=excluded.anchors, bibliography_done=excluded.bibliography_done",
+                (path, fp[0], fp[1], doc_name, payload, still_imported))
 
     # ---------------- 参考文献列表是否已导入 ----------------
     def bibliography_done(self, path: str, fp: tuple[int, int] | None) -> bool:

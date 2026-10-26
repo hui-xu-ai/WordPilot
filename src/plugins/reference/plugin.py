@@ -60,6 +60,7 @@ class ReferencePlugin(PluginBase):
         self._libraries = LibraryRegistry()
         self._libraries.ensure_default()
         self._data_dir = self._libraries.active_path()
+        self._active_name = self._libraries.active_name()
         self._store = ReferenceStore(directory=self._data_dir)
         self._index = ReferenceIndex(db_path=self._data_dir / "index.db")
         self._scan_cache = ScanCache(db_path=self._data_dir / "doc_scan.db")
@@ -287,8 +288,13 @@ class ReferencePlugin(PluginBase):
         self.refresh_page()
 
     def switch_library(self, name: str) -> None:
-        """切换到另一个文献仓库（用户手动改绑）：重开数据文件并重绑页面。"""
-        if not name or name == self._libraries.active_name():
+        """切换到另一个文献仓库（用户手动改绑）：重开数据文件并重绑页面。
+
+        比较基准是**实际已打开的库** `_active_name`，不是 registry 的 active：
+        `create_library()` 会先把 registry.active 改成新库，若拿它比较就会提前返回，
+        于是新库注册了、Store 却还停在旧库（审查 S1）。
+        """
+        if not name or name == getattr(self, "_active_name", None):
             return
         try:
             directory = self._libraries.set_active(name)
@@ -316,6 +322,7 @@ class ReferencePlugin(PluginBase):
         if self._overlay is not None:
             self._overlay._store = self._store
             self._overlay._note_service = self._note_service
+        self._active_name = name
         logger.info("已切换到文献仓库：%s", name)
 
     def refresh_page(self) -> None:
@@ -392,6 +399,8 @@ class ReferencePlugin(PluginBase):
         document = word.ActiveDocument
         path = document.FullName
         name = document.Name
+        # 绑定库优先：否则本次文献会先写进当前库、再切绑定库（审查 S11）
+        self._ensure_scan_library(path)
         stats: dict = {"doc_name": name, "doc_path": path, "bibliography": 0,
                        "provider": 0, "imported": 0, "anchors": 0}
 
@@ -477,6 +486,16 @@ class ReferencePlugin(PluginBase):
             logger.warning("新建仓库失败：%s", exc)
             return
         self.switch_library(name)
+
+    def _ensure_scan_library(self, doc_path: str) -> None:
+        """扫描前把库切到该文档绑定的仓库（没有绑定则保持现状）。"""
+        try:
+            bound = self._libraries.doc_bindings().get(doc_path, "")
+        except Exception:                      # noqa: BLE001 - 绑定读失败不该阻塞扫描
+            logger.debug("读取文档绑定失败", exc_info=True)
+            return
+        if bound and bound != getattr(self, "_active_name", None):
+            self.switch_library(bound)
 
     def bind_current_document(self, doc_path: str, library: str) -> None:
         self._libraries.bind_document(doc_path, library)
