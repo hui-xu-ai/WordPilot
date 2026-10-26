@@ -50,8 +50,9 @@ class ToolbarMixin:
             self.panel_toggle.setCheckable(True)
             self.panel_toggle.setChecked(True)
             self.panel_toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
-            self.panel_toggle.setFixedHeight(24)
-            self.panel_toggle.setMinimumWidth(72)
+            # 只用样式压小内边距：写死高度会让「隐藏详情」被裁掉（用户反馈显示不全）
+            self.panel_toggle.setStyleSheet("QToolButton { padding: 1px 6px; }")
+            self.panel_toggle.setMinimumWidth(84)
             self.panel_toggle.setObjectName("panelToggle")
             self.panel_toggle.clicked.connect(self.toggle_panel)
             row_top.addWidget(self.panel_toggle, 0, Qt.AlignVCenter)

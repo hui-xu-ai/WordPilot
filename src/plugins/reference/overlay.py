@@ -371,6 +371,21 @@ class ReferenceOverlay(QWidget):
         frame_layout.addWidget(self.scroll, 1)
 
     # ---------------- 生命周期 ----------------
+    def _clamp_to_screen(self, x: int, y: int) -> tuple[int, int]:
+        """把悬浮窗夹进可用屏幕区域：多屏/分辨率变化时坐标可能落在屏幕外（看起来像没弹窗）。"""
+        try:
+            from PySide6.QtGui import QGuiApplication
+
+            screen = QGuiApplication.screenAt(QPoint(x, y)) or QGuiApplication.primaryScreen()
+            area = screen.availableGeometry()
+            width = max(self.width(), WIDTH)
+            height = max(self.height(), 120)
+            x = min(max(x, area.left()), area.right() - width)
+            y = min(max(y, area.top()), area.bottom() - height)
+        except Exception:                  # noqa: BLE001 - 拿不到屏幕就按原坐标
+            pass
+        return x, y
+
     def show_entries(self, entries: list[OverlayEntry], anchor: tuple[int, int]) -> None:
         visible = entries[:MAX_VISIBLE]
         if not visible:

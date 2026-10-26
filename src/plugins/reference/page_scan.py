@@ -69,7 +69,9 @@ class ScanMixin:
             # R6：后台线程只切了数据层（update_page=False），页面控件必须由这里
             # （GUI 线程）重绑，否则后台直接操作 QComboBox/表格会出界面异常。
             plugin = getattr(page, "_plugin", None)
-            if plugin is not None and stats.get("switch") in ("switch", "new"):
+            if plugin is not None:
+                # 路由可能在后台切了库（update_page=False），页面必须跟上；
+                # 不能只看 stats["switch"] —— 这里漏判时表格会停在旧库（显示 0 条）。
                 store = getattr(plugin, "_store", None)
                 if store is not None and store is not getattr(page, "_store", None):
                     try:

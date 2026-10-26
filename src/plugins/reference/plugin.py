@@ -21,6 +21,8 @@ from plugins.reference.reference_index import ReferenceIndex
 from plugins.reference.libraries import LibraryRegistry
 from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.notes_migration import migrate_legacy_notes
+from plugins.reference.overlay_debug import hint_missing_reference
+from plugins.reference.pet_anchor import pet_anchor_point, pet_preferred
 from plugins.reference.watch_bridge import (apply_document_name, connect_watch,
                                            push_current_document)
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
@@ -119,8 +121,7 @@ class ReferencePlugin(PluginBase):
         if self._watch is not None or self._store is None:
             return
         self._watch = WordWatch(cache=self._scan_cache)
-        # 注意：这里**不直连**槽函数 —— 槽会在工作线程执行，创建悬浮窗/改控件都不安全。
-        # 统一由 `_connect_doc_signal()` 经 `_WatchRelay`（QObject）转发到 GUI 线程。
+        # 不直连槽函数：槽会在工作线程跑，统一经 _WatchRelay 转到 GUI 线程
         self._watch.start()
 
     def _ensure_overlay(self) -> ReferenceOverlay:
@@ -218,28 +219,27 @@ class ReferencePlugin(PluginBase):
             seen.add(identity)
             entries.append(entry)
         if not entries:
+            hint_missing_reference(self, items)   # 记录原因 + 界面提示
             return
         overlay = self._ensure_overlay()
         signature = tuple(entry.anchor_key for entry in entries)
         if signature == self._shown_signature and overlay.isVisible():
             return                                  # 同一组锚点且已在显示 → 不重画，避免闪烁
         self._shown_signature = signature
-        overlay.show_entries(entries, self._last_point)
+        point = overlay._clamp_to_screen(*self._last_point)
+        logger.info("显示引用卡片：%d 张 pos=%s 库=%s",
+                    len(entries), point, getattr(self, "_active_name", ""))
+        overlay.show_entries(entries, point)
 
     @staticmethod
-    def _pet_anchor_point() -> tuple[int, int] | None:
-        """宠物作为定位锚点（用户要求：悬浮窗贴宠物，不挡正文）。"""
-        try:
-            from core.services.pet_service import PetService
-
-            return PetService.instance().anchor_point()
-        except Exception:                          # noqa: BLE001
-            return None
+    def _pet_anchor_point():
+        """宠物作为定位锚点（实现见 pet_anchor）。"""
+        return pet_anchor_point()
 
     @staticmethod
     def _pet_preferred() -> bool:
-        """宠物可用时优先贴宠物；宠物隐藏/未定位则回退光标位置。"""
-        return True
+        """宠物可用时优先贴宠物（实现见 pet_anchor）。"""
+        return pet_preferred()
 
     def _import_bibliography(self, doc_path: str, doc_name: str) -> None:
         """把文末参考文献列表解析进库（实现见 bib_import）。"""

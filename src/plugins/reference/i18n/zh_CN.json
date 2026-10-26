@@ -151,5 +151,6 @@
   "library.new.tip": "新建一个文献集（仓库）",
   "library.delete.tip": "删除当前文献集（进回收区，可恢复）",
   "panel.hide": "隐藏详情",
-  "panel.show": "显示详情"
+  "panel.show": "显示详情",
+  "overlay.no_match": "引用 {label} 在库里没有对应文献，可点「同步本文」后再试"
 }

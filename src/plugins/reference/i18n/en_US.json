@@ -151,5 +151,6 @@
   "library.new.tip": "Create a new library",
   "library.delete.tip": "Delete this library (moves to trash)",
   "panel.hide": "Hide details",
-  "panel.show": "Show details"
+  "panel.show": "Show details",
+  "overlay.no_match": "Citation {label} not found in this library; try Sync first"
 }
