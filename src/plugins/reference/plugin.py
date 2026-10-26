@@ -65,8 +65,12 @@ class ReferencePlugin(PluginBase):
         self._store = ReferenceStore(directory=self._data_dir)
         self._index = ReferenceIndex(db_path=self._data_dir / "index.db")
         self._scan_cache = ScanCache(db_path=self._data_dir / "doc_scan.db")
-        self._notes = NoteStore(directory=self._data_dir)
-        self._note_service = NoteService(self._store, self._notes)
+        # C1：总库是**全局一份**（config/references/notes.csv），不随子库切换；
+        # 旧版本把总库写在每个子库目录里，这里合并迁移一次（原文件改名保留）。
+        self._master_notes = NoteStore()
+        self._migrate_legacy_notes()
+        self._notes = self._master_notes
+        self._note_service = NoteService(self._store, self._master_notes)
         try:
             self._store.ensure_directory()
             self._index.ensure(self._store)
@@ -77,6 +81,10 @@ class ReferencePlugin(PluginBase):
                         icon="book", plugin_id="reference")
         self._start_watch()
         ctx.logger.info(self.tr("log.activated"))
+
+    def _migrate_legacy_notes(self) -> None:
+        """把旧版分散在各子库目录里的 notes.csv 合并进全局总库（实现见 notes_migration）。"""
+        migrate_legacy_notes(self._libraries, self._master_notes)
 
     def _build_page(self):
         if self._page is None:
@@ -315,7 +323,7 @@ class ReferencePlugin(PluginBase):
         self._store = ReferenceStore(directory=directory)
         self._index = ReferenceIndex(db_path=directory / "index.db")
         self._scan_cache = ScanCache(db_path=directory / "doc_scan.db")
-        self._notes = NoteStore(directory=directory)
+        self._notes = getattr(self, "_master_notes", None) or NoteStore()
         self._note_service = NoteService(self._store, self._notes)
         if self._watch is not None:
             self._watch._cache = self._scan_cache

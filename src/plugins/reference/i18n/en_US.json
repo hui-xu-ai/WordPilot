@@ -138,5 +138,7 @@
   "library.delete_confirm": "Delete library \"{name}\"? Its folder is moved to libraries/_trash so you can restore it.",
   "library.delete_failed": "Delete failed (at least one library must remain).",
   "action.new_reference": "New reference",
-  "filter.menu": "Filter"
+  "filter.menu": "Filter",
+  "overlay.note_available": "Master notes available (not adopted)",
+  "overlay.master_diff": "Master library differs; this library keeps its own note"
 }

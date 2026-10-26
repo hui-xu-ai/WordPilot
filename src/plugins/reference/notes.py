@@ -24,11 +24,9 @@ NOTE_COLUMNS = ("note_id", "ref_key", "label", "text", "pinned", "created", "upd
 BACKUP_KEEP = 5
 
 #: 解析来源
-SOURCE_CHILD = "child"        # 子库自己写的
-SOURCE_INHERIT = "inherit"    # 跟随总库挑选的那条
-SOURCE_AUTO = "auto"          # 总库只有一条，自动填充
+SOURCE_CHILD = "child"          # 子库已保存的内容（自行创建或采用后复制）
+SOURCE_AVAILABLE = "available"  # 子库为空，总库有可选内容（**不代表已采用**）
 SOURCE_NONE = "none"
-SOURCE_DEFAULT = "default"      # 多条时默认取钉住/最近更新那条
 
 
 @dataclass
@@ -76,27 +74,23 @@ def _slug(label: str, index: int) -> str:
     return label or f"备注 {index}"
 
 
-def resolve_note(child_note: str, inherit_note_id: str, master_notes: list[Note]) -> tuple[str, str, Note | None]:
-    """算出某条文献**当前应显示的备注**：返回 (文本, 来源, 命中的总库备注)。
+def resolve_note(child_note: str, inherit_note_id: str,
+                 master_notes: list[Note]) -> tuple[str, str, Note | None]:
+    """算出某条文献**当前应显示的备注**：返回 (文本, 来源, 总库候选中被采用的那条)。
 
-    优先级：子库自己写的内容 > 子库挑选的总库备注 > 总库唯一条目自动填充 > 空。
+    规则（需求 C2）：
+    - 子库已有内容 → 显示子库内容（来源 child）；
+    - 子库为空但总库有内容 → **不自动填**，返回空文本 + available（界面只提示"有 N 条可选"）；
+    - 都没有 → none。
     """
     if (child_note or "").strip():
-        return child_note, SOURCE_CHILD, None
+        adopted = next((note for note in master_notes
+                        if inherit_note_id and note.note_id == inherit_note_id), None)
+        return child_note, SOURCE_CHILD, adopted
 
     active = [note for note in master_notes if not note.archived]
-    if inherit_note_id:
-        for note in active:
-            if note.note_id == inherit_note_id:
-                return note.text, SOURCE_INHERIT, note
-
-    if len(active) == 1:
-        return active[0].text, SOURCE_AUTO, active[0]
     if active:
-        # 多条且没挑：默认显示"钉住 / 最近更新"的那条，避免空白（用户反馈）
-        default = pick_default_note(active)
-        if default is not None:
-            return default.text, SOURCE_DEFAULT, default
+        return "", SOURCE_AVAILABLE, None
     return "", SOURCE_NONE, None
 
 
@@ -111,15 +105,22 @@ def pick_default_note(master_notes: list[Note]) -> Note | None:
 
 
 class NoteService:
-    """界面用的门面：子库备注（1 条）+ 总库多条 + 跟随挑选。"""
+    """界面门面：子库备注（1 条，存在文献行上）+ **全局**总库备注（多条）。"""
 
-    def __init__(self, store, note_store: "NoteStore") -> None:
+    def __init__(self, store, master_store: "NoteStore") -> None:
         self._store = store
-        self._notes = note_store
+        self._master = master_store
 
     # ---------------- 读 ----------------
     def master_notes(self, ref_key: str):
-        return self._notes.notes_for(ref_key)
+        """总库备注（跨子库共享）。"""
+        return self._master.notes_for(ref_key)
+
+    def available_count(self, ref_key: str) -> int:
+        """总库里可选的备注条数（子库为空时界面提示"有 N 条可选"）。"""
+        if self.child_note(ref_key).strip():
+            return 0
+        return len([note for note in self.master_notes(ref_key) if not note.archived])
 
     def inherit_id(self, ref_key: str) -> str:
         reference = self._store.get(ref_key)
@@ -130,34 +131,62 @@ class NoteService:
         return (reference.note if reference else "") or ""
 
     def effective(self, ref_key: str) -> tuple[str, str, "Note | None"]:
-        """当前应显示的备注：(文本, 来源, 命中的总库备注)。"""
+        """当前应显示的备注：(文本, 来源, 采用来源的总库备注)。"""
         return resolve_note(self.child_note(ref_key), self.inherit_id(ref_key),
                             self.master_notes(ref_key))
 
+    def adopted_diff(self, ref_key: str) -> str:
+        """子库采用的备注与总库当前内容不一致时，返回总库那份文本（供"查看差异"）。"""
+        adopted_id = self.inherit_id(ref_key)
+        if not adopted_id or not self.child_note(ref_key).strip():
+            return ""
+        current = next((note for note in self.master_notes(ref_key)
+                        if note.note_id == adopted_id), None)
+        if current is None:
+            return ""
+        return "" if current.text.strip() == self.child_note(ref_key).strip() else current.text
+
     # ---------------- 写 ----------------
     def save_child_note(self, ref_key: str, text: str) -> None:
-        """子库备注（单条）：同一文献在文中多处引用共用。"""
+        """子库备注（单条）：同一文献在本文多处引用共用。"""
         self._store.set_note(ref_key, note=text)
 
-    def set_inherit(self, ref_key: str, note_id: str) -> None:
-        reference = self._store.get(ref_key)
-        if reference is None:
+    def adopt_master_note(self, ref_key: str, note_id: str) -> None:
+        """用户显式采用总库某条：把文本复制进子库，并记录来源 ID（供差异提示）。"""
+        note = next((item for item in self.master_notes(ref_key)
+                     if item.note_id == note_id), None)
+        if note is None:
             return
-        reference.inherit_note_id = note_id or ""
-        self._store.upsert(reference)
+        self._store.set_note(ref_key, note=note.text)
+        reference = self._store.get(ref_key)
+        if reference is not None:
+            reference.inherit_note_id = note_id
+            self._store.upsert(reference)
+
+    def publish_to_master(self, ref_key: str, label: str = "") -> "Note | None":
+        """用户点击"保存到总库"：把当前子库备注发布成一条总库备注。"""
+        text = self.child_note(ref_key).strip()
+        if not text:
+            return None
+        note = self._master.add(ref_key, text, label=label or "来自子库")
+        reference = self._store.get(ref_key)
+        if reference is not None:
+            reference.inherit_note_id = note.note_id
+            self._store.upsert(reference)
+        return note
 
     def create_master_note(self, ref_key: str, text: str, label: str = "") -> "Note":
-        return self._notes.add(ref_key, text, label=label)
+        return self._master.add(ref_key, text, label=label)
 
     def update_master_note(self, note_id: str, text: str | None = None,
                            label: str | None = None, pinned: bool | None = None):
-        return self._notes.update(note_id, text=text, label=label, pinned=pinned)
+        return self._master.update(note_id, text=text, label=label, pinned=pinned)
 
     def set_pinned(self, note_id: str, pinned: bool):
-        return self._notes.update(note_id, pinned=pinned)
+        return self._master.update(note_id, pinned=pinned)
 
     def archive_master_note(self, note_id: str) -> None:
-        self._notes.archive(note_id)
+        self._master.archive(note_id)
 
 
 class NoteStore:

@@ -395,15 +395,16 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
             editor = NoteEditor(tr=self.tr, parent=self)
             if editor.exec() != editor.Accepted:
                 return
-            note = self._note_service.create_master_note(ref_key, editor.text, editor.label)
-            self._note_service.set_inherit(ref_key, note.note_id)
+            # 新建的是**总库**备注：它不会自动进子库，用户仍要显式采用（C2）
+            self._note_service.create_master_note(ref_key, editor.text, editor.label)
         elif dialog.fork_requested:
             picked = next((note for note in self._note_service.master_notes(ref_key)
                            if note.note_id == dialog.selected_note_id), None)
             if picked is not None:
                 self._note_service.save_child_note(ref_key, picked.text)
         elif dialog.selected_note_id:
-            self._note_service.set_inherit(ref_key, dialog.selected_note_id)
+            # 采用：复制文本进子库并记录来源 ID（不再"跟随"）
+            self._note_service.adopt_master_note(ref_key, dialog.selected_note_id)
         self.reload()
         self._show_reference(self._selected_key)
 
@@ -414,13 +415,17 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
         ref_key = self._store.resolve_key(key)
         notes = self._note_service.master_notes(ref_key)
         _text, source, _hit = self._note_service.effective(ref_key)
-        labels = {"child": "overlay.note_child", "inherit": "overlay.note_inherit",
-                  "auto": "overlay.note_auto", "default": "overlay.note_default",
+        labels = {"child": "overlay.note_child", "available": "overlay.note_available",
                   "none": "overlay.note_none"}
         self.notes_source_label.setText(self.tr(labels.get(source, "")))
         template = self.tr("overlay.master_count")
         self.notes_btn.setText(template.replace("{count}", str(len(notes))))
         self.notes_btn.setVisible(bool(notes))
+        # 子库采用的是总库某条、而总库后来变了 → 只提示差异（不自动改子库）
+        diff = self._note_service.adopted_diff(ref_key)
+        if hasattr(self, "notes_diff_label"):
+            self.notes_diff_label.setText(self.tr("overlay.master_diff") if diff else "")
+            self.notes_diff_label.setVisible(bool(diff))
 
     def _clear_panel(self) -> None:
         for key, label in self.read_labels.items():

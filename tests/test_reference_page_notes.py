@@ -18,7 +18,7 @@ def page(tmp_path):
     store = ReferenceStore(directory=tmp_path)
     notes = NoteStore(directory=tmp_path)
     index = ReferenceIndex(db_path=tmp_path / "index.db")
-    service = NoteService(store, notes)
+    service = NoteService(store, notes)   # notes 明确作为"全局总库"
     widget = LibraryPage(_Ctx(), store, index, note_service=service)
     yield widget, store, notes, service
     widget.deleteLater()
@@ -43,7 +43,7 @@ def test_notes_row_shows_source_and_count(page):
     assert first.note_id
 
 
-def test_single_master_note_is_auto_and_count_is_one(page):
+def test_single_master_note_counts_but_is_not_auto_adopted(page):
     widget, store, notes, _service = page
     store.upsert(_ref())
     notes.add("doi:1", "唯一一条")
@@ -66,7 +66,8 @@ def test_inherit_persists_from_page(page):
     store.upsert(_ref())
     picked = notes.add("doi:1", "挑这条")
     notes.add("doi:1", "别的那条")
-    service.set_inherit("doi:1", picked.note_id)
+    service.adopt_master_note("doi:1", picked.note_id)
 
     reopened = ReferenceStore(directory=store.directory)
     assert reopened.get("doi:1").inherit_note_id == picked.note_id
+    assert reopened.get("doi:1").note == "挑这条", "采用后子库保存复制来的文本"
