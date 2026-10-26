@@ -70,13 +70,28 @@ class LibraryMixin:
         toolbar.addWidget(combo)
         return combo
 
-    def rebuild_library_combo(self) -> None:
-        """库列表变化（新建/删除）后重填下拉，保持当前选中项。"""
+    def _library_names(self) -> list[str]:
+        """当前库名列表：优先问插件（新建/删除后快照是旧的）。"""
+        plugin = getattr(self, "_plugin", None)
+        libraries = getattr(plugin, "_libraries", None)
+        if libraries is not None:
+            try:
+                names = libraries.names()
+                if names:
+                    return list(names)
+            except Exception:                  # noqa: BLE001 - 注册表读失败就用快照
+                pass
+        return list(getattr(self, "_libraries", None) or [])
+
+    def rebuild_library_combo(self, active: str = "") -> None:
+        """库列表变化（新建/删除）后重填下拉，并选中当前库。"""
         combo = getattr(self, "library_combo", None)
         if combo is None:
             return
-        names = list(getattr(self, "_libraries", None) or [])
-        active = getattr(self, "_active_library", "") or combo.currentText()
+        names = self._library_names()
+        plugin = getattr(self, "_plugin", None)
+        active = (active or getattr(plugin, "_active_name", "")
+                  or getattr(self, "_active_library", "") or combo.currentText())
         blocked = combo.blockSignals(True)
         try:
             combo.clear()
@@ -107,7 +122,11 @@ class LibraryMixin:
             return
         rebuild = getattr(self, "rebuild_library_combo", None)
         if callable(rebuild):
-            rebuild()
+            plugin = getattr(self, "_plugin", None)
+            rebuild(getattr(plugin, "_active_name", "") or "")
+        reload_now = getattr(self, "reload", None)
+        if callable(reload_now):
+            reload_now()
 
     def prompt_new_library(self) -> None:
         """弹输入框新建仓库：命名 → 建库 → 自动切过去（用户最初要求的流程）。"""
@@ -126,7 +145,13 @@ class LibraryMixin:
         except ValueError as exc:
             QMessageBox.warning(self, self.tr("library.new_title"), str(exc))
             return
-        self.build_library_combo_reload() if hasattr(self, "build_library_combo_reload") else None
+        rebuild = getattr(self, "rebuild_library_combo", None)
+        if callable(rebuild):
+            rebuild(name)                     # 新建后自动选中新库
+        self._active_library = name
+        reload_now = getattr(self, "reload", None)
+        if callable(reload_now):
+            reload_now()
 
     def _finish_editing(self) -> None:
         """R4：切库前统一收尾——有修改就保存/保留草稿，并把表单与选中项清干净。
