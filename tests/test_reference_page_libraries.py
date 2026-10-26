@@ -70,3 +70,20 @@ def test_switching_signal_only_fires_for_new_library(tmp_path):
     assert calls == ["库B"], "同一个库不应重复触发切换"
     index.close()
     widget.deleteLater()
+
+
+def test_new_library_button_exists_and_prompts(pages, monkeypatch):
+    """用户最初的要求：界面上有「新建仓库」按钮，点了能命名并切过去。"""
+    widget, _a, _b = pages
+    assert hasattr(widget, "new_lib_btn"), "缺少「新建仓库」按钮"
+    assert widget.new_lib_btn.text(), "按钮要有文案"
+
+    created: list[str] = []
+    monkeypatch.setattr(widget, "_on_create_library", created.append, raising=False)
+
+    from PySide6.QtWidgets import QInputDialog
+
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("新仓库", True)))
+    widget.prompt_new_library()
+
+    assert created == ["新仓库"], f"应把名字交给建库回调，实际 {created}"

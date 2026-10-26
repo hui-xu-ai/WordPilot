@@ -96,7 +96,13 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         # ---- 顶部一条工具栏 ----
         toolbar = QHBoxLayout()
         toolbar.setSpacing(6)
+        # 仓库下拉 + 显式「新建仓库」：用户最初要求"能新建子仓库并命名"，
+        # 之前只把入口藏在 ⋯ 菜单里，等于没有（反馈：找不到建库入口）。
         self.build_library_combo(toolbar)
+
+        self.new_lib_btn = QPushButton()
+        self.new_lib_btn.clicked.connect(self.prompt_new_library)
+        toolbar.addWidget(self.new_lib_btn)
 
         self.search_edit = QLineEdit()
         self.search_edit.textChanged.connect(self._apply_filter)
@@ -186,6 +192,7 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         for name, key in _FILTERS:
             self.filter_buttons[name].setText(self.tr(key))
         self.filter_buttons["orphan"].setText(self.tr("filter.orphan"))
+        self.new_lib_btn.setText(self.tr("library.new"))
         self.scan_btn.setText(self.tr("action.scan"))
         self.scan_btn.setToolTip(self.tr("action.scan.tip"))
         self.refresh_btn.setText(self.tr("action.reload"))

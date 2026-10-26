@@ -129,5 +129,8 @@
   "filter.removed": "Removed",
   "filter.diff_tip": "Differences since the last scan",
   "status.diff": "Synced: +{added} new · -{removed} removed (notes kept)",
-  "overlay.note_default": "Default master note (several; click Master to switch)"
+  "overlay.note_default": "Default master note (several; click Master to switch)",
+  "library.new": "New library",
+  "library.new_title": "New reference library",
+  "library.new_prompt": "Name the new library (it will be switched to):"
 }

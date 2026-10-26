@@ -129,5 +129,8 @@
   "filter.removed": "已移除",
   "filter.diff_tip": "与上次扫描相比的差异",
   "status.diff": "本次同步：新增 {added} 条 · 已移除 {removed} 条（备注仍保留）",
-  "overlay.note_default": "总库默认备注（多条，点「总库」可切换）"
+  "overlay.note_default": "总库默认备注（多条，点「总库」可切换）",
+  "library.new": "新建仓库",
+  "library.new_title": "新建文献仓库",
+  "library.new_prompt": "给新仓库起个名字（会自动切换过去）："
 }

@@ -138,5 +138,8 @@
   "settings.api.key_show": "显示",
   "settings.api.key_hide": "隐藏",
   "pet.menu.pause_proofread": "暂停校对",
-  "pet.menu.resume_proofread": "继续校对"
+  "pet.menu.resume_proofread": "继续校对",
+  "library.new": "新建仓库",
+  "library.new_title": "新建文献仓库",
+  "library.new_prompt": "给新仓库起个名字（会自动切换过去）："
 }

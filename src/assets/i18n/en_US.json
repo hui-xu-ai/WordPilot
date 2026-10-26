@@ -138,5 +138,8 @@
   "settings.api.key_show": "Show",
   "settings.api.key_hide": "Hide",
   "pet.menu.pause_proofread": "Pause proofreading",
-  "pet.menu.resume_proofread": "Resume proofreading"
+  "pet.menu.resume_proofread": "Resume proofreading",
+  "library.new": "New library",
+  "library.new_title": "New reference library",
+  "library.new_prompt": "Name the new library (it will be switched to):"
 }

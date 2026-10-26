@@ -20,6 +20,25 @@ class LibraryMixin:
         toolbar.addWidget(combo)
         return combo
 
+    def prompt_new_library(self) -> None:
+        """弹输入框新建仓库：命名 → 建库 → 自动切过去（用户最初要求的流程）。"""
+        from PySide6.QtWidgets import QInputDialog, QMessageBox
+
+        name, ok = QInputDialog.getText(self, self.tr("library.new_title"),
+                                       self.tr("library.new_prompt"))
+        name = (name or "").strip()
+        if not ok or not name:
+            return
+        create = getattr(self, "_on_create_library", None)
+        if create is None:
+            return
+        try:
+            create(name)
+        except ValueError as exc:
+            QMessageBox.warning(self, self.tr("library.new_title"), str(exc))
+            return
+        self.build_library_combo_reload() if hasattr(self, "build_library_combo_reload") else None
+
     def _on_library_changed(self, name: str) -> None:
         if not name or name == self._active_library or self._on_switch_library is None:
             return
