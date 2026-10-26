@@ -32,6 +32,32 @@ class LibraryMixin:
         self.filter_buttons = buttons
         self.filter_buttons["all"].setChecked(True)
 
+    def build_filter_menu(self, toolbar, filters) -> None:
+        """筛选下拉（全部/有备注/星标/…）：低频操作不占工具栏一行。"""
+        from PySide6.QtWidgets import QMenu, QToolButton
+
+        button = QToolButton()
+        button.setPopupMode(QToolButton.InstantPopup)
+        menu = QMenu(button)
+        actions: dict = {}
+        for name, _key in filters:
+            action = menu.addAction("")
+            action.setCheckable(True)
+            action.triggered.connect(lambda _checked, value=name: self._select_filter(value))
+            actions[name] = action
+        actions["all"].setChecked(True)
+        button.setMenu(menu)
+        self.filter_btn = button
+        self.filter_menu = menu
+        self.filter_actions = actions
+        toolbar.addWidget(button)
+
+    def _select_filter(self, name: str) -> None:
+        """菜单项被点：互斥选中并应用筛选。"""
+        for key, action in self.filter_actions.items():
+            action.setChecked(key == name)
+        self.set_filter(name)
+
     def build_library_combo(self, toolbar) -> QComboBox:
         combo = QComboBox()
         combo.setObjectName("libraryCombo")

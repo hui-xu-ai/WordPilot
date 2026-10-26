@@ -131,3 +131,30 @@ def build_panel(host) -> QWidget:
 
     layout.addWidget(host.panel_stack, 1)
     return panel
+
+
+class PanelEditMixin:
+    """条目编辑面板的进入/退出（从 library_page 抽出控制文件行数）。"""
+
+    def cancel_edit(self) -> None:
+        self.panel_stack.setCurrentIndex(0)
+
+    def start_new(self) -> None:
+        self._mode = "refs"
+        action = self.filter_actions.get("all")
+        if action is not None:
+            action.setChecked(True)
+            self._only_checked("all")
+        self._current_key = ""
+        self._orphan = None
+        self._refresh_table()
+        for widget in (self.label_edit, self.title_edit, self.authors_edit, self.year_edit,
+                       self.container_edit, self.doi_edit, self.type_edit, self.tags_edit):
+            widget.clear()
+        self.starred_check.setChecked(False)
+        self.note_edit.clear()
+        self.key_label.setText(self.tr("new.hint"))
+        self.panel_title.setText(self.tr("panel.new"))
+        self.panel_stack.setCurrentIndex(1)
+        self.title_edit.setFocus()
+

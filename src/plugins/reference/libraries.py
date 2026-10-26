@@ -173,7 +173,25 @@ class LibraryRegistry:
 
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         if directory.exists():
-            directory.replace(_backup_path(trash / f"{name}-{stamp}".replace(".", "-")))
+            # Windows 上目录里若有进程仍打开的 SQLite 句柄，rename 会 PermissionError。
+            # 调用方（plugin.delete_library）会先切库把句柄关掉；这里再重试几次，
+            # 仍失败就退化为"逐个删文件"，保证至少能从注册表里删掉这个库。
+            import gc
+            import time
+
+            target = _backup_path(trash / f"{name}-{stamp}".replace(".", "-"))
+            moved = False
+            for attempt in range(3):
+                try:
+                    directory.rename(target)
+                    moved = True
+                    break
+                except OSError:
+                    gc.collect()
+                    time.sleep(0.05 * (attempt + 1))
+            if not moved:
+                logger.warning("目录被占用，改为逐个删除文件：%s", directory)
+                self._force_remove(directory)
 
         libraries.pop(name)
         data["libraries"] = libraries

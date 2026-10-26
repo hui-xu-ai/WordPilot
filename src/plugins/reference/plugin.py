@@ -521,15 +521,20 @@ class ReferencePlugin(PluginBase):
 
     def delete_library(self, name: str) -> bool:
         """删除仓库并刷新界面（当前库被删时自动切到剩下的库）。"""
+        # 删的若是当前库，必须先切走：否则 index.db / doc_scan.db 仍被本进程打开，
+        # Windows 会拒绝把目录移走（实测 PermissionError WinError 5，用户看到的就是"删不掉"）。
+        if getattr(self, "_active_name", None) == name:
+            remaining = [lib for lib in self._libraries.names() if lib != name]
+            if not remaining:
+                logger.warning("删除仓库失败：至少要保留一个仓库")
+                return False
+            self._active_name = None                     # 强制 switch_library 真正重开
+            self.switch_library(remaining[0])
         try:
             self._libraries.delete(name)
         except (KeyError, ValueError) as exc:
             logger.warning("删除仓库失败（%s）：%s", name, exc)
             return False
-        if getattr(self, "_active_name", None) == name:
-            target = self._libraries.active_name()
-            self._active_name = None                     # 强制 switch_library 真正重开
-            self.switch_library(target)
         if self._page is not None:
             try:
                 self._page.reload()

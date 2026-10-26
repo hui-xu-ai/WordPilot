@@ -136,5 +136,7 @@
   "library.delete": "Delete library",
   "library.delete_title": "Delete library",
   "library.delete_confirm": "Delete library \"{name}\"? Its folder is moved to libraries/_trash so you can restore it.",
-  "library.delete_failed": "Delete failed (at least one library must remain)."
+  "library.delete_failed": "Delete failed (at least one library must remain).",
+  "action.new_reference": "New reference",
+  "filter.menu": "Filter"
 }

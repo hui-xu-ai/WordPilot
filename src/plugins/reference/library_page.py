@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog, 
 
 from plugins.reference.page_libraries import (FILTERS as _FILTERS_FROM_PAGE_LIBRARIES,
                                              LibraryMixin, group_separator)
-from plugins.reference.page_panel import PANEL_WIDTH, build_panel
+from plugins.reference.page_panel import PANEL_WIDTH, PanelEditMixin, build_panel
 from plugins.reference.page_scan import ScanMixin
 from plugins.reference.reference_store import (Anchor, Reference, ReferenceStore,
                                                ReferenceStoreError)
@@ -45,7 +45,7 @@ _ORPHAN_COLUMNS = ("doc_name", "cite_label", "anchor_key")
 _FILTERS = _FILTERS_FROM_PAGE_LIBRARIES
 
 
-class LibraryPage(ScanMixin, LibraryMixin, QWidget):
+class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
     """文献库管理页。"""
 
     def __init__(self, ctx: "PluginContext", store: ReferenceStore,
@@ -114,7 +114,8 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         self.search_edit.textChanged.connect(self._apply_filter)
         toolbar.addWidget(self.search_edit, 1)
 
-        self.build_filter_chips(toolbar, _FILTERS)
+        self.build_filter_menu(toolbar, _FILTERS)
+
 
         # ---- 分区 3：条目与数据操作 ----
         toolbar.addWidget(group_separator())
@@ -126,17 +127,12 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         self.scan_btn.clicked.connect(self.scan_document)
         toolbar.addWidget(self.scan_btn)
 
-        self.refresh_btn = QPushButton()
-        self.refresh_btn.clicked.connect(self.reload_now)
-        toolbar.addWidget(self.refresh_btn)
-
-        self.open_csv_btn = QPushButton()
-        self.open_csv_btn.clicked.connect(self.open_csv)
-        toolbar.addWidget(self.open_csv_btn)
-
         self.more_btn = QToolButton()
         self.more_btn.setPopupMode(QToolButton.InstantPopup)
         self.menu = QMenu(self.more_btn)
+        self.refresh_action = self.menu.addAction("", self.reload_now)
+        self.open_csv_action = self.menu.addAction("", self.open_csv)
+        self.menu.addSeparator()
         self.import_action = self.menu.addAction("", self.import_csv)
         self.export_action = self.menu.addAction("", self.export_csv)
         self.dir_action = self.menu.addAction("", self.open_directory)
@@ -188,17 +184,17 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
 
     def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
         self.search_edit.setPlaceholderText(self.tr("search.placeholder"))
+        self.filter_btn.setText(self.tr("filter.menu"))
         for name, key in _FILTERS:
-            self.filter_buttons[name].setText(self.tr(key))
-        self.filter_buttons["orphan"].setText(self.tr("filter.orphan"))
+            self.filter_actions[name].setText(self.tr(key))
+        self.filter_actions["orphan"].setText(self.tr("filter.orphan"))
         self.new_lib_btn.setText(self.tr("library.new"))
         self.new_ref_btn.setText(self.tr("action.new_reference"))
         self.del_lib_btn.setText(self.tr("library.delete"))
         self.scan_btn.setText(self.tr("action.scan"))
         self.scan_btn.setToolTip(self.tr("action.scan.tip"))
-        self.refresh_btn.setText(self.tr("action.reload"))
-        self.refresh_btn.setToolTip(self.tr("action.reload.tip"))
-        self.open_csv_btn.setText(self.tr("action.open_csv"))
+        self.refresh_action.setText(self.tr("action.reload"))
+        self.open_csv_action.setText(self.tr("action.open_csv"))
         self.more_btn.setText("⋯")
         self.more_btn.setToolTip(self.tr("action.more"))
         self.import_action.setText(self.tr("action.import"))
@@ -316,9 +312,18 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
                                 if self.table.item(row, column) is not None)
             self.table.setRowHidden(row, bool(needle and needle not in haystack))
 
+    def _only_checked(self, name: str) -> None:
+        """菜单里的筛选互斥：选中一个就取消其它。"""
+        for key, action in self.filter_actions.items():
+            if key != name:
+                action.setChecked(False)
+
     def set_filter(self, name: str) -> None:
         """顶部 chips：全部 / 有备注 / 星标 / 缺元数据 / 孤立。"""
-        self.filter_buttons[name].setChecked(True)
+        action = self.filter_actions.get(name)
+        if action is not None:
+            action.setChecked(True)
+            self._only_checked(name)
         self._mode = "orphans" if name == "orphan" else "refs"
         self._refresh_table()
         if self._mode == "refs":
@@ -478,25 +483,6 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         if not self._current_key:
             return
         self.panel_stack.setCurrentIndex(1)
-
-    def cancel_edit(self) -> None:
-        self.panel_stack.setCurrentIndex(0)
-
-    def start_new(self) -> None:
-        self._mode = "refs"
-        self.filter_buttons["all"].setChecked(True)
-        self._current_key = ""
-        self._orphan = None
-        self._refresh_table()
-        for widget in (self.label_edit, self.title_edit, self.authors_edit, self.year_edit,
-                       self.container_edit, self.doi_edit, self.type_edit, self.tags_edit):
-            widget.clear()
-        self.starred_check.setChecked(False)
-        self.note_edit.clear()
-        self.key_label.setText(self.tr("new.hint"))
-        self.panel_title.setText(self.tr("panel.new"))
-        self.panel_stack.setCurrentIndex(1)
-        self.title_edit.setFocus()
 
     def _collect(self) -> Reference:
         key = self._current_key or f"manual:{uuid.uuid4().hex[:8]}"

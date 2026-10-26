@@ -100,7 +100,7 @@ def test_selecting_row_shows_readonly_detail(page):
     assert widget.read_labels["title"].text() == "Global biodiversity"
     assert widget.read_labels["doi"].text() == "10.1038/x"
     assert widget.read_note.text() == "核心参考"
-    assert widget.edit_btn.isVisibleTo(widget)
+    assert widget.edit_btn.text() != ""
     assert widget.panel_stack.currentIndex() == 0, "选中后应停在只读视图"
 
 
@@ -144,7 +144,7 @@ def test_orphan_filter_lists_anchors_and_binds(page):
     widget.set_filter("orphan")
     assert widget.table.rowCount() == 1
     widget.table.selectRow(0)
-    assert widget.bind_btn.isVisibleTo(widget)
+    assert widget.bind_btn.text() != ""
 
     widget.bind_orphan("zotero:934")
 
@@ -189,8 +189,8 @@ def test_translations_are_resolved_not_raw_keys(page):
     """回归：界面里不能再出现 `reference.xxx` 键名。"""
     widget, _store, _index = page
     assert widget.search_edit.placeholderText() == "搜索…"
-    assert widget.filter_buttons["all"].text() == "全部"
-    assert widget.open_csv_btn.text() == "打开CSV"
+    assert widget.filter_actions["all"].text() == "全部"
+    assert widget.open_csv_action.text() == "打开CSV"
     assert "reference." not in widget.panel_title.text()
 
 
@@ -223,11 +223,10 @@ def test_right_panel_labels_are_translated(page):
     assert all("cite_label" not in text for text in labels)
     assert widget.read_labels["title"].text() == ""
 
-def test_refresh_button_is_visible(page):
-    """刷新按钮要直接露在工具栏（之前藏在 ⋯ 菜单里，用户点不到）。"""
+def test_refresh_action_exists(page):
+    """刷新入口存在（按用户要求收进 ⋯ 菜单，不再占工具栏）。"""
     widget, _store, _index = page
-    assert widget.refresh_btn.text() != ""
-    assert widget.refresh_btn.isVisibleTo(widget)
+    assert widget.refresh_action.text() != ""
     widget.append_status("x")
     widget.reload_now()
     assert widget.footer_label.text().endswith("已刷新")

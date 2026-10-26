@@ -29,8 +29,8 @@ def page(tmp_path):
 
 def test_filter_chips_exist(page):
     widget, _store = page
-    assert "added" in widget.filter_buttons
-    assert "removed" in widget.filter_buttons
+    assert "added" in widget.filter_actions
+    assert "removed" in widget.filter_actions
 
 
 def test_added_filter_shows_only_new(page):
