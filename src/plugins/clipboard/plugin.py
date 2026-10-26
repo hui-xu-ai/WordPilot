@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel,
-                               QPushButton, QTextEdit, QVBoxLayout, QWidget)
+                               QPushButton, QTextEdit, QVBoxLayout, QWidget, QGridLayout)
 
 from core.sdk.plugin_base import PluginBase
 
@@ -52,8 +52,10 @@ class ClipboardWidget(QWidget):
         self.clip_result = QTextEdit()
         layout.addWidget(self.clip_result, 1)
 
-        # 底部按钮排：读取剪贴板、复制结果、翻译、改写、纠错
-        btn_row = QHBoxLayout()
+        # 底部按钮区：读取剪贴板、复制结果、翻译、改写、纠错
+        # U06：原先一行塞五个按钮，默认 550px 窗口里文字被压成省略号（英文尤其明显）。
+        # 改成两行栅格（3 + 2），每个按钮都有足够宽度。
+        btn_row = QGridLayout()
         btn_row.setSpacing(8)
         self.btn_load = QPushButton()
         self.btn_load.setProperty("accent", True)
@@ -67,9 +69,11 @@ class ClipboardWidget(QWidget):
         self.rewrite_btn.clicked.connect(lambda: self.run_action("rewrite"))
         self.correct_btn = QPushButton()
         self.correct_btn.clicked.connect(lambda: self.run_action("correct"))
-        for btn in (self.btn_load, self.btn_copy, self.translate_btn,
-                    self.rewrite_btn, self.correct_btn):
-            btn_row.addWidget(btn)
+        for index, btn in enumerate((self.btn_load, self.btn_copy, self.translate_btn,
+                                     self.rewrite_btn, self.correct_btn)):
+            btn_row.addWidget(btn, index // 3, index % 3)
+        for column in range(3):
+            btn_row.setColumnStretch(column, 1)
         layout.addLayout(btn_row)
 
         self.retranslateUi()

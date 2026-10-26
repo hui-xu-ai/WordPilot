@@ -15,10 +15,12 @@ from __future__ import annotations
 import logging
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QScrollArea, QToolButton,
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QScrollArea, QSizePolicy, QToolButton,
                                QVBoxLayout, QWidget)
 
 logger = logging.getLogger(__name__)
+
+MIN_CONTENT_WIDTH = 260   # 抽屉展开时给主内容留的最小宽度
 
 COLLAPSED_WIDTH = 36
 DEFAULT_WIDTH = 360
@@ -76,6 +78,9 @@ class SidePanelHost(QWidget):
         self._content: QWidget | None = None
         self._apply_state()
         self.setVisible(False)
+        parent = self.parentWidget()
+        if parent is not None:
+            parent.installEventFilter(self)   # 窗口缩放时重算抽屉宽度（U05）
 
     # ---------------- 内容 ----------------
     def set_content(self, widget: QWidget | None, title: str = "") -> None:
@@ -128,12 +133,33 @@ class SidePanelHost(QWidget):
     def _on_toggle_clicked(self) -> None:
         self.toggle()
 
+    def _fit_width(self) -> int:
+        """展开宽度：内容宽度 + 竖条，但不超过父容器能给的空间（留主内容最小宽度）。"""
+        desired = self._width + COLLAPSED_WIDTH + 1
+        parent = self.parentWidget()
+        if parent is None or parent.width() <= 0:
+            return desired
+        limit = parent.width() - MIN_CONTENT_WIDTH - 8   # 8px 留给布局间距/边框
+        if limit <= 0:
+            return desired
+        return max(COLLAPSED_WIDTH + 1, min(desired, limit))
+
+    def eventFilter(self, watched, event) -> bool:      # noqa: N802 - Qt 命名惯例
+        """父容器变宽/变窄时重算抽屉宽度。"""
+        from PySide6.QtCore import QEvent
+
+        if watched is self.parentWidget() and event.type() == QEvent.Resize and self._opened:
+            self.setFixedWidth(self._fit_width())
+        return super().eventFilter(watched, event)
+
     def _apply_state(self) -> None:
         self._container.setVisible(self._opened)
         self.toggle_btn.setArrowType(Qt.LeftArrow if self._opened else Qt.RightArrow)
         self.toggle_btn.setToolTip(self._toggle_title or self.tr("次要面板"))
         if self._opened:
-            self.setFixedWidth(self._width + COLLAPSED_WIDTH + 1)
+            # U05：原先固定宽度会让抽屉无视窗口宽度——默认 550px 窗口里抽屉右边跑到 718px，
+            # 内容被裁掉且禁了横向滚动。现在按"父容器宽度 - 主内容最小宽度"夹一下。
+            self.setFixedWidth(self._fit_width())
         else:
             self.setFixedWidth(COLLAPSED_WIDTH + 1)
 
