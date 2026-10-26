@@ -132,5 +132,9 @@
   "overlay.note_default": "Default master note (several; click Master to switch)",
   "library.new": "New library",
   "library.new_title": "New reference library",
-  "library.new_prompt": "Name the new library (it will be switched to):"
+  "library.new_prompt": "Name the new library (it will be switched to):",
+  "library.delete": "Delete library",
+  "library.delete_title": "Delete library",
+  "library.delete_confirm": "Delete library \"{name}\"? Its folder is moved to libraries/_trash so you can restore it.",
+  "library.delete_failed": "Delete failed (at least one library must remain)."
 }

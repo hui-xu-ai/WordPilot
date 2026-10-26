@@ -132,5 +132,9 @@
   "overlay.note_default": "总库默认备注（多条，点「总库」可切换）",
   "library.new": "新建仓库",
   "library.new_title": "新建文献仓库",
-  "library.new_prompt": "给新仓库起个名字（会自动切换过去）："
+  "library.new_prompt": "给新仓库起个名字（会自动切换过去）：",
+  "library.delete": "删除仓库",
+  "library.delete_title": "删除文献仓库",
+  "library.delete_confirm": "确定删除仓库「{name}」吗？目录会移到 libraries/_trash，可手动恢复。",
+  "library.delete_failed": "删除失败（至少保留一个仓库）。"
 }

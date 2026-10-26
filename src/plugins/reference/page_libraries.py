@@ -5,8 +5,32 @@ from __future__ import annotations
 from PySide6.QtWidgets import QComboBox
 
 
+FILTERS = (("all", "filter.all"), ("note", "filter.note"), ("star", "filter.star"),
+            ("meta", "filter.meta"), ("orphan", "filter.orphan"),
+            ("added", "filter.added"), ("removed", "filter.removed"))
+
 class LibraryMixin:
     """宿主需提供 `_libraries / _active_library / _on_switch_library / _store / _index`。"""
+
+    def build_filter_chips(self, toolbar, filters) -> None:
+        """筛选 chips（全部/有备注/星标/…）；从 library_page 抽出来控制文件行数。"""
+        from PySide6.QtWidgets import QButtonGroup, QToolButton
+
+        group = QButtonGroup(self)
+        group.setExclusive(True)
+        buttons: dict = {}
+        for index, (name, _key) in enumerate(filters):
+            button = QToolButton()
+            button.setCheckable(True)
+            button.setObjectName("filterChip")
+            button.setProperty("chip", True)
+            button.clicked.connect(lambda _checked, value=name: self.set_filter(value))
+            group.addButton(button, index)
+            buttons[name] = button
+            toolbar.addWidget(button)
+        self.filter_group = group
+        self.filter_buttons = buttons
+        self.filter_buttons["all"].setChecked(True)
 
     def build_library_combo(self, toolbar) -> QComboBox:
         combo = QComboBox()
@@ -19,6 +43,45 @@ class LibraryMixin:
         self.library_combo = combo
         toolbar.addWidget(combo)
         return combo
+
+    def rebuild_library_combo(self) -> None:
+        """库列表变化（新建/删除）后重填下拉，保持当前选中项。"""
+        combo = getattr(self, "library_combo", None)
+        if combo is None:
+            return
+        names = list(getattr(self, "_libraries", None) or [])
+        active = getattr(self, "_active_library", "") or combo.currentText()
+        blocked = combo.blockSignals(True)
+        try:
+            combo.clear()
+            combo.addItems(names)
+            if active in names:
+                combo.setCurrentText(active)
+        finally:
+            combo.blockSignals(blocked)
+
+    def confirm_delete_library(self) -> None:
+        """删除当前仓库：二次确认后移到 _trash（可回滚）。"""
+        from PySide6.QtWidgets import QMessageBox
+
+        name = self.library_combo.currentText().strip()
+        if not name:
+            return
+        answer = QMessageBox.question(
+            self, self.tr("library.delete_title"),
+            self.tr("library.delete_confirm", name=name))
+        if answer != QMessageBox.Yes:
+            return
+        handler = getattr(self, "_on_delete_library", None)
+        if handler is None:
+            return
+        if not handler(name):
+            QMessageBox.warning(self, self.tr("library.delete_title"),
+                                self.tr("library.delete_failed"))
+            return
+        rebuild = getattr(self, "rebuild_library_combo", None)
+        if callable(rebuild):
+            rebuild()
 
     def prompt_new_library(self) -> None:
         """弹输入框新建仓库：命名 → 建库 → 自动切过去（用户最初要求的流程）。"""
@@ -62,3 +125,14 @@ class LibraryMixin:
         self.reload()
         hint = self.tr("status.library", name=active_name).replace("{name}", active_name)
         self.append_status(hint)
+
+
+def group_separator():
+    """工具栏分区之间的竖线（纯视觉）。"""
+    from PySide6.QtWidgets import QFrame
+
+    line = QFrame()
+    line.setFrameShape(QFrame.VLine)
+    line.setObjectName("toolbarSeparator")
+    line.setFixedWidth(1)
+    return line

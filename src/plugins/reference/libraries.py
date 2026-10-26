@@ -153,6 +153,39 @@ class LibraryRegistry:
         self._write(data)
         return target
 
+    def delete(self, name: str) -> Path:
+        """删除仓库：目录移到 `libraries/_trash/` 下（可回滚），并从注册表移除。
+
+        最后一个仓库不允许删（否则应用没有可用库）；删的是当前库时自动切到剩下的第一个。
+        """
+        name = (name or "").strip()
+        data = self._read()
+        libraries = dict(data.get("libraries", {}))
+        if name not in libraries:
+            raise KeyError(name)
+        if len(libraries) <= 1:
+            raise ValueError("至少保留一个仓库")
+
+        directory = Path(libraries[name]["path"])
+        trash = self.libraries_dir / "_trash"
+        trash.mkdir(parents=True, exist_ok=True)
+        from datetime import datetime
+
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        if directory.exists():
+            directory.replace(_backup_path(trash / f"{name}-{stamp}".replace(".", "-")))
+
+        libraries.pop(name)
+        data["libraries"] = libraries
+        if data.get("active") == name:
+            data["active"] = next(iter(libraries))
+        # 该库的文档绑定一起清掉，避免下次扫描切到不存在的库
+        bindings = data.get("doc_bindings", {}) or {}
+        data["doc_bindings"] = {path: lib for path, lib in bindings.items() if lib != name}
+        self._write(data)
+        logger.info("已删除文献仓库：%s（移到 %s）", name, trash)
+        return trash
+
     def doc_bindings(self) -> dict[str, str]:
         """文档路径 → 仓库名（手动改绑或上次自动判定）。"""
         return dict(self._read().get("doc_bindings", {}))

@@ -27,7 +27,8 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog, 
                                QStackedWidget, QTableWidget, QTableWidgetItem, QTextEdit,
                                QToolButton, QVBoxLayout, QWidget)
 
-from plugins.reference.page_libraries import LibraryMixin
+from plugins.reference.page_libraries import (FILTERS as _FILTERS_FROM_PAGE_LIBRARIES,
+                                             LibraryMixin, group_separator)
 from plugins.reference.page_panel import PANEL_WIDTH, build_panel
 from plugins.reference.page_scan import ScanMixin
 from plugins.reference.reference_store import (Anchor, Reference, ReferenceStore,
@@ -41,9 +42,7 @@ logger = logging.getLogger(__name__)
 
 _TABLE_COLUMNS = ("cite_label", "title", "authors", "year", "container", "doi", "tags", "note")
 _ORPHAN_COLUMNS = ("doc_name", "cite_label", "anchor_key")
-_FILTERS = (("all", "filter.all"), ("note", "filter.note"), ("star", "filter.star"),
-            ("meta", "filter.meta"), ("orphan", "filter.orphan"),
-            ("added", "filter.added"), ("removed", "filter.removed"))
+_FILTERS = _FILTERS_FROM_PAGE_LIBRARIES
 
 
 class LibraryPage(ScanMixin, LibraryMixin, QWidget):
@@ -53,7 +52,7 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
                  index: "ReferenceIndex", parent: QWidget | None = None,
                  plugin=None, note_service=None, libraries=None,
                  active_library: str = "", on_switch_library=None,
-                 on_create_library=None) -> None:
+                 on_create_library=None, on_delete_library=None) -> None:
         super().__init__(parent)
         self._ctx = ctx
         self._store = store
@@ -64,6 +63,7 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         self._active_library = active_library
         self._on_switch_library = on_switch_library
         self._on_create_library = on_create_library
+        self._on_delete_library = on_delete_library
         self._auto_scanned = False
         self._refresh_timer = None
         self._diff_added: set[str] = set()
@@ -96,31 +96,31 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         # ---- 顶部一条工具栏 ----
         toolbar = QHBoxLayout()
         toolbar.setSpacing(6)
-        # 仓库下拉 + 显式「新建仓库」：用户最初要求"能新建子仓库并命名"，
-        # 之前只把入口藏在 ⋯ 菜单里，等于没有（反馈：找不到建库入口）。
+        # ---- 分区 1：仓库（选库 / 新建 / 删除）----
+        # 原先一排十几个按钮挤在一起、也没有删除入口（用户反馈：功能没有分区）。
         self.build_library_combo(toolbar)
 
         self.new_lib_btn = QPushButton()
         self.new_lib_btn.clicked.connect(self.prompt_new_library)
         toolbar.addWidget(self.new_lib_btn)
 
+        self.del_lib_btn = QPushButton()
+        self.del_lib_btn.clicked.connect(self.confirm_delete_library)
+        toolbar.addWidget(self.del_lib_btn)
+        toolbar.addWidget(group_separator())
+
+        # ---- 分区 2：检索与筛选 ----
         self.search_edit = QLineEdit()
         self.search_edit.textChanged.connect(self._apply_filter)
         toolbar.addWidget(self.search_edit, 1)
 
-        self.filter_group = QButtonGroup(self)
-        self.filter_group.setExclusive(True)
-        self.filter_buttons: dict[str, QToolButton] = {}
-        for index, (name, _key) in enumerate(_FILTERS):
-            button = QToolButton()
-            button.setCheckable(True)
-            button.setObjectName("filterChip")
-            button.setProperty("chip", True)
-            button.clicked.connect(lambda _checked, value=name: self.set_filter(value))
-            self.filter_group.addButton(button, index)
-            self.filter_buttons[name] = button
-            toolbar.addWidget(button)
-        self.filter_buttons["all"].setChecked(True)
+        self.build_filter_chips(toolbar, _FILTERS)
+
+        # ---- 分区 3：条目与数据操作 ----
+        toolbar.addWidget(group_separator())
+        self.new_ref_btn = QPushButton()
+        self.new_ref_btn.clicked.connect(self.start_new)     # 新建参考（原藏在 ⋯ 菜单）
+        toolbar.addWidget(self.new_ref_btn)
 
         self.scan_btn = QPushButton()
         self.scan_btn.clicked.connect(self.scan_document)
@@ -137,7 +137,6 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         self.more_btn = QToolButton()
         self.more_btn.setPopupMode(QToolButton.InstantPopup)
         self.menu = QMenu(self.more_btn)
-        self.new_action = self.menu.addAction("", self.start_new)
         self.import_action = self.menu.addAction("", self.import_csv)
         self.export_action = self.menu.addAction("", self.export_csv)
         self.dir_action = self.menu.addAction("", self.open_directory)
@@ -193,6 +192,8 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
             self.filter_buttons[name].setText(self.tr(key))
         self.filter_buttons["orphan"].setText(self.tr("filter.orphan"))
         self.new_lib_btn.setText(self.tr("library.new"))
+        self.new_ref_btn.setText(self.tr("action.new_reference"))
+        self.del_lib_btn.setText(self.tr("library.delete"))
         self.scan_btn.setText(self.tr("action.scan"))
         self.scan_btn.setToolTip(self.tr("action.scan.tip"))
         self.refresh_btn.setText(self.tr("action.reload"))
@@ -200,7 +201,6 @@ class LibraryPage(ScanMixin, LibraryMixin, QWidget):
         self.open_csv_btn.setText(self.tr("action.open_csv"))
         self.more_btn.setText("⋯")
         self.more_btn.setToolTip(self.tr("action.more"))
-        self.new_action.setText(self.tr("action.new"))
         self.import_action.setText(self.tr("action.import"))
         self.export_action.setText(self.tr("action.export"))
         self.dir_action.setText(self.tr("action.open_dir"))

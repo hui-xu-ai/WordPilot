@@ -23,6 +23,7 @@ from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
 from plugins.reference.matching import SnapshotStore, cite_key_set, diff
 from plugins.reference.scan_cache import ScanCache, fingerprint
+from plugins.reference.scan_routing import route_before_import, suggest_library_name
 from plugins.reference.switch_plan import KEEP, NEW, PROMPT, SWITCH, plan_switch
 from plugins.reference.word_watch import WordWatch
 
@@ -84,7 +85,8 @@ class ReferencePlugin(PluginBase):
                                     libraries=self._libraries.names(),
                                     active_library=self._libraries.active_name(),
                                     on_switch_library=self.switch_library,
-                                    on_create_library=self.create_library)
+                                    on_create_library=self.create_library,
+                 on_delete_library=self.delete_library)
         return self._page
 
     # ---------------- 选区监听 ----------------
@@ -418,6 +420,12 @@ class ReferencePlugin(PluginBase):
         candidates = list(result.references)
         candidates.extend(citation.reference for citation in result.provider_citations
                           if citation.reference is not None)
+
+        # 先按引用集合决定仓库，再入库：否则这份文档的文献会先落进当前库，
+        # 两个文档就能把默认库塞满（用户实测 294 + 13 合并成 307 条）。
+        keys = cite_key_set(candidates)
+        self._route_before_import(path, name, keys, stats)
+
         for reference in candidates:
             try:
                 self._store.upsert(reference)          # 保留用户已有备注
@@ -431,7 +439,6 @@ class ReferencePlugin(PluginBase):
         if self._watch is not None:
             stats["anchors"] = self._watch.rescan_index(word)
 
-        keys = cite_key_set(candidates)
         stats["keys"] = len(keys)
         previous = set(SnapshotStore(self._data_dir).load().get(path, {}).get("keys", []))
         added, removed = diff(previous, keys) if previous else ([], [])
@@ -442,8 +449,17 @@ class ReferencePlugin(PluginBase):
             SnapshotStore(self._data_dir).record(path, keys)
         except Exception as exc:                   # noqa: BLE001 - 快照失败不影响扫描
             logger.warning("记录引用快照失败：%s", exc)
-        self._apply_switch_plan(path, keys, stats)
+        self._apply_switch_plan(path, keys, stats, already_routed=True)
         return stats
+
+    def _suggest_library_name(self, doc_name: str) -> str:
+        """用文档名当新仓库名（实现见 scan_routing）。"""
+        return suggest_library_name(self._libraries.names(), doc_name)
+
+    def _route_before_import(self, doc_path: str, doc_name: str,
+                             keys: set[str], stats: dict) -> None:
+        """入库前把库切到"这份文档该去的仓库"（实现见 scan_routing）。"""
+        route_before_import(self, doc_path, doc_name, keys, stats)
 
     # ---------------- 仓库自动识别 ----------------
     def _library_snapshots(self) -> dict[str, set[str]]:
@@ -458,7 +474,8 @@ class ReferencePlugin(PluginBase):
                 result[name] = keys
         return result
 
-    def _apply_switch_plan(self, doc_path: str, keys: set[str], stats: dict) -> None:
+    def _apply_switch_plan(self, doc_path: str, keys: set[str], stats: dict,
+                           already_routed: bool = False) -> None:
         """按相似度决定是否切库，并把结论写到状态栏（不弹模态框，先让用户看见）。"""
         bindings = self._libraries.doc_bindings()
         bound = bindings.get(doc_path, "")
@@ -467,6 +484,11 @@ class ReferencePlugin(PluginBase):
                            bound_library=bound,)
         stats["switch"] = plan.action
 
+        if already_routed:
+            # 入库前已经按同一套规则路由过，这里只补绑定/提示，避免二次切库
+            if plan.action in (SWITCH, KEEP) and plan.library:
+                self._libraries.bind_document(doc_path, plan.library)
+            return
         if plan.action == SWITCH and plan.library:
             self.switch_library(plan.library)
             self._libraries.bind_document(doc_path, plan.library)
@@ -496,6 +518,24 @@ class ReferencePlugin(PluginBase):
             return
         if bound and bound != getattr(self, "_active_name", None):
             self.switch_library(bound)
+
+    def delete_library(self, name: str) -> bool:
+        """删除仓库并刷新界面（当前库被删时自动切到剩下的库）。"""
+        try:
+            self._libraries.delete(name)
+        except (KeyError, ValueError) as exc:
+            logger.warning("删除仓库失败（%s）：%s", name, exc)
+            return False
+        if getattr(self, "_active_name", None) == name:
+            target = self._libraries.active_name()
+            self._active_name = None                     # 强制 switch_library 真正重开
+            self.switch_library(target)
+        if self._page is not None:
+            try:
+                self._page.reload()
+            except Exception:                      # noqa: BLE001
+                pass
+        return True
 
     def bind_current_document(self, doc_path: str, library: str) -> None:
         self._libraries.bind_document(doc_path, library)
