@@ -41,7 +41,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_TABLE_COLUMNS = ("cite_label", "title", "authors", "year", "container", "doi", "tags", "note")
+# 方案要求默认 4 列：元数据细节放右栏，表格只给"扫读"需要的信息
+_TABLE_COLUMNS = ("cite_label", "title", "author_year", "note")
 _ORPHAN_COLUMNS = ("doc_name", "cite_label", "anchor_key")
 _FILTERS = _FILTERS_FROM_PAGE_LIBRARIES
 
@@ -183,6 +184,8 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
         splitter.setSizes([720, PANEL_WIDTH])
+        splitter.setChildrenCollapsible(False)   # 拖到 0 会把手柄也藏起来
+        splitter.setHandleWidth(6)
         layout.addWidget(splitter, 1)
 
         self.footer_label = QLabel("")
@@ -287,8 +290,8 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         references = self._references()
         self.table.setRowCount(len(references))
         for row, ref in enumerate(references):
-            values = (ref.cite_label, ref.title, ref.authors, ref.year, ref.container,
-                      ref.doi, "; ".join(ref.tags), self._summary(ref.note))
+            author_year = " · ".join(part for part in (ref.authors, ref.year) if part)
+            values = (ref.cite_label, ref.title, author_year, self._summary(ref.note))
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 if column == 0:

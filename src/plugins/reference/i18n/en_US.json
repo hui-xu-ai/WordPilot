@@ -145,5 +145,6 @@
   "library.belong": "Library",
   "toolbar.current_doc": "File: {name}",
   "panel.toggle": "Details",
-  "panel.toggle.tip": "Show/hide the details panel"
+  "panel.toggle.tip": "Show/hide the details panel",
+  "col.author_year": "Authors · Year"
 }

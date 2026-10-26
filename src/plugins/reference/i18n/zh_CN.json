@@ -145,5 +145,6 @@
   "library.belong": "所属子库",
   "toolbar.current_doc": "当前文件：{name}",
   "panel.toggle": "详情",
-  "panel.toggle.tip": "显示/隐藏右侧详情栏"
+  "panel.toggle.tip": "显示/隐藏右侧详情栏",
+  "col.author_year": "作者 · 年份"
 }

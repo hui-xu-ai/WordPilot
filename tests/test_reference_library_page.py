@@ -87,7 +87,7 @@ def test_table_is_the_default_view(page):
     _add(page, store, "zotero:2", "2", "第二条")
 
     assert widget.table.rowCount() == 2
-    assert widget.table.columnCount() == 8
+    assert widget.table.columnCount() == 4, "方案要求默认 4 列"
     assert widget.panel_stack.currentIndex() == 0
 
 

@@ -172,16 +172,19 @@ class PanelChromeMixin:
         self._refresh_doc_label()
 
     def toggle_panel(self, checked: bool | None = None) -> None:
-        """折叠/展开右侧详情栏（记住宽度，展开时恢复）。"""
-        if not hasattr(self, "_splitter"):
+        """折叠/展开右侧详情栏：折叠=隐藏面板（保留原宽度供展开时恢复）。"""
+        panel = getattr(self, "panel_stack", None)
+        if panel is None or not hasattr(self, "_splitter"):
             return
-        sizes = self._splitter.sizes()
         if self.panel_toggle.isChecked():
-            restore = getattr(self, "_panel_width", PANEL_WIDTH) or PANEL_WIDTH
+            panel.setVisible(True)
+            restore = getattr(self, "_panel_width", 0) or PANEL_WIDTH
+            sizes = self._splitter.sizes()
             self._splitter.setSizes([max(sizes[0], 320), restore])
         else:
+            sizes = self._splitter.sizes()
             self._panel_width = sizes[1] or PANEL_WIDTH
-            self._splitter.setSizes([sum(sizes), 0])
+            panel.setVisible(False)
 
     def _refresh_doc_label(self) -> None:
         template = self.tr("toolbar.current_doc")

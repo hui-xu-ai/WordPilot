@@ -58,8 +58,7 @@ def test_panel_can_collapse_and_restore(page):
     page._splitter.setSizes([700, 400])
     page.panel_toggle.setChecked(False)
     page.toggle_panel()
-    sizes = page._splitter.sizes()
-    assert sizes[1] == 0, "折叠后右栏宽度应为 0"
+    assert not page.panel_stack.isVisible(), "折叠后右栏应隐藏"
 
     page.panel_toggle.setChecked(True)
     page.toggle_panel()
