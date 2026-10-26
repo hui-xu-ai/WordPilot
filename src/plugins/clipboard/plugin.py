@@ -78,9 +78,10 @@ class ClipboardWidget(QWidget):
         self.clip_result = QTextEdit()
         layout.addWidget(self.clip_result, 1)
 
-        # 底部按钮区：读取剪贴板、复制结果、翻译、改写、纠错
-        # U06：原先一行塞五个按钮，默认 550px 窗口里文字被压成省略号（英文尤其明显）。
-        # 改成两行栅格（3 + 2），每个按钮都有足够宽度。
+        # 底部按钮区，按**语义**分两行（用户反馈：3+2 的切法没有逻辑）：
+        #   第 1 行 = 剪贴板操作：读取剪贴板 / 复制结果
+        #   第 2 行 = AI 操作：翻译 / 改写 / 纠错
+        # 用 6 列栅格实现：上行两个按钮各跨 3 列，下行三个按钮各跨 2 列，左边缘对齐。
         btn_row = QGridLayout()
         btn_row.setSpacing(8)
         self.btn_load = QPushButton()
@@ -95,10 +96,12 @@ class ClipboardWidget(QWidget):
         self.rewrite_btn.clicked.connect(lambda: self.run_action("rewrite"))
         self.correct_btn = QPushButton()
         self.correct_btn.clicked.connect(lambda: self.run_action("correct"))
-        for index, btn in enumerate((self.btn_load, self.btn_copy, self.translate_btn,
-                                     self.rewrite_btn, self.correct_btn)):
-            btn_row.addWidget(btn, index // 3, index % 3)
-        for column in range(3):
+        btn_row.addWidget(self.btn_load, 0, 0, 1, 3)        # 第 1 行：读取
+        btn_row.addWidget(self.btn_copy, 0, 3, 1, 3)        # 第 1 行：复制
+        btn_row.addWidget(self.translate_btn, 1, 0, 1, 2)   # 第 2 行：翻译
+        btn_row.addWidget(self.rewrite_btn, 1, 2, 1, 2)     # 第 2 行：改写
+        btn_row.addWidget(self.correct_btn, 1, 4, 1, 2)     # 第 2 行：纠错
+        for column in range(6):
             btn_row.setColumnStretch(column, 1)
         layout.addLayout(btn_row)
 
