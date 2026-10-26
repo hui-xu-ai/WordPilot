@@ -98,6 +98,10 @@ class ReferencePlugin(PluginBase):
         apply_document_name(self, name)
 
 
+    def _push_current_document(self) -> None:
+        """页面刚建好时先显示当前文档（监听只在"切换"时发信号，实现见 watch_bridge）。"""
+        push_current_document(self)
+
     def _build_page(self):
         if self._page is None:
             self._page = LibraryPage(self.ctx, self._store, self._index, plugin=self,
