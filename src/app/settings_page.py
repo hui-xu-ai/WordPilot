@@ -133,7 +133,12 @@ class SettingsPage(QWidget):
         self.save_status = QLabel("")
         self.save_status.setObjectName("hintLabel")
         bottom.addWidget(self.save_status, 1)
-        # 外观改动全部即时生效，不需要「保存」按钮
+        # 外观（皮肤/尺寸/显隐）即时生效；API Key、模型、温度、Token、提示词语言、
+        # 主题与界面语言仍需显式提交——审查 U01 指出没有可用入口，导致这些改动永不落盘。
+        self.save_btn = QPushButton()
+        self.save_btn.setProperty("accent", True)
+        self.save_btn.clicked.connect(self.save_settings)
+        bottom.addWidget(self.save_btn)
         main_layout.addLayout(bottom)
 
     def _switch_section(self, row: int) -> None:
@@ -141,6 +146,12 @@ class SettingsPage(QWidget):
             self.stack.setCurrentIndex(row)
 
     # ---------------- 桌宠外观 ----------------
+    def _on_toggle_api_key(self, shown: bool) -> None:
+        """U07：允许用户主动查看，默认保持掩码。"""
+        self.api_key_edit.setEchoMode(QLineEdit.Normal if shown else QLineEdit.Password)
+        self.api_key_toggle.setText(
+            self.tr("settings.api.key_hide") if shown else self.tr("settings.api.key_show"))
+
     def _on_pet_skin_changed(self, _index: int) -> None:
         """外观页切皮肤：同时更新内核状态、皮肤服务与宠物窗口。"""
         skin_id = self.skin_combo.currentData()
@@ -206,10 +217,19 @@ class SettingsPage(QWidget):
         form = QFormLayout()
         form.setSpacing(10)
         self.api_key_edit = QLineEdit()
+        self.api_key_edit.setEchoMode(QLineEdit.Password)      # U07：默认掩码，避免明文暴露
+        self.api_key_toggle = QPushButton()
+        self.api_key_toggle.setCheckable(True)
+        self.api_key_toggle.toggled.connect(self._on_toggle_api_key)
+        key_row = QWidget()
+        key_layout = QHBoxLayout(key_row)
+        key_layout.setContentsMargins(0, 0, 0, 0)
+        key_layout.addWidget(self.api_key_edit, 1)
+        key_layout.addWidget(self.api_key_toggle)
         self.model_edit = QLineEdit()
         self.label_api_key = QLabel()
         self.label_model = QLabel()
-        form.addRow(self.label_api_key, self.api_key_edit)
+        form.addRow(self.label_api_key, key_row)
         form.addRow(self.label_model, self.model_edit)
 
         self.temp_edit = QDoubleSpinBox()
@@ -389,6 +409,10 @@ class SettingsPage(QWidget):
         self.label_temperature.setText(self.tr("settings.api.temperature"))
         self.label_max_tokens.setText(self.tr("settings.api.max_tokens"))
         self.api_key_edit.setPlaceholderText(self.tr("settings.api.key_placeholder"))
+        self.save_btn.setText(self.tr("settings.btn.save"))
+        self.api_key_toggle.setText(
+            self.tr("settings.api.key_hide") if self.api_key_toggle.isChecked()
+            else self.tr("settings.api.key_show"))
         self.model_edit.setPlaceholderText(self.tr("settings.api.model_placeholder"))
         self.test_btn.setText(self.tr("settings.api.test"))
 

@@ -134,5 +134,7 @@
   "app.nav.page_unavailable": "That page is unavailable (the plugin may be disabled or failed to load)",
   "prompt.correct.default": "You are a proofreading expert for academic and technical writing. The text below is a whole paragraph or document: fix typos, grammar, punctuation and terminology, keep the original paragraph and line structure, do not rewrite sentences or add/remove content; output only the corrected text.\n{text}",
   "app.settings.pet_size": "Pet size",
-  "app.settings.pet_visible": "Show pet"
+  "app.settings.pet_visible": "Show pet",
+  "settings.api.key_show": "Show",
+  "settings.api.key_hide": "Hide"
 }

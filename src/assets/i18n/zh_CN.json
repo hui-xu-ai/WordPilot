@@ -134,5 +134,7 @@
   "app.nav.page_unavailable": "该页面当前不可用（插件可能已停用或加载失败）",
   "prompt.correct.default": "你是中文科技论文校对专家。下面是**一整段或整篇**文本，请修正错别字、语病、标点、专业词汇拼写，保持原有段落与换行结构，不要改写句式、不要增删内容；只输出校对后的全文。\n{text}",
   "app.settings.pet_size": "桌宠尺寸",
-  "app.settings.pet_visible": "显示桌宠"
+  "app.settings.pet_visible": "显示桌宠",
+  "settings.api.key_show": "显示",
+  "settings.api.key_hide": "隐藏"
 }

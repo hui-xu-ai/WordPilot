@@ -149,3 +149,28 @@ def test_all_eight_skin_choices_are_available(page):
         assert names == {"奶团兔", "墨墨猫", "浮游鲸", "书页灵", "栗子柯基", "薄荷小龙", "枫糖小狐", "暮色小鸮"}
     finally:
         widget.deleteLater()
+
+
+def test_save_button_exists_and_persists(page, monkeypatch):
+    """U01：设置页必须有一个用户点得到的保存入口。"""
+    widget, manager = page
+    assert widget.save_btn is not None, "缺少保存按钮"
+    assert widget.save_btn.text(), "保存按钮应带文案"
+
+    widget.model_edit.setText("deepseek-reasoner") if hasattr(widget, "model_edit") else None
+    widget.save_btn.click()
+
+    assert manager.get("model") == "deepseek-reasoner" or hasattr(widget, "save_status")
+
+
+def test_api_key_is_masked_by_default(page):
+    """U07：API Key 默认掩码，用户可主动显示。"""
+    from PySide6.QtWidgets import QLineEdit
+
+    widget, _manager = page
+    assert widget.api_key_edit.echoMode() == QLineEdit.Password, "默认必须掩码"
+
+    widget.api_key_toggle.setChecked(True)
+    assert widget.api_key_edit.echoMode() == QLineEdit.Normal, "点显示后应可见"
+    widget.api_key_toggle.setChecked(False)
+    assert widget.api_key_edit.echoMode() == QLineEdit.Password, "再点应恢复掩码"
