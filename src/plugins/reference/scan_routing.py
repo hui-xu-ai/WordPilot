@@ -52,7 +52,7 @@ def route_before_import(plugin, doc_path: str, doc_name: str,
     stats["switch"] = plan.action
 
     if plan.action == SWITCH and plan.library and plan.library != getattr(plugin, "_active_name", None):
-        plugin.switch_library(plan.library)
+        plugin.switch_library(plan.library, update_page=False)
         plugin._libraries.bind_document(doc_path, plan.library)
         stats["switch_text"] = plugin.tr("switch.auto", library=plan.library,
                                          percent=int(plan.score * 100))
@@ -62,7 +62,7 @@ def route_before_import(plugin, doc_path: str, doc_name: str,
         new_name = suggest_library_name(plugin._libraries.names(), doc_name)
         try:
             plugin._libraries.create(new_name)
-            plugin.switch_library(new_name)
+            plugin.switch_library(new_name, update_page=False)
             plugin._libraries.bind_document(doc_path, new_name)
             stats["switch_text"] = plugin.tr("switch.created", name=new_name)
             return True

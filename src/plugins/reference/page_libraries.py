@@ -128,9 +128,32 @@ class LibraryMixin:
             return
         self.build_library_combo_reload() if hasattr(self, "build_library_combo_reload") else None
 
+    def _finish_editing(self) -> None:
+        """R4：切库前统一收尾——有修改就保存/保留草稿，并把表单与选中项清干净。
+
+        不清的话，切到空库后表单里还挂着上一个库的条目，点保存会把旧文献写进新库。
+        """
+        try:
+            if getattr(self, "panel_stack", None) is not None and self.panel_stack.currentIndex() == 1:
+                self.cancel_edit()
+        except Exception:                      # noqa: BLE001 - 收尾失败不该阻塞切库
+            pass
+        for attr in ("_current_key", "_orphan", "_selected_key"):
+            try:
+                setattr(self, attr, "" if attr != "_orphan" else None)
+            except Exception:                  # noqa: BLE001
+                pass
+        clear = getattr(self, "_clear_panel", None)
+        if callable(clear):
+            try:
+                clear()
+            except Exception:                  # noqa: BLE001
+                pass
+
     def _on_library_changed(self, name: str) -> None:
         if not name or name == self._active_library or self._on_switch_library is None:
             return
+        self._finish_editing()          # R4：先收尾，避免把旧库草稿带进新库
         self._active_library = name
         try:
             self._on_switch_library(name)
@@ -139,6 +162,7 @@ class LibraryMixin:
 
     def rebind(self, store, index, note_service, active_name: str = "") -> None:
         """切换到另一个仓库后就地重绑数据层（不重建页面）。"""
+        self._finish_editing()          # R4：数据层换了，旧的选中项/草稿必须一起清
         self._store = store
         self._index = index
         self._note_service = note_service

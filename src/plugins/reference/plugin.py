@@ -299,7 +299,7 @@ class ReferencePlugin(PluginBase):
             self._overlay.refresh_notes()
         self.refresh_page()
 
-    def switch_library(self, name: str) -> None:
+    def switch_library(self, name: str, update_page: bool = True) -> None:
         """切换到另一个文献仓库（用户手动改绑）：重开数据文件并重绑页面。
 
         比较基准是**实际已打开的库** `_active_name`，不是 registry 的 active：
@@ -329,7 +329,9 @@ class ReferencePlugin(PluginBase):
             self._watch._cache = self._scan_cache
             self._watch._index.clear()
 
-        if self._page is not None:
+        if update_page and self._page is not None:
+            # R6：只有 GUI 线程可以直接动页面控件；后台扫描线程传 update_page=False，
+            # 由页面在扫描完成的回调（主线程）里再 rebind 一次。
             self._page.rebind(self._store, self._index, self._note_service, name)
         if self._overlay is not None:
             self._overlay._store = self._store

@@ -392,6 +392,12 @@ class ReferenceOverlay(QWidget):
         self.setFixedHeight(max(MIN_HEIGHT, min(content + chrome, MAX_HEIGHT)))
 
     def hide_overlay(self) -> None:
+        # R5：关闭前收尾草稿（与切引用共用同一条路径）
+        for card in getattr(self, "_cards", []):
+            try:
+                card.flush()
+            except Exception:                  # noqa: BLE001
+                pass
         for card in self._cards:
             card.flush()
         self.hide()
@@ -408,6 +414,13 @@ class ReferenceOverlay(QWidget):
                 continue
 
     def _rebuild(self, entries: list[OverlayEntry]) -> None:
+        # R5：卡片即将被销毁 —— 先把 800ms 自动保存里的草稿落盘，
+        # 否则"输入后立刻点下一个引用"会把刚敲的文字连同定时器一起丢掉。
+        for card in self._cards:
+            try:
+                card.flush()
+            except Exception:                  # noqa: BLE001 - 单卡失败不影响重建
+                pass
         for card in self._cards:
             card.setParent(None)
             card.deleteLater()

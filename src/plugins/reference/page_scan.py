@@ -63,6 +63,18 @@ class ScanMixin:
                 page.append_status(page.tr("status.scan_failed", error=worker.error))
                 return
             stats = worker.result or {}
+            # R6：后台线程只切了数据层（update_page=False），页面控件必须由这里
+            # （GUI 线程）重绑，否则后台直接操作 QComboBox/表格会出界面异常。
+            plugin = getattr(page, "_plugin", None)
+            if plugin is not None and stats.get("switch") in ("switch", "new"):
+                store = getattr(plugin, "_store", None)
+                if store is not None and store is not getattr(page, "_store", None):
+                    try:
+                        page.rebind(store, plugin._index, plugin._note_service,
+                                    getattr(plugin, "_active_name", ""))
+                    except Exception:          # noqa: BLE001 - 重绑失败只影响展示
+                        page.append_status(page.tr("status.scan_failed",
+                                                   error="rebind failed"))
             page.reload()
             if stats.get("switch_text"):
                 page.append_status(str(stats["switch_text"]).replace("{library}", "")
