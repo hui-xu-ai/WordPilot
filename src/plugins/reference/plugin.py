@@ -228,6 +228,8 @@ class ReferencePlugin(PluginBase):
             return
         if self._bib_cache.get(doc_path) == mtime:
             return
+        # R1：自动导入同样先按文档绑定确定目标库，不能从"当前库"推断写入位置
+        self._ensure_scan_library(doc_path)
         from plugins.reference.docx_scan import scan_docx
 
         try:
@@ -424,7 +426,9 @@ class ReferencePlugin(PluginBase):
         # 先按引用集合决定仓库，再入库：否则这份文档的文献会先落进当前库，
         # 两个文档就能把默认库塞满（用户实测 294 + 13 合并成 307 条）。
         keys = cite_key_set(candidates)
-        self._route_before_import(path, name, keys, stats)
+        if not self._route_before_import(path, name, keys, stats):
+            stats["keys"] = len(keys)      # R2：需要确认时本次不导入任何条目
+            return stats
 
         for reference in candidates:
             try:
@@ -457,9 +461,9 @@ class ReferencePlugin(PluginBase):
         return suggest_library_name(self._libraries.names(), doc_name)
 
     def _route_before_import(self, doc_path: str, doc_name: str,
-                             keys: set[str], stats: dict) -> None:
-        """入库前把库切到"这份文档该去的仓库"（实现见 scan_routing）。"""
-        route_before_import(self, doc_path, doc_name, keys, stats)
+                             keys: set[str], stats: dict) -> bool:
+        """入库前路由到"该去的仓库"；False 表示要等用户确认（实现见 scan_routing）。"""
+        return route_before_import(self, doc_path, doc_name, keys, stats)
 
     # ---------------- 仓库自动识别 ----------------
     def _library_snapshots(self) -> dict[str, set[str]]:

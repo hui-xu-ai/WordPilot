@@ -201,7 +201,8 @@ class LibraryRegistry:
                     time.sleep(0.05 * (attempt + 1))
             if not moved:
                 logger.warning("目录被占用，改为逐个删除文件：%s", directory)
-                self._force_remove(directory)
+                # R13：既承诺"进回收区可恢复"，就不能悄悄逐文件硬删。
+                raise ValueError(f"目录被占用，暂时无法移入回收区：{directory}")
 
         libraries.pop(name)
         data["libraries"] = libraries

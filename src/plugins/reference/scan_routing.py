@@ -10,7 +10,7 @@ import logging
 import re
 from pathlib import Path
 
-from plugins.reference.switch_plan import NEW, SWITCH, plan_switch
+from plugins.reference.switch_plan import NEW, PROMPT, SWITCH, plan_switch
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,15 @@ def suggest_library_name(existing: list[str], doc_name: str) -> str:
 
 
 def route_before_import(plugin, doc_path: str, doc_name: str,
-                        keys: set[str], stats: dict) -> None:
+                        keys: set[str], stats: dict) -> bool:
     """入库前把库切到"这份文档该去的仓库"，避免多个文档合并进同一个库。
 
     - 已绑定 → 切绑定库；
     - 与其它库高度相似 → 直接切；
-    - 与任何现有库都不相似（含"只有当前库"）→ 按文档名新建一个库再导入。
+    - 与任何现有库都不相似（含"只有当前库"）→ 按文档名新建一个库再导入；
+    - 中等相似（要用户确认）→ **一条都不写**，把 plan 交给界面（R2）。
+
+    返回 True 表示可以入库，False 表示应等用户确认。
     """
     bound = ""
     try:
@@ -53,7 +56,7 @@ def route_before_import(plugin, doc_path: str, doc_name: str,
         plugin._libraries.bind_document(doc_path, plan.library)
         stats["switch_text"] = plugin.tr("switch.auto", library=plan.library,
                                          percent=int(plan.score * 100))
-        return
+        return True
 
     if plan.action == NEW:
         new_name = suggest_library_name(plugin._libraries.names(), doc_name)
@@ -62,5 +65,15 @@ def route_before_import(plugin, doc_path: str, doc_name: str,
             plugin.switch_library(new_name)
             plugin._libraries.bind_document(doc_path, new_name)
             stats["switch_text"] = plugin.tr("switch.created", name=new_name)
+            return True
         except ValueError as exc:
             logger.warning("自动建库失败（%s）：%s", new_name, exc)
+            return False
+
+    if plan.action == PROMPT:
+        # 相似度只是线索：确认前一条都不写，避免"先混进当前库再问用户"
+        stats["plan"] = plan
+        stats["pending"] = True
+        return False
+
+    return True
