@@ -59,6 +59,7 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
         self._index = index
         self._plugin = plugin
         self._note_service = note_service
+        self._selected_key = ""        # R7：按钮读它，必须先初始化
         self._libraries = list(libraries or [])
         self._active_library = active_library
         self._on_switch_library = on_switch_library
@@ -406,7 +407,9 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
             # 采用：复制文本进子库并记录来源 ID（不再"跟随"）
             self._note_service.adopt_master_note(ref_key, dialog.selected_note_id)
         self.reload()
-        self._show_reference(self._selected_key)
+        selected = self._store.get(self._selected_key) if self._selected_key else None
+        if selected is not None:
+            self._show_reference(selected)
 
     def _refresh_notes_ui(self, key: str) -> None:
         """右栏备注区：来源徽标 + 总库条数（只有 1 条时不需要挑选）。"""
@@ -512,7 +515,8 @@ class LibraryPage(PanelEditMixin, ScanMixin, LibraryMixin, QWidget):
             self.status_label.setText(self.tr("status.need_title"))
             return
         try:
-            saved = self._store.upsert(reference, overwrite_note=True)
+            # R10：人工编辑按原样写入（允许清空字段、取消星标）；upsert 是"导入补全"语义
+            saved = self._store.replace_from_edit(reference)
         except ReferenceStoreError as exc:
             self.status_label.setText(str(exc))
             return

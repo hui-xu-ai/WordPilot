@@ -349,6 +349,38 @@ class ReferenceStore:
         self._flush_refs()
         return ref
 
+    def replace_from_edit(self, ref: Reference) -> Reference:
+        """人工编辑写入：**允许置空**（清空备注/标签/年份、取消星标）。
+
+        R10：`upsert()` 是"导入补全"语义（空值不覆盖、标签并集、星标取或），
+        用它保存人工编辑会出现"清空后仍是原值"。这里按用户输入原样覆盖，
+        别名与额外列保持合并（那些不是编辑项）。
+        """
+        self.reload_if_changed()
+        existing_key = self.resolve_key(ref.ref_key) or ref.ref_key
+        target = self._refs.get(existing_key)
+        if target is None:
+            ref.updated_at = ref.updated_at or _now()
+            self._refs[ref.ref_key] = ref
+            for alias in ref.aliases:
+                self._alias_index.setdefault(normalize_key(alias), ref.ref_key)
+            self._flush_refs()
+            return ref
+
+        for name in ("provider", "provider_id", "cite_label", "title", "authors",
+                     "year", "container", "doi", "url", "type", "note"):
+            setattr(target, name, getattr(ref, name))
+        target.tags = list(ref.tags)
+        target.starred = bool(ref.starred)
+        target.aliases = join_list(list(dict.fromkeys([*target.aliases, *ref.aliases]))).split(";") \
+            if (target.aliases or ref.aliases) else []
+        target.extra.update(ref.extra)
+        target.updated_at = _now()
+        for alias in target.aliases:
+            self._alias_index.setdefault(normalize_key(alias), target.ref_key)
+        self._flush_refs()
+        return target
+
     def set_note(self, key: str, *, note: str | None = None,
                  tags: list[str] | None = None, starred: bool | None = None) -> Reference | None:
         self.reload_if_changed()

@@ -332,7 +332,14 @@ class WordWatch(QThread):
 
         doc_identity = self._doc_identity(word) or doc_name
 
-        if self._index.needs_rescan(doc_identity):
+        signature = None
+        try:
+            from plugins.reference.doc_index import document_signature
+
+            signature = document_signature(word.ActiveDocument)
+        except Exception:                      # noqa: BLE001 - 取不到指纹就退回按路径判断
+            signature = None
+        if self._index.needs_rescan(doc_identity, signature):
             doc_path, fp = self._document_fingerprint(word)
             cached = None
             if self._cache is not None:

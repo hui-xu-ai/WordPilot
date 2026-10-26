@@ -61,6 +61,19 @@ def classify_field(code: str, result_text: str, doc_name: str) -> list[tuple[str
     return []
 
 
+def document_signature(document) -> tuple[int, int]:
+    """文档内容指纹：域个数 + 正文末尾位置。插入/删除引用或正文都会变化。"""
+    try:
+        fields = int(document.Fields.Count)
+    except Exception:                          # noqa: BLE001
+        fields = 0
+    try:
+        end = int(document.Content.End)
+    except Exception:                          # noqa: BLE001
+        end = 0
+    return (fields, end)
+
+
 @dataclass
 class DocIndex:
     """某一篇文档的引用锚点缓存。"""
@@ -71,14 +84,24 @@ class DocIndex:
     #: 是否已经为当前文档扫过一次（空文档也算扫过，避免无限重扫）
     scanned: bool = False
     doc_identity: str = ""          # 全路径身份（判重扫用）；doc_name 只用于显示
+    #: 文档内容指纹（域个数 + 正文长度）：**同一文档编辑后**也要重扫（R12）
+    signature: tuple[int, int] = (0, 0)
 
-    def needs_rescan(self, doc_identity: str) -> bool:
-        """按**全路径身份**判断（S10）：同名不同目录的文档不能共用锚点。"""
-        return doc_identity != self.doc_identity or not self.scanned
+    def needs_rescan(self, doc_identity: str, signature: tuple[int, int] | None = None) -> bool:
+        """按**全路径身份**判断（S10）：同名不同目录的文档不能共用锚点。
+
+        R12：还要比较内容指纹 —— 同一篇文档里插入/删除引用后，旧的锚点位置会整体偏移。
+        """
+        if doc_identity != self.doc_identity or not self.scanned:
+            return True
+        if signature is not None and self.signature and signature != self.signature:
+            return True
+        return False
 
     def clear(self) -> None:
         self.doc_name = ""
         self.doc_identity = ""
+        self.signature = (0, 0)
         self.anchors = []
         self._starts = []
         self.scanned = False
@@ -97,6 +120,7 @@ class DocIndex:
         # 先记住文档名：即便后面拿不到域，也不要每轮都"重扫"
         self.doc_name = doc_name
         self.doc_identity = doc_identity
+        self.signature = document_signature(document)
         self.anchors = []
         self._starts = []
         self.scanned = True
