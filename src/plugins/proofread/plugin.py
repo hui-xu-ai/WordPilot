@@ -478,6 +478,18 @@ class ProofreadPlugin(PluginBase):
             # 分离主体和尾部
             body_text, tail_text = split_trailing_chars(sent_text)
 
+            # B01：写回前校验原文。生成建议后若用户切了文档或继续编辑，
+            # 这里按旧坐标写下去会覆盖别的文本（审查用真实 Word 复现过）。
+            if original_text is not None:
+                expected_body, _ = split_trailing_chars((original_text or "").strip())
+                current_body = body_text.strip()
+                if expected_body and current_body and expected_body != current_body:
+                    logger.warning("拒绝写回：原句已变化（%r ≠ %r）",
+                                   current_body[:40], expected_body[:40])
+                    self._status(self.tr("status.stale_suggestion"))
+                    self._warn_stale_suggestion()
+                    return
+
             if has_object:
                 # 有图片/公式：弹窗提示手动修改，仅清除标记
                 clear_error_marks(sent_range.Start, sent_range.End)
@@ -511,6 +523,18 @@ class ProofreadPlugin(PluginBase):
                 except Exception:
                     pass
             logger.info("apply_correction 用时 %.0f ms", (_time.perf_counter() - started) * 1000)
+
+    def _warn_stale_suggestion(self) -> None:
+        """提示建议已过期：原文变了，本次不写回（非模态，不打断用户）。"""
+        parent = QApplication.activeWindow()
+        box = QMessageBox(parent)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle(self.tr("error.stale_title"))
+        box.setText(self.tr("error.stale_body"))
+        box.setStandardButtons(QMessageBox.Ok)
+        box.setModal(False)
+        box.show()
+        QTimer.singleShot(4000, box.close)
 
     def _notify_manual_edit(self) -> None:
         parent = QApplication.activeWindow()

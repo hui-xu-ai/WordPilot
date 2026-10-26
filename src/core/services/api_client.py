@@ -57,6 +57,7 @@ class DeepSeekClient:
         self.last_messages = None
         self.last_usage = None
         self.last_api_success = False
+        self.last_finish_reason: str | None = None
         self.last_error = ""
         #: 最近一次真实网络往返耗时（ms）；命中本地缓存时不更新
         self.last_latency_ms = 0
@@ -233,12 +234,23 @@ class DeepSeekClient:
 
         try:
             data = resp.json()
-            content = data["choices"][0]["message"]["content"].strip()
+            choice = data["choices"][0]
+            content = choice["message"]["content"].strip()
+            finish_reason = choice.get("finish_reason")
         except Exception as exc:  # noqa: BLE001  响应结构不符合预期同样算失败
             self.last_usage = None
             self.last_api_success = False
             self.last_error = f"响应格式异常: {exc}"
             logger.warning("API 响应无法解析: %s", exc)
+            return None
+
+        self.last_finish_reason = finish_reason
+        if finish_reason == "length":
+            # B04：被 max_tokens 截断的半句绝不能当成完整修改（会删掉原文后半段）
+            self.last_usage = data.get("usage", None)
+            self.last_api_success = False
+            self.last_error = "响应被截断（finish_reason=length），未采用"
+            logger.warning("API 响应被截断，长度上限 max_tokens 可能过小")
             return None
 
         self.last_messages = messages

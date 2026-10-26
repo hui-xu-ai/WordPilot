@@ -62,5 +62,8 @@
   "settings.prompt.hint": "Never ask the model to rewrite placeholders like [IMG0] / [EQ1]; they stand for figures and equations and are preserved automatically.",
   "settings.save": "Save",
   "settings.saved": "Saved",
-  "settings.save_failed": "Save failed"
+  "settings.save_failed": "Save failed",
+  "status.stale_suggestion": "Suggestion expired (text changed); not applied",
+  "error.stale_title": "Suggestion expired",
+  "error.stale_body": "The text changed after this suggestion was created (document switched or edited). Nothing was written; please proofread this sentence again."
 }
