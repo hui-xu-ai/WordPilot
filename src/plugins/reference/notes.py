@@ -236,6 +236,16 @@ class NoteStore:
         os.replace(tmp, self.path)
 
     # ---------------- 查询 ----------------
+    def notes_all(self) -> list[Note]:
+        """全部备注（用于"总库是否为空"的判断）。"""
+        return list(self._notes.values())
+
+    def reset(self) -> None:
+        """清空内存并落盘为空表（文件本身已被备份/移走）。"""
+        self._notes.clear()
+        self._counter = 0
+        self._flush()
+
     def notes_for(self, ref_key: str, include_archived: bool = False) -> list[Note]:
         notes = [note for note in self._notes.values() if note.ref_key == ref_key]
         if not include_archived:

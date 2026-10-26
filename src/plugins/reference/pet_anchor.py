@@ -11,13 +11,30 @@ logger = logging.getLogger(__name__)
 
 
 def pet_anchor_point() -> tuple[int, int] | None:
-    """宠物当前的锚点（屏幕坐标）；宠物没显示/取不到就返回 None。"""
+    """宠物当前的锚点（屏幕坐标）。
+
+    先问 PetService；它只在宠物窗口上报过几何后才有值，拿不到就**退回宠物窗口几何**
+    —— 否则悬浮卡会落回鼠标位置，宠物在屏幕右侧时卡片会跑到很远的地方（用户反馈）。
+    """
     try:
         from core.services.pet_service import PetService
 
-        return PetService.instance().anchor_point()
+        point = PetService.instance().anchor_point()
+        if point is not None:
+            return point
     except Exception:                          # noqa: BLE001
+        pass
+
+    try:
+        from core.services.pet_host import PetHost
+
+        window = PetHost.instance().window()
+        if window is not None and window.isVisible():
+            rect = window.frameGeometry()
+            return rect.right() + 8, rect.top()
+    except Exception:                          # noqa: BLE001 - 没有宠物就算了
         return None
+    return None
 
 
 def pet_preferred() -> bool:

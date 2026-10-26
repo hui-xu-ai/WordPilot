@@ -78,6 +78,8 @@ class ToolbarMixin:
             self.import_action = self.menu.addAction("", self.import_csv)
             self.export_action = self.menu.addAction("", self.export_csv)
             self.dir_action = self.menu.addAction("", self.open_directory)
+            self.menu.addSeparator()
+            self.clear_master_action = self.menu.addAction("", self.confirm_clear_master)
             self.more_btn.setMenu(self.menu)
             toolbar.addWidget(self.more_btn)
 

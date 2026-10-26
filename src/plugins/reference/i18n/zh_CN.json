@@ -154,5 +154,10 @@
   "panel.show": "显示详情",
   "overlay.no_match": "引用 {label} 在库里没有对应文献，可点「同步本文」后再试",
   "switch.into_blank": "已使用当前空白仓库：{name}",
-  "switch.into_current": "已装入当前仓库：{name}"
+  "switch.into_current": "已装入当前仓库：{name}",
+  "master.clear": "删除总库备注",
+  "master.clear_title": "删除总库备注",
+  "master.clear_confirm": "将清空**总库**里的所有备注（各子库自己的备注不受影响）。\\n原文件会备份为 notes.csv.bak-时间戳，可手动恢复。继续？",
+  "master.cleared": "总库备注已清空（原文件已备份）",
+  "master.clear_failed": "清理总库失败，详见日志"
 }

@@ -35,7 +35,7 @@ def test_delegated_helpers_exist():
     from plugins.reference import plugin as plugin_module
 
     for name in ("import_bibliography", "hint_missing_reference",
-                 "connect_watch", "apply_document_name", "push_current_document",
+                 "connect_watch", "push_current_document", "clear_master",
                  "pet_anchor_point", "pet_preferred"):
         assert hasattr(plugin_module, name), f"plugin 缺少委托符号：{name}"
 

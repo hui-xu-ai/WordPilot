@@ -19,14 +19,15 @@ from plugins.reference.library_page import LibraryPage
 from plugins.reference.overlay import OverlayEntry, ReferenceOverlay
 from plugins.reference.reference_index import ReferenceIndex
 from plugins.reference.libraries import LibraryRegistry
+from plugins.reference.master_notes import clear_master
 from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.notes_migration import migrate_legacy_notes
 from plugins.reference.bib_import import import_bibliography
 from plugins.reference.doc_bindings import bind_doc
 from plugins.reference.overlay_debug import hint_missing_reference
 from plugins.reference.pet_anchor import pet_anchor_point, pet_preferred
-from plugins.reference.watch_bridge import (apply_document_name, connect_watch,
-                                           push_current_document)
+from plugins.reference.watch_bridge import connect_watch, on_document_switched
+from plugins.reference.watch_bridge import push_current_document
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
 from plugins.reference.matching import SnapshotStore, cite_key_set, diff
 from plugins.reference.scan_cache import ScanCache, fingerprint
@@ -99,8 +100,8 @@ class ReferencePlugin(PluginBase):
         connect_watch(self, getattr(self, "_watch", None))
 
     def _on_document_changed(self, name: str) -> None:
-        apply_document_name(self, name)
-
+        """换文档：更新显示并清掉旧上下文（实现见 watch_bridge）。"""
+        on_document_switched(self, name)
 
     def _push_current_document(self) -> None:
         """页面刚建好时先显示当前文档（监听只在"切换"时发信号，实现见 watch_bridge）。"""
@@ -332,6 +333,10 @@ class ReferencePlugin(PluginBase):
             self._overlay._note_service = self._note_service
         self._active_name = name
         logger.info("已切换到文献仓库：%s", name)
+
+    def clear_master_notes(self) -> bool:
+        """删除总库备注（实现见 master_notes：先备份再清空，可回滚）。"""
+        return clear_master(self)
 
     def refresh_page(self) -> None:
         """悬浮窗写完备注后刷新页面（用户反馈"表格更新不及时"）。"""

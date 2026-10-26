@@ -154,5 +154,10 @@
   "panel.show": "Show details",
   "overlay.no_match": "Citation {label} not found in this library; try Sync first",
   "switch.into_blank": "Using current empty library: {name}",
-  "switch.into_current": "Imported into current library: {name}"
+  "switch.into_current": "Imported into current library: {name}",
+  "master.clear": "Clear master notes",
+  "master.clear_title": "Clear master notes",
+  "master.clear_confirm": "All notes in the master library will be cleared (per-library notes are kept).\\nThe file is backed up as notes.csv.bak-<timestamp>. Continue?",
+  "master.cleared": "Master notes cleared (backup kept)",
+  "master.clear_failed": "Failed to clear master notes (see log)"
 }

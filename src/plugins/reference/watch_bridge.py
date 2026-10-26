@@ -70,6 +70,22 @@ def apply_document_name(plugin, name: str) -> None:
             logger.debug("更新当前文件显示失败", exc_info=True)
 
 
+def on_document_switched(plugin, name: str) -> None:
+    """换文档 = 换上下文：更新"当前文件"并清掉旧的忽略记录与去重签名。
+
+    不清的话，新文档里同编号的引用会被当成"刚刚被忽略过"，点了没有反应。
+    """
+    apply_document_name(plugin, name)
+    plugin._dismissed = set()
+    plugin._shown_signature = ()
+    overlay = getattr(plugin, "_overlay", None)
+    if overlay is not None:
+        try:
+            overlay.hide_overlay()
+        except Exception:                      # noqa: BLE001
+            logger.debug("隐藏旧悬浮卡失败", exc_info=True)
+
+
 def push_current_document(plugin) -> None:
     """页面刚建好时先显示当前文档（监听只在"切换"时发信号）。"""
     watch = getattr(plugin, "_watch", None)

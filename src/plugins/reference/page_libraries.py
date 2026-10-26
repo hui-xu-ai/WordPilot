@@ -128,6 +128,23 @@ class LibraryMixin:
         if callable(reload_now):
             reload_now()
 
+    def confirm_clear_master(self) -> None:
+        """删除总库备注：二次确认；备份后清空（可回滚），不影响各子库自己的备注。"""
+        from PySide6.QtWidgets import QMessageBox
+
+        handler = getattr(self, "_on_clear_master", None)
+        if handler is None:
+            return
+        answer = QMessageBox.question(self, self.tr("master.clear_title"),
+                                      self.tr("master.clear_confirm"))
+        if answer != QMessageBox.Yes:
+            return
+        if handler():
+            self.append_status(self.tr("master.cleared"))
+        else:
+            QMessageBox.warning(self, self.tr("master.clear_title"),
+                                self.tr("master.clear_failed"))
+
     def prompt_new_library(self) -> None:
         """弹输入框新建仓库：命名 → 建库 → 自动切过去（用户最初要求的流程）。"""
         from PySide6.QtWidgets import QInputDialog, QMessageBox
