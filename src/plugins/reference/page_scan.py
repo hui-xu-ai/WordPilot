@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 
+from core.services.com_thread import com_init, com_uninit
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QWidget
 
@@ -41,10 +42,15 @@ class ScanMixin:
             error = ""
 
             def run(self) -> None:
+                # S8：QThread 是新的 OS 线程，附接 Word COM 前必须初始化 apartment，
+                # 否则报 -2147221008 (CoInitialize has not been called)。
+                inited = com_init()
                 try:
                     self.result = page._plugin.scan_active_document()
                 except Exception as exc:        # noqa: BLE001 - 展示到状态栏即可
                     self.error = str(exc)
+                finally:
+                    com_uninit(inited)
 
         worker = _Worker(self)
         self._worker = worker
