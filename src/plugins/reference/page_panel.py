@@ -22,6 +22,7 @@ FIELD_LABEL_KEYS = {"cite_label": "field.label"}
 def build_panel(host) -> QWidget:
     """构建右栏并把它需要的控件挂到 `host` 上（页面类保持薄）。"""
     panel = QWidget()
+    host.panel_widget = panel          # 折叠时要隐藏的是**整块**右栏，不只是里面的 stack
     panel.setMinimumWidth(PANEL_WIDTH)
     panel.setMaximumWidth(PANEL_WIDTH)
     layout = QVBoxLayout(panel)
@@ -172,8 +173,8 @@ class PanelChromeMixin:
         self._refresh_doc_label()
 
     def toggle_panel(self, checked: bool | None = None) -> None:
-        """显示/隐藏右侧详情栏：隐藏后表格自动占满剩余宽度。"""
-        panel = getattr(self, "panel_stack", None)
+        """显示/隐藏整块右侧详情栏；隐藏后表格自动占满剩余宽度。"""
+        panel = getattr(self, "panel_widget", None) or getattr(self, "panel_stack", None)
         if panel is None or not hasattr(self, "_splitter"):
             return
         if self.panel_toggle.isChecked():
@@ -185,6 +186,16 @@ class PanelChromeMixin:
             sizes = self._splitter.sizes()
             self._panel_width = sizes[1] or PANEL_WIDTH
             panel.setVisible(False)
+        self._update_panel_toggle()
+
+    def _update_panel_toggle(self) -> None:
+        """按钮文字说清"点它会隐藏/显示详情"，避免只有个看不懂的短词。"""
+        button = getattr(self, "panel_toggle", None)
+        if button is None:
+            return
+        key = "panel.hide" if button.isChecked() else "panel.show"
+        button.setText(self.tr(key))
+        button.setToolTip(self.tr("panel.toggle.tip"))
 
     def _refresh_doc_label(self) -> None:
         """显示当前文件：过长时中间省略（配合最小宽度与 tooltip，避免"显示不全"）。"""

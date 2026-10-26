@@ -145,9 +145,11 @@
   "library.belong": "Library",
   "toolbar.current_doc": "File: {name}",
   "panel.toggle": "Details",
-  "panel.toggle.tip": "Show/hide details (wider table)",
+  "panel.toggle.tip": "Hide the details panel to give the table more room",
   "col.author_year": "Authors · Year",
   "col.note.edit_tip": "Double-click to edit the note",
   "library.new.tip": "Create a new library",
-  "library.delete.tip": "Delete this library (moves to trash)"
+  "library.delete.tip": "Delete this library (moves to trash)",
+  "panel.hide": "Hide details",
+  "panel.show": "Show details"
 }

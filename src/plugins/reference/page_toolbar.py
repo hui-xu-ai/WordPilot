@@ -45,13 +45,19 @@ class ToolbarMixin:
             row_top.addWidget(self.scan_btn)
 
             # 「详情」开/关：关掉右栏后表格能占更宽（用户要求可显隐，而不是常驻）
+            # 折叠按钮：小号、带文字说明（原来大按钮写「详情」，用户不知道点它会隐藏）
             self.panel_toggle = QToolButton()
             self.panel_toggle.setCheckable(True)
             self.panel_toggle.setChecked(True)
+            self.panel_toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            self.panel_toggle.setFixedHeight(24)
+            self.panel_toggle.setMinimumWidth(72)
+            self.panel_toggle.setObjectName("panelToggle")
             self.panel_toggle.clicked.connect(self.toggle_panel)
-            row_top.addWidget(self.panel_toggle)
+            row_top.addWidget(self.panel_toggle, 0, Qt.AlignVCenter)
             row_top.addStretch(1)
             layout.addLayout(row_top)
+            self._update_panel_toggle()   # 初始文案：隐藏详情
 
             # ---- 第二行：搜索 + 筛选 + 更多 ----
             toolbar = QHBoxLayout()
