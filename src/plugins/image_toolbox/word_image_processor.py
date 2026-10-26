@@ -243,15 +243,17 @@ class WordImageProcessor:
             pil_img = pil_img.convert('RGB')
 
         # 转为 NumPy 数组 (h, w, 3)
-        arr = np.array(pil_img, dtype=np.int16)
+        # 用 int32 而不是 int16：-255 ** 2 会溢出成 -511（int16），
+        # 白底黑块会被判成"空白"进而裁掉内容（审查 B08）。
+        arr = np.array(pil_img, dtype=np.int32)
         h, w, _ = arr.shape
 
         # 背景色转为数组
-        bg = np.array(bg_color, dtype=np.int16)
+        bg = np.array(bg_color, dtype=np.int32)
 
         # 计算每个像素与背景的欧氏距离平方
         diff = arr - bg
-        dist_sq = np.sum(diff ** 2, axis=2)  # shape (h, w)
+        dist_sq = np.sum(diff.astype(np.int64) ** 2, axis=2)  # shape (h, w)，int64 不会溢出
 
         # 生成内容掩码：距离平方 > 阈值平方 即为内容像素
         thr_sq = threshold ** 2
