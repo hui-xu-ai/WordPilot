@@ -51,3 +51,20 @@ def test_save_is_atomic_and_leaves_no_temp(config_env):
     assert not [n for n in files if n.endswith(".tmp")], f"残留临时文件: {files}"
     saved = json.loads((config_env / "MWindow_config.json").read_text(encoding="utf-8"))
     assert saved["theme"] == "dark"
+
+
+def test_save_reports_failure_when_tmp_cannot_be_created(monkeypatch, tmp_path):
+    """B06：mkstemp 失败也要走失败契约（返回 False + last_save_error），不能直接抛。"""
+    import tempfile as _tempfile
+
+    from core.services.config_manager import ConfigManager
+
+    manager = ConfigManager()
+
+    def _boom(*args, **kwargs):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(_tempfile, "mkstemp", _boom)
+
+    assert manager.save() is False, "保存失败必须返回 False"
+    assert manager.last_save_error, "必须记录失败原因，供界面提示"

@@ -125,4 +125,4 @@ def test_doc_index_remembers_doc_name_on_failure():
     index = DocIndex()
     assert index.rescan(_Word(_Doc(fail_fields=True))) == 0
     assert index.doc_name == "论文.docx"
-    assert index.needs_rescan("论文.docx") is False
+    assert index.needs_rescan("C:/tmp/论文.docx") is False   # S10：身份用全路径

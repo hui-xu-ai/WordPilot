@@ -70,12 +70,15 @@ class DocIndex:
     _starts: list[int] = field(default_factory=list)
     #: 是否已经为当前文档扫过一次（空文档也算扫过，避免无限重扫）
     scanned: bool = False
+    doc_identity: str = ""          # 全路径身份（判重扫用）；doc_name 只用于显示
 
-    def needs_rescan(self, doc_name: str) -> bool:
-        return doc_name != self.doc_name or not self.scanned
+    def needs_rescan(self, doc_identity: str) -> bool:
+        """按**全路径身份**判断（S10）：同名不同目录的文档不能共用锚点。"""
+        return doc_identity != self.doc_identity or not self.scanned
 
     def clear(self) -> None:
         self.doc_name = ""
+        self.doc_identity = ""
         self.anchors = []
         self._starts = []
         self.scanned = False
@@ -85,12 +88,15 @@ class DocIndex:
         try:
             document = word.ActiveDocument
             doc_name = document.Name
+            # S10：搞一份**全路径身份**用于判断是否重扫（同名不同目录的文档不能混）
+            doc_identity = str(getattr(document, "FullName", "") or doc_name)
         except Exception as exc:                 # noqa: BLE001 - Word 关闭/无文档
             logger.debug("扫描域失败：%s", exc)
             return 0
 
         # 先记住文档名：即便后面拿不到域，也不要每轮都"重扫"
         self.doc_name = doc_name
+        self.doc_identity = doc_identity
         self.anchors = []
         self._starts = []
         self.scanned = True
@@ -132,6 +138,7 @@ class DocIndex:
         """直接装载（来自扫描缓存）：免去一次 COM 遍历。"""
         anchors = sorted(anchors, key=lambda item: (item.start, item.end))
         self.doc_name = doc_name
+        self.doc_identity = doc_name          # S10：装载也记身份
         self.anchors = anchors
         self._starts = [item.start for item in anchors]
         self.scanned = True

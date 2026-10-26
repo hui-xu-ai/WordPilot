@@ -155,8 +155,12 @@ class ConfigManager:
 
     def save(self) -> bool:
         """原子写配置；失败不破坏旧文件，返回是否成功（原因见 last_save_error）。"""
-        fd, tmp_name = tempfile.mkstemp(dir=str(CONFIG_DIR), prefix=CONFIG_FILE.name, suffix=".tmp")
+        tmp_name = ""
         try:
+            # B06：mkstemp 必须在 try 里——目录不可写时它会直接抛，
+            # 绕过 last_save_error，调用方无法提示"保存失败"。
+            fd, tmp_name = tempfile.mkstemp(dir=str(CONFIG_DIR),
+                                            prefix=CONFIG_FILE.name, suffix=".tmp")
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(self.config, f, ensure_ascii=False, indent=2)
                 f.flush()
@@ -168,7 +172,8 @@ class ConfigManager:
             self.last_save_error = str(exc)
             logger.exception("配置写入失败: %s", CONFIG_FILE)
             try:
-                os.unlink(tmp_name)
+                if tmp_name:
+                    os.unlink(tmp_name)
             except OSError:
                 pass
             return False

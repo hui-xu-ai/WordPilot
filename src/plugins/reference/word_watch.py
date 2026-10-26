@@ -311,6 +311,15 @@ class WordWatch(QThread):
                 pass
 
     # ---------------- 单次循环 ----------------
+    @staticmethod
+    def _doc_identity(word) -> str:
+        """S10：文档身份用**全路径**。同名不同目录的 same.docx 不能共用锚点。"""
+        try:
+            document = word.ActiveDocument
+            return str(getattr(document, "FullName", "") or "")
+        except Exception:                  # noqa: BLE001 - Word 正在关闭/未打开
+            return ""
+
     def _tick(self, get_word_app) -> None:
         try:
             word = get_word_app()
@@ -321,13 +330,15 @@ class WordWatch(QThread):
             self.msleep(min(RETRY_AFTER_MS, 1000))
             return
 
-        if self._index.needs_rescan(doc_name):
+        doc_identity = self._doc_identity(word) or doc_name
+
+        if self._index.needs_rescan(doc_identity):
             doc_path, fp = self._document_fingerprint(word)
             cached = None
             if self._cache is not None:
                 cached = self._cache.load_anchors(doc_path, fp)
             if cached is not None:
-                count = self._index.load(doc_name, cached)
+                count = self._index.load(doc_identity, cached)
                 self._emit_status(f"watch.cached:{count}")
             else:
                 self._emit_status("watch.scanning")
