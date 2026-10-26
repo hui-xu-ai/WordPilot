@@ -27,5 +27,6 @@
   "settings.saved": "Saved",
   "settings.save_failed": "Save failed",
   "settings.prompt.correct": "Correction prompt (whole text, {text} = source)",
-  "settings.prompt.correct_hint": "Separate from the desk-pet sentence proofreading: this one handles whole blocks of text. Leave empty to fall back to the proofreading prompt."
+  "settings.prompt.correct_hint": "Separate from the desk-pet sentence proofreading: this one handles whole blocks of text. Leave empty to fall back to the proofreading prompt.",
+  "running": "Working…"
 }

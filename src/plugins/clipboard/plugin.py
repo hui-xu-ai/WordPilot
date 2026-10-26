@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel,
                                QPushButton, QTextEdit, QVBoxLayout, QWidget, QGridLayout)
 
@@ -19,6 +20,30 @@ from core.sdk.plugin_base import PluginBase
 
 if TYPE_CHECKING:
     from core.sdk.context import PluginContext
+
+
+class _ActionWorker(QThread):
+    """把一次 API 调用搬出 GUI 线程（U04：同步请求最长会冻结界面 30s）。"""
+
+    done = Signal(str)                 # 成功：结果文本
+    failed = Signal(str)               # 失败：带原因的文案
+
+    def __init__(self, call, fail_text: str) -> None:
+        # 无父对象：父页面销毁时不能连带析构运行中的 QThread（同 U03 的教训）
+        super().__init__(None)
+        self._call = call
+        self._fail_text = fail_text
+
+    def run(self) -> None:             # noqa: D401 - QThread 入口
+        try:
+            result = self._call()
+        except Exception as exc:       # noqa: BLE001 - 后台异常必须回传
+            self.failed.emit(f"{self._fail_text}（{exc}）")
+            return
+        if result:
+            self.done.emit(str(result))
+        else:
+            self.failed.emit(self._fail_text)
 
 
 class ClipboardWidget(QWidget):
@@ -33,6 +58,7 @@ class ClipboardWidget(QWidget):
     def __init__(self, ctx: "PluginContext", parent=None) -> None:
         super().__init__(parent)
         self._ctx = ctx
+        self._worker: _ActionWorker | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
@@ -97,8 +123,14 @@ class ClipboardWidget(QWidget):
     def load_clipboard(self):
         self.clip_preview.setPlainText(QApplication.clipboard().text())
 
+    def _set_busy(self, busy: bool) -> None:
+        """请求期间禁用动作按钮：避免连点发出多个请求，也给出"正在处理"的反馈。"""
+        for button in (self.btn_load, self.btn_copy, self.translate_btn,
+                       self.rewrite_btn, self.correct_btn):
+            button.setEnabled(not busy)
+
     def run_action(self, action: str):
-        """执行翻译/改写/纠错；输入为空时自动读取剪贴板。"""
+        """执行翻译/改写/纠错：输入为空时自动读剪贴板，请求走工作线程（U04）。"""
         text = self.clip_preview.toPlainText().strip()
         if not text:
             self.load_clipboard()
@@ -112,21 +144,40 @@ class ClipboardWidget(QWidget):
             self.clip_result.setPlainText(self.tr("fail_no_api"))
             return
 
-        def _fail(prefix_key: str) -> str:
+        calls = {
+            "translate": (api.translate, "fail_translate"),
+            "rewrite": (api.rewrite, "fail_rewrite"),
+            "correct": (api.clipboard_proof, "fail_correct"),
+        }
+        entry = calls.get(action)
+        if entry is None:
+            return
+        call, fail_key = entry
+
+        def _fail_text() -> str:
             """失败文案带上具体原因，避免用户只看到"失败"两个字。"""
             reason = (getattr(api, "last_error", "") or "").strip()
-            base = self.tr(prefix_key)
+            base = self.tr(fail_key)
             return f"{base}（{reason}）" if reason else base
 
-        if action == "translate":
-            result = api.translate(text)
-            self.clip_result.setPlainText(result or _fail("fail_translate"))
-        elif action == "rewrite":
-            result = api.rewrite(text)
-            self.clip_result.setPlainText(result or _fail("fail_rewrite"))
-        elif action == "correct":
-            result = api.clipboard_proof(text)
-            self.clip_result.setPlainText(result or _fail("fail_correct"))
+        self.clip_result.setPlainText(self.tr("running"))
+        self._set_busy(True)
+        worker = _ActionWorker(lambda: call(text), _fail_text())
+        worker.done.connect(self._on_action_done)
+        worker.failed.connect(self._on_action_failed)
+        worker.finished.connect(self._on_action_finished)
+        self._worker = worker                     # 持引用，防被回收
+        worker.start()
+
+    def _on_action_done(self, result: str) -> None:
+        self.clip_result.setPlainText(result)
+
+    def _on_action_failed(self, message: str) -> None:
+        self.clip_result.setPlainText(message)
+
+    def _on_action_finished(self) -> None:
+        self._set_busy(False)
+        self._worker = None
 
 
 class ClipboardPlugin(PluginBase):
