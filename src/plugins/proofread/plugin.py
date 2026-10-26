@@ -50,6 +50,13 @@ class _CursorProofWorker(QThread):
     done = Signal(str, object, str)      # (原句, 纠正结果或 None, 失败原因)
 
     def __init__(self, api, original: str, parent=None) -> None:
+        # B02：ProofreadPlugin 是普通 Python 对象，不是 QObject。直接把 self 当 parent
+        # 会让 QThread 构造抛 TypeError（被外层 except 吞掉 → worker 根本没创建，
+        # 热键校对因此毫无响应）。非 QObject 一律按"无父对象"处理。
+        from PySide6.QtCore import QObject
+
+        if not isinstance(parent, QObject):
+            parent = None
         super().__init__(parent)
         self._api = api
         self._original = original
@@ -415,7 +422,7 @@ class ProofreadPlugin(PluginBase):
                 self._status(self.tr("status.api_missing"))
                 return
             self._on_proofing_started()
-            worker = _CursorProofWorker(api, current, self)
+            worker = _CursorProofWorker(api, current)   # 不能把 plugin 当 QObject 父对象
             worker.done.connect(self._on_cursor_proof_done)
             worker.finished.connect(self._on_cursor_worker_finished)
             self._cursor_worker = worker

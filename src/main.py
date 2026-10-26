@@ -7,7 +7,7 @@ import logging
 import sys
 import threading
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import QApplication
 
 from __version__ import APP_NAME, __version__, AUTHOR  # noqa: F401  全局元信息唯一来源
@@ -74,6 +74,36 @@ def _install_failure_hooks() -> None:
     qInstallMessageHandler(_qt_handler)
 
 
+
+class _GuiBridge(QObject):
+    """把工作线程的回调排队送回 GUI 线程执行（Signal 的自动连接即队列连接）。"""
+
+    fire = Signal(object)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.fire.connect(self._run, Qt.QueuedConnection)
+
+    def _run(self, fn) -> None:              # 在 GUI 线程执行
+        try:
+            fn()
+        except Exception:                    # noqa: BLE001 - 回调失败不能拖垮事件循环
+            logger.exception("热键回调执行失败")
+
+    def dispatch(self, fn) -> None:
+        self.fire.emit(fn)                   # 任意线程调用都安全
+
+
+def _gui_dispatcher():
+    """返回 dispatcher；bridge 必须在 GUI 线程创建并持有引用。"""
+    bridge = _GuiBridge()
+    _GUI_BRIDGES.append(bridge)              # 防回收
+    return bridge.dispatch
+
+
+_GUI_BRIDGES: list[_GuiBridge] = []
+
+
 def main():
     _install_failure_hooks()
     app = QApplication(sys.argv)
@@ -89,7 +119,7 @@ def main():
     #      （否则插件回调会跨线程动 QWidget / Word COM，随机崩或 RPC 失败）
     hotkey_service = kernel.services.get("hotkeys")
     if hotkey_service is not None:
-        hotkey_service.set_dispatcher(lambda fn: QTimer.singleShot(0, fn))
+        hotkey_service.set_dispatcher(_gui_dispatcher())
 
     # 2) 建外壳（窗口、托盘、菜单栏骨架）
     window = MainWindow(kernel)

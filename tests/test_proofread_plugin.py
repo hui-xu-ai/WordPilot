@@ -248,3 +248,19 @@ def test_new_check_discards_previous_suggestion_before_failure(plugin_cls):
     plugin._on_proofing_failed("HTTP 401")
     plugin.refresh_visibility()
     assert plugin.state() == "idle", "失败后刷新设置不能复活上次校对的红色建议"
+
+
+def test_cursor_worker_accepts_non_qobject_parent():
+    """B02：ProofreadPlugin 不是 QObject，传进来也不能让 QThread 构造抛 TypeError。
+
+    审查实测：`_CursorProofWorker(api, text, self)` 抛 TypeError 被外层 except 吞掉，
+    worker 根本没创建，热键校对毫无响应。
+    """
+    from plugins.proofread.plugin import _CursorProofWorker
+
+    class _Plain:                # 故意不是 QObject
+        pass
+
+    worker = _CursorProofWorker(lambda text: text, "原句", _Plain())
+    assert worker.parent() is None, "非 QObject 父对象应被忽略"
+    worker.deleteLater()
