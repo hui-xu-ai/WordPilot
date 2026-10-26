@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from core.services.word_constants import wdConst as constants
 
 

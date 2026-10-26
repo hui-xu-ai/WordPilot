@@ -124,3 +124,30 @@ def test_no_original_text_skips_guard(mod, monkeypatch):
     plugin.apply_correction("任意新内容。", 0, 5)
 
     assert any("stale" in s for s in statuses) is False, "没有原文可比时不应报过期"
+
+
+def test_whitespace_difference_still_applies(mod, monkeypatch):
+    """B01 收尾：`Range.Text` 常带句首空白/制表符，空白差异不能判成"已过期"。
+
+    现场表现就是"点了应用毫无反应、校对像失效了"。
+    """
+    plugin, doc, statuses, warnings = _make_plugin(
+        mod, monkeypatch, current_text="\t  这是原来的句子。")
+
+    plugin.apply_correction("这是修改后的句子。", 0, 12,
+                            original_text="这是原来的句子。")
+
+    assert not warnings, f"空白差异不该报过期：{statuses}"
+    assert not any("stale" in s for s in statuses)
+
+
+def test_real_change_still_blocked(mod, monkeypatch):
+    """真正换了一句（不是空白差异）时仍然必须拒绝写回。"""
+    plugin, doc, statuses, warnings = _make_plugin(
+        mod, monkeypatch, current_text="完全不同的另一句话。")
+
+    plugin.apply_correction("这是修改后的句子。", 0, 12,
+                            original_text="这是原来的句子。")
+
+    assert warnings, "内容真的变了必须拦下"
+    assert doc.written == []

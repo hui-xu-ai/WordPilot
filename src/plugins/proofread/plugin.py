@@ -12,6 +12,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QThread, QTimer, Signal
@@ -487,12 +489,25 @@ class ProofreadPlugin(PluginBase):
 
             # B01：写回前校验原文。生成建议后若用户切了文档或继续编辑，
             # 这里按旧坐标写下去会覆盖别的文本（审查用真实 Word 复现过）。
-            if original_text is not None:
+            #
+            # 注意：`sent_range.Text` 会带上句首空白/制表符，而建议里存的原文是纯文本，
+            # 若按原样比较，正常写回也会被判"已过期"（表现为点了应用毫无反应）。
+            # 因此比对前先去掉所有空白；并且只要当前文本**包含**原文就放行。
+            # 含图片/公式的句子只清标记、不写文本，天然不会覆盖别人的内容，
+            # 因此不参与"原文是否变化"的判定（否则占位符与对象字符不同，正常操作也被拦）。
+            if original_text is not None and not has_object:
                 expected_body, _ = split_trailing_chars((original_text or "").strip())
-                current_body = body_text.strip()
-                if expected_body and current_body and expected_body != current_body:
+                expected_norm = re.sub(r"\s+", "", expected_body)
+                current_norm = re.sub(r"\s+", "", body_text)
+                pure_norm = re.sub(r"\s+", "", getattr(tokenized, "pure_text", "") or "")
+                matched = bool(expected_norm) and (
+                    expected_norm in current_norm or
+                    (bool(pure_norm) and expected_norm in pure_norm))
+                if matched:
+                    logger.debug("写回前校验通过")
+                if not matched:
                     logger.warning("拒绝写回：原句已变化（%r ≠ %r）",
-                                   current_body[:40], expected_body[:40])
+                                   current_norm[:40], expected_norm[:40])
                     self._status(self.tr("status.stale_suggestion"))
                     self._warn_stale_suggestion()
                     return
@@ -532,28 +547,13 @@ class ProofreadPlugin(PluginBase):
             logger.info("apply_correction 用时 %.0f ms", (_time.perf_counter() - started) * 1000)
 
     def _warn_stale_suggestion(self) -> None:
-        """提示建议已过期：原文变了，本次不写回（非模态，不打断用户）。"""
-        parent = QApplication.activeWindow()
-        box = QMessageBox(parent)
-        box.setIcon(QMessageBox.Warning)
-        box.setWindowTitle(self.tr("error.stale_title"))
-        box.setText(self.tr("error.stale_body"))
-        box.setStandardButtons(QMessageBox.Ok)
-        box.setModal(False)
-        box.show()
-        QTimer.singleShot(4000, box.close)
+        warn_stale(self.tr)
+
 
     def _notify_manual_edit(self) -> None:
-        parent = QApplication.activeWindow()
-        msg_box = QMessageBox(parent)
-        msg_box.setWindowTitle(self.tr("manual.title"))
-        msg_box.setText(self.tr("manual.body"))
-        msg_box.setStandardButtons(QMessageBox.Ok)
-        msg_box.setModal(False)
-        msg_box.show()
-        QTimer.singleShot(2000, msg_box.close)
+        notify_manual_edit(self.tr)
 
-    # ---------------- 事件 ----------------
+
     def _on_api_changed(self, _event, client) -> None:
         if self.monitor is not None:
             self.monitor.api = client
