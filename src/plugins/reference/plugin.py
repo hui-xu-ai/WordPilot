@@ -239,8 +239,8 @@ class ReferencePlugin(PluginBase):
         """宠物作为定位锚点（窗口查找与几何兜底见 pet_anchor）。"""
         return pet_anchor_point(resolve_window(getattr(self, "ctx", None)))
 
+    @staticmethod
     def _pet_preferred() -> bool:
-        """宠物可用时优先贴宠物（实现见 pet_anchor）。"""
         return pet_preferred()
 
     def _import_bibliography(self, doc_path: str, doc_name: str) -> None:
