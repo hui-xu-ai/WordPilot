@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog, 
 
 from plugins.reference.page_libraries import (FILTERS as _FILTERS_FROM_PAGE_LIBRARIES,
                                              LibraryMixin, group_separator)
+from plugins.reference.page_toolbar import ToolbarMixin
 from plugins.reference.page_panel import (PANEL_WIDTH, PanelChromeMixin,
                                           PanelEditMixin, build_panel)
 from plugins.reference.page_scan import ScanMixin
@@ -43,11 +44,12 @@ logger = logging.getLogger(__name__)
 
 # 方案要求默认 4 列：元数据细节放右栏，表格只给"扫读"需要的信息
 _TABLE_COLUMNS = ("cite_label", "title", "author_year", "note")
+_NOTE_COLUMN = _TABLE_COLUMNS.index("note")
 _ORPHAN_COLUMNS = ("doc_name", "cite_label", "anchor_key")
 _FILTERS = _FILTERS_FROM_PAGE_LIBRARIES
 
 
-class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
+class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
                   LibraryMixin, QWidget):
     """文献库管理页。"""
 
@@ -97,60 +99,7 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
 
-        # ---- 第一行：当前文件 + 文献集（选/新建/删除/刷新）----
-        row_top = QHBoxLayout()
-        row_top.setSpacing(6)
-        self.doc_label = QLabel("")
-        self.doc_label.setObjectName("hintLabel")
-        self.doc_label.setMinimumWidth(240)          # 之前显示不全：给足宽度 + 省略号
-        self.doc_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.current_document = ""
-        row_top.addWidget(self.doc_label)
-        row_top.addWidget(group_separator())
-
-        self.build_library_combo(row_top)
-
-        self.new_lib_btn = QPushButton()
-        self.new_lib_btn.clicked.connect(self.prompt_new_library)
-        row_top.addWidget(self.new_lib_btn)
-
-        self.del_lib_btn = QPushButton()
-        self.del_lib_btn.clicked.connect(self.confirm_delete_library)
-        row_top.addWidget(self.del_lib_btn)
-
-        self.refresh_btn = QPushButton()
-        self.refresh_btn.clicked.connect(self.reload_now)
-        row_top.addWidget(self.refresh_btn)
-        row_top.addStretch(1)
-        layout.addLayout(row_top)
-
-        # ---- 第二行：搜索 + 筛选 + 同步 + 更多 ----
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(6)
-        self.search_edit = QLineEdit()
-        self.search_edit.textChanged.connect(self._apply_filter)
-        toolbar.addWidget(self.search_edit, 1)
-
-        self.build_filter_menu(toolbar, _FILTERS)
-        self.filter_btn.setFixedWidth(84)             # 用户要求：筛选框短一点
-
-        toolbar.addWidget(group_separator())
-        self.scan_btn = QPushButton()
-        self.scan_btn.clicked.connect(self.scan_document)
-        toolbar.addWidget(self.scan_btn)
-
-        self.more_btn = QToolButton()
-        self.more_btn.setPopupMode(QToolButton.InstantPopup)
-        self.menu = QMenu(self.more_btn)
-        self.excel_action = self.menu.addAction("", self.open_csv)
-        self.menu.addSeparator()
-        self.import_action = self.menu.addAction("", self.import_csv)
-        self.export_action = self.menu.addAction("", self.export_csv)
-        self.dir_action = self.menu.addAction("", self.open_directory)
-        self.more_btn.setMenu(self.menu)
-        toolbar.addWidget(self.more_btn)
-
-        layout.addLayout(toolbar)
+        self.build_toolbar(layout, _FILTERS)
 
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)          # 不确定态：扫描时长取决于文档大小
@@ -169,7 +118,8 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         self.table = QTableWidget(0, len(_TABLE_COLUMNS))
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setEditTriggers(QTableWidget.DoubleClicked | QTableWidget.EditKeyPressed)
+        self.table.itemChanged.connect(self._on_note_edited)
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(28)
         self.table.setAlternatingRowColors(True)
@@ -205,12 +155,15 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         self.filter_actions["orphan"].setText(self.tr("filter.orphan"))
         self._refresh_doc_label()
         self.new_lib_btn.setText(self.tr("library.new"))
+        self.new_lib_btn.setToolTip(self.tr("library.new.tip"))
         self.del_lib_btn.setText(self.tr("library.delete"))
+        self.del_lib_btn.setToolTip(self.tr("library.delete.tip"))
         self.scan_btn.setText(self.tr("action.sync_doc"))
         self.scan_btn.setToolTip(self.tr("action.scan.tip"))
         self.refresh_btn.setText(self.tr("action.reload"))
+        self.refresh_btn.setToolTip(self.tr("action.reload.tip"))
         self.excel_action.setText(self.tr("action.open_csv"))
-        self.more_btn.setText("⋯")
+        self.more_btn.setText(self.tr("action.more"))
         self.more_btn.setToolTip(self.tr("action.more"))
         self.import_action.setText(self.tr("action.import"))
         self.export_action.setText(self.tr("action.export"))
@@ -279,6 +232,15 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         self._apply_filter(self.search_edit.text())
 
     def _fill_references(self) -> None:
+        # 填充期间必须挡住 itemChanged：备注列可编辑后，setItem 会逐行触发保存，
+        # 边填边写库既慢又会把"省略后的摘要"当成备注写坏（实测会把表格填卡住）。
+        self.table.blockSignals(True)
+        try:
+            self._fill_references_locked()
+        finally:
+            self.table.blockSignals(False)
+
+    def _fill_references_locked(self) -> None:
         self.table.setColumnCount(len(_TABLE_COLUMNS))
         self.table.setHorizontalHeaderLabels([self.tr(f"col.{name}") for name in _TABLE_COLUMNS])
         references = self._references()
@@ -292,9 +254,20 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
                     item.setData(Qt.UserRole, ref.ref_key)
                     if ref.starred:
                         item.setText(f"★ {value}" if value else "★")
+                if column == _NOTE_COLUMN:          # 备注列直接编辑
+                    item.setFlags(item.flags() | Qt.ItemIsEditable)
+                    item.setData(Qt.UserRole, ref.ref_key)
+                    item.setToolTip(self.tr("col.note.edit_tip"))
                 self.table.setItem(row, column, item)
 
     def _fill_orphans(self) -> None:
+        self.table.blockSignals(True)
+        try:
+            self._fill_orphans_locked()
+        finally:
+            self.table.blockSignals(False)
+
+    def _fill_orphans_locked(self) -> None:
         self.table.setColumnCount(len(_ORPHAN_COLUMNS))
         self.table.setHorizontalHeaderLabels([self.tr(f"col.{name}") for name in _ORPHAN_COLUMNS])
         orphans = self._store.orphan_anchors()
@@ -505,6 +478,25 @@ class LibraryPage(PanelChromeMixin, PanelEditMixin, ScanMixin,
         if not self._current_key:
             return
         self.panel_stack.setCurrentIndex(1)
+
+    def _on_note_edited(self, item) -> None:
+        """表格里直接改备注 → 写回当前库（备注是用户资产，改动立即落盘）。"""
+        if item is None or item.column() != _NOTE_COLUMN:
+            return
+        key = item.data(Qt.UserRole)
+        if not key:
+            return
+        text = item.text().strip()
+        current = self._store.get(key)
+        if current is not None and current.note.strip() == text:
+            return
+        try:
+            self._store.set_note(key, note=text)
+        except Exception as exc:                   # noqa: BLE001 - 失败要能看见
+            self.append_status(self.tr("status.save_failed", error=str(exc)))
+            return
+        self._refresh_notes_ui(key)
+        self.append_status(self.tr("status.saved"))
 
     def save_current(self) -> None:
         reference = self._collect()

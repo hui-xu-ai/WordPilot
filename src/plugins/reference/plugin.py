@@ -21,6 +21,8 @@ from plugins.reference.reference_index import ReferenceIndex
 from plugins.reference.libraries import LibraryRegistry
 from plugins.reference.notes import NoteService, NoteStore
 from plugins.reference.notes_migration import migrate_legacy_notes
+from plugins.reference.watch_bridge import (apply_document_name, connect_watch,
+                                           push_current_document)
 from plugins.reference.reference_store import Reference, ReferenceStore, ReferenceStoreError
 from plugins.reference.matching import SnapshotStore, cite_key_set, diff
 from plugins.reference.scan_cache import ScanCache, fingerprint
@@ -89,20 +91,12 @@ class ReferencePlugin(PluginBase):
         migrate_legacy_notes(self._libraries, self._master_notes)
 
     def _connect_doc_signal(self) -> None:
-        """把监听线程的"当前文档"推给页面（跨线程自动走队列连接）。"""
-        watch = getattr(self, "_watch", None)
-        if watch is None or not hasattr(watch, "documentChanged"):
-            return
-        watch.documentChanged.connect(self._on_document_changed)
+        """把监听线程的信号经 QObject 中转（实现见 watch_bridge）。"""
+        connect_watch(self, getattr(self, "_watch", None))
 
     def _on_document_changed(self, name: str) -> None:
-        page = getattr(self, "_page", None)
-        setter = getattr(page, "set_current_document", None)
-        if callable(setter):
-            try:
-                setter(name)
-            except Exception:                  # noqa: BLE001 - 页面可能已销毁
-                logger.debug("更新当前文件显示失败", exc_info=True)
+        apply_document_name(self, name)
+
 
     def _build_page(self):
         if self._page is None:
@@ -113,6 +107,7 @@ class ReferencePlugin(PluginBase):
                                     on_switch_library=self.switch_library,
                                     on_create_library=self.create_library,
                  on_delete_library=self.delete_library)
+        self._push_current_document()
         return self._page
 
     # ---------------- 选区监听 ----------------
@@ -120,9 +115,8 @@ class ReferencePlugin(PluginBase):
         if self._watch is not None or self._store is None:
             return
         self._watch = WordWatch(cache=self._scan_cache)
-        self._watch.citationFound.connect(self._on_citation_found)
-        self._watch.citationCleared.connect(self._on_citation_cleared)
-        self._watch.statusChanged.connect(self._on_watch_status)
+        # 注意：这里**不直连**槽函数 —— 槽会在工作线程执行，创建悬浮窗/改控件都不安全。
+        # 统一由 `_connect_doc_signal()` 经 `_WatchRelay`（QObject）转发到 GUI 线程。
         self._watch.start()
 
     def _ensure_overlay(self) -> ReferenceOverlay:

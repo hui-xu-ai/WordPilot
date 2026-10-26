@@ -171,6 +171,21 @@ class PanelChromeMixin:
         self.current_document = name or ""
         self._refresh_doc_label()
 
+    def toggle_panel(self, checked: bool | None = None) -> None:
+        """显示/隐藏右侧详情栏：隐藏后表格自动占满剩余宽度。"""
+        panel = getattr(self, "panel_stack", None)
+        if panel is None or not hasattr(self, "_splitter"):
+            return
+        if self.panel_toggle.isChecked():
+            panel.setVisible(True)
+            sizes = self._splitter.sizes()
+            restore = getattr(self, "_panel_width", 0) or PANEL_WIDTH
+            self._splitter.setSizes([max(sizes[0], 320), restore])
+        else:
+            sizes = self._splitter.sizes()
+            self._panel_width = sizes[1] or PANEL_WIDTH
+            panel.setVisible(False)
+
     def _refresh_doc_label(self) -> None:
         """显示当前文件：过长时中间省略（配合最小宽度与 tooltip，避免"显示不全"）。"""
         name = self.current_document or "—"

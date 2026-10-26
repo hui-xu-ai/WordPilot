@@ -83,8 +83,8 @@
   "watch.scanned": "Citation index ready: {count} anchors",
   "overlay.close_tip": "Close",
   "status.reloaded": "Reloaded",
-  "action.scan.tip": "Parse citations and the bibliography of the active document and import them (skipped when the document is unchanged)",
-  "action.reload.tip": "Re-read the local CSV library only; does not parse the Word document",
+  "action.scan.tip": "Scan the current Word document",
+  "action.reload.tip": "Reload the current library CSV",
   "overlay.note_child": "Local note",
   "overlay.note_inherit": "Following master",
   "overlay.note_auto": "From master (only one)",
@@ -145,6 +145,9 @@
   "library.belong": "Library",
   "toolbar.current_doc": "File: {name}",
   "panel.toggle": "Details",
-  "panel.toggle.tip": "Show/hide the details panel",
-  "col.author_year": "Authors · Year"
+  "panel.toggle.tip": "Show/hide details (wider table)",
+  "col.author_year": "Authors · Year",
+  "col.note.edit_tip": "Double-click to edit the note",
+  "library.new.tip": "Create a new library",
+  "library.delete.tip": "Delete this library (moves to trash)"
 }
