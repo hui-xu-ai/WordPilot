@@ -63,7 +63,8 @@ class Kernel:
         try:
             from core.services import prompt_store
 
-            prompt_store.seed_from_config(config)      # 已有自定义提示词 → 登记为「当前」版本
+            prompt_store.migrate_legacy()              # 旧 config/prompts → plugins/<插件>/prompts
+            prompt_store.seed_from_config(config)      # 已有自定义提示词 → 登记为「默认」版本
         except Exception:                  # noqa: BLE001 - 登记失败不阻断启动
             pass
         self.services.register("config", config)

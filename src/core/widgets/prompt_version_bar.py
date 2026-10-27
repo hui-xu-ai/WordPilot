@@ -62,12 +62,23 @@ class PromptVersionBar(QWidget):
     def refresh(self, select: str = "") -> None:
         """按仓库里的版本列表刷新下拉（不触发应用回调）。"""
         items = prompt_store.versions(self._key)
+        if not items:
+            # 从没用过这个提示词：把系统自带的默认文案登记成「默认」版本，方便随时切回
+            default_text = self._default_text()
+            if default_text:
+                prompt_store.save_version(self._key, prompt_store.DEFAULT_VERSION,
+                                          default_text, note="系统自带", activate=True)
+                items = prompt_store.versions(self._key)
         active = prompt_store.active_name(self._key)
         self.combo.blockSignals(True)
         try:
             self.combo.clear()
             for item in items:
-                label = item["name"] + ("（当前）" if item["active"] else "")
+                label = item["name"]
+                if item["name"] == prompt_store.DEFAULT_VERSION:
+                    label = self._tr("prompt.version.default")
+                if item["active"]:
+                    label += self._tr("prompt.version.active")
                 self.combo.addItem(label, item["name"])
             target = select or active
             index = self.combo.findData(target)
@@ -79,17 +90,12 @@ class PromptVersionBar(QWidget):
             self.combo.blockSignals(False)
 
     def _default_text(self) -> str:
-        """恢复默认：取语言包里的默认文案（按提示词语言）。"""
-        try:
-            from core.services.config_manager import ConfigManager
-
-            tr = getattr(self._config, "prompt_tr", None)
-            if callable(tr):
-                return tr(self._default_key())
-            i18n = ConfigManager  # noqa: F841 - 仅为可读性
-        except Exception:                    # noqa: BLE001
-            pass
-        return ""
+        """系统自带的默认文案（语言包里的 prompt.<键>.default，按提示词语言）。"""
+        key = self._default_key()
+        if not key:
+            return ""
+        text = self._tr(key)
+        return "" if text == key else text
 
     def _default_key(self) -> str:
         return {

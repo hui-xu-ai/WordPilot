@@ -12,7 +12,7 @@ import pytest
 def clean_store(tmp_path, monkeypatch):
     from core.services import prompt_store
 
-    monkeypatch.setattr(prompt_store, "_store_dir", lambda: tmp_path / "prompts")
+    monkeypatch.setattr(prompt_store, "_config_dir", lambda: tmp_path)
     yield
 
 
@@ -77,7 +77,7 @@ def test_seed_from_config_registers_existing_text():
             return self._data.get(key, default)
 
     assert prompt_store.seed_from_config(_Config()) == 1
-    assert prompt_store.active_name("proof_prompt") == "当前"
+    assert prompt_store.active_name("proof_prompt") == prompt_store.DEFAULT_VERSION
     assert prompt_store.seed_from_config(_Config()) == 0, "第二次不应重复登记"
 
 
@@ -121,6 +121,10 @@ def test_api_client_decouples_correct_from_proof():
     client.last_usage = {"prompt": 0, "completion": 0, "total": 0}
     client.last_latency_ms = 0
 
-    client.proof_text("这是一段中文。", prompt_key="correct_prompt", cache_namespace="t1")
+    import uuid
+
+    # 用唯一文本避开上次运行留下的 SQLite 缓存（缓存命中就不会发请求了）
+    client.proof_text(f"这是一段中文。{uuid.uuid4().hex}", prompt_key="correct_prompt",
+                      cache_namespace="t1")
 
     assert seen and "纠错默认" in seen[-1], f"应使用纠错自己的默认提示词，实际 {seen[-1][:40]}"

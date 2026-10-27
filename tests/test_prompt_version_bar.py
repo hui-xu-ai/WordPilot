@@ -16,7 +16,7 @@ def app():
 def temp_store(tmp_path, monkeypatch):
     from core.services import prompt_store
 
-    monkeypatch.setattr(prompt_store, "_store_dir", lambda: tmp_path / "prompts")
+    monkeypatch.setattr(prompt_store, "_config_dir", lambda: tmp_path)
     yield
 
 

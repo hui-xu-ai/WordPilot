@@ -146,6 +146,17 @@ def _iter_files(root: Path):
             yield Path(dirpath) / name
 
 
+def plugin_assets(root: Path | None = None) -> list[Path]:
+    """`config/plugins/<插件>/` —— 插件的**资产文件夹**，整体永不清理。
+
+    用户要求：资产按插件分文件夹管理，清理时按文件夹区分，避免误删或漏删。
+    """
+    base = (Path(root) if root is not None else config_dir()) / "plugins"
+    if not base.exists():
+        return []
+    return [path for path in base.iterdir() if path.is_dir()]
+
+
 def inventory(root: Path | None = None, keep_days: int = 0) -> list[Group]:
     """盘点各类内容（不删除任何东西）。`keep_days=0`（默认）表示回收站也全算进来。"""
     root = Path(root) if root is not None else config_dir()
@@ -164,6 +175,8 @@ def inventory(root: Path | None = None, keep_days: int = 0) -> list[Group]:
     for path in _iter_files(root):
         if _is_protected(path, root):
             continue
+        if any(asset in path.parents for asset in plugin_assets(root)):
+            continue                       # 插件资产文件夹里的东西一律不清
         name, suffix = path.name, path.suffix.lower()
         # **回收区优先**：`_trash` 里已经是"删掉的库"，不管是什么后缀都归 trash ——
         # 否则 index.db-wal/-shm 会先被 wal 规则收走，"清空回收站"永远碰不到它们

@@ -32,16 +32,38 @@ AUTO_KEEP = 10
 
 _SLUG = re.compile(r"[^\w\u4e00-\u9fff.-]+")
 
+#: 系统自带版本的名称（用户要求：叫「默认」，一眼看出是软件自带的）
+DEFAULT_VERSION = "默认"
 
-def _store_dir() -> Path:
+#: 每个提示词归哪个插件管 —— 资产按插件分文件夹存放，清理时不易混淆
+PROMPT_OWNER = {
+    "proof_prompt": "proofread",
+    "correct_prompt": "clipboard",
+    "translate_prompt": "clipboard",
+    "rewrite_prompt": "clipboard",
+}
+
+
+def plugin_asset_dir(plugin_id: str, root: Path | None = None) -> Path:
+    """某个插件的资产根目录：`config/plugins/<插件>/`（插件私有数据都在这里）。"""
+    base = Path(root) if root is not None else Path(_config_dir())
+    return base / "plugins" / plugin_id
+
+
+def _config_dir() -> Path:
     from core.services.config_manager import CONFIG_DIR
 
-    return Path(CONFIG_DIR) / "prompts"
+    return Path(CONFIG_DIR)
+
+
+def _store_dir(root: Path | None = None) -> Path:
+    """兼容旧调用：所有提示词的公共根（实际按插件分目录存）。"""
+    return (Path(root) if root is not None else _config_dir()) / "plugins"
 
 
 def _key_dir(key: str, root: Path | None = None) -> Path:
-    base = Path(root) if root is not None else _store_dir()
-    return base / key
+    owner = PROMPT_OWNER.get(key, "core")
+    return plugin_asset_dir(owner, root) / "prompts" / key
 
 
 def _slug(name: str) -> str:
@@ -63,6 +85,13 @@ def _read_index(directory: Path) -> dict:
         return {"active": "", "versions": []}
     data.setdefault("active", "")
     data.setdefault("versions", [])
+    # 旧命名「当前」→ 系统自带的「默认」（用户要求：默认一眼看出是软件自带的）
+    if data.get("active") == "当前":
+        data["active"] = DEFAULT_VERSION
+        for item in data["versions"]:
+            if item.get("name") == "当前":
+                item["name"] = DEFAULT_VERSION
+        _write_index(directory, data)
     return data
 
 
@@ -72,6 +101,38 @@ def _write_index(directory: Path, data: dict) -> None:
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(path)
+
+
+def migrate_legacy(root: Path | None = None) -> int:
+    """把旧的 `config/prompts/<key>/` 整个搬到 `config/plugins/<插件>/prompts/<key>/`。"""
+    import shutil
+
+    base = Path(root) if root is not None else _config_dir()
+    legacy_root = base / "prompts"
+    if not legacy_root.exists():
+        return 0
+    moved = 0
+    for directory in sorted(p for p in legacy_root.iterdir() if p.is_dir()):
+        key = directory.name
+        if key not in PROMPT_KEYS:
+            continue
+        target = _key_dir(key, root)
+        if target.exists():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.move(str(directory), str(target))
+            moved += 1
+        except OSError as exc:               # noqa: BLE001
+            logger.warning("迁移旧提示词目录失败（%s）：%s", directory, exc)
+    try:
+        if not any(legacy_root.iterdir()):
+            legacy_root.rmdir()
+    except OSError:
+        pass
+    if moved:
+        logger.info("已把 %d 个旧提示词目录迁到 plugins/<插件>/prompts/", moved)
+    return moved
 
 
 def versions(key: str, root: Path | None = None) -> list[dict]:
@@ -190,6 +251,7 @@ def seed_from_config(config, root: Path | None = None) -> int:
             continue
         if versions(key, root):
             continue
-        save_version(key, "当前", text, note="首次登记", root=root, activate=True)
+        save_version(key, DEFAULT_VERSION, text, note="系统自带", root=root,
+                     activate=True)
         added += 1
     return added
