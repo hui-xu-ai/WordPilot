@@ -4,7 +4,7 @@
   "app.author": "Xu Hui",
   "app.window_title": "{name} v{version} - {author}",
   "app.tray.tooltip": "WordPilot",
-  "app.tray.show_main": "Show Main Window",
+  "app.tray.show_main": "Main window",
   "app.tray.quit": "Quit",
   "app.tray.background_title": "Still running in background",
   "app.tray.background_body": "Double-click the tray icon to restore",
@@ -187,5 +187,6 @@
   "api.monitor.col_latency": "Latency(ms)",
   "api.monitor.col_day": "Date",
   "api.monitor.col_month": "Month",
-  "api.monitor.col_rate": "Hit rate"
+  "api.monitor.col_rate": "Hit rate",
+  "app.tray.plugins": "Plugins"
 }

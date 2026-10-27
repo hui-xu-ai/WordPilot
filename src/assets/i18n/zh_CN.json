@@ -4,7 +4,7 @@
   "app.author": "Xu Hui",
   "app.window_title": "{name} v{version} - {author}",
   "app.tray.tooltip": "WordPilot",
-  "app.tray.show_main": "显示主窗口",
+  "app.tray.show_main": "主窗口",
   "app.tray.quit": "退出",
   "app.tray.background_title": "程序仍在后台运行",
   "app.tray.background_body": "双击托盘图标可恢复窗口",
@@ -187,5 +187,6 @@
   "api.monitor.col_latency": "耗时(ms)",
   "api.monitor.col_day": "日期",
   "api.monitor.col_month": "月份",
-  "api.monitor.col_rate": "命中率"
+  "api.monitor.col_rate": "命中率",
+  "app.tray.plugins": "插件管理"
 }

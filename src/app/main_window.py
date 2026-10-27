@@ -141,18 +141,19 @@ class MainWindow(PagesMixin, QMainWindow):
         self.build_extension_menus()
 
     def build_extension_menus(self):
-        """把插件注册的界面入口渲染出来。
+        """构建托盘右键菜单：插件管理 / 主窗口 / 退出（固定三项）。
 
         可重复调用：每次先清再建（切换语言、插件启停/排序都会触发）。
-        插件页控件只构造一次并缓存，这里只重建导航轨条目与托盘。
         托盘菜单整体重建后重新挂到托盘图标上——直接 `clear()` 老菜单再填，在弹出过程中
         可能出现"点了没反应"（Qt 侧引用已失效）。
+
+        注：插件仍可用 `ctx.ui.add_tray_action()` 注册托盘项，但外壳不再渲染
+        （用户 2026-10-27 要求托盘只保留三项固定入口；插件功能走导航轨或插件管理页）。
         """
         menu = QMenu()
-        for label, handler in self.ui.tray_actions():
-            menu.addAction(label, self._safe_tray_action(label, handler))
-        menu.addSeparator()
+        menu.addAction(self.tr("app.tray.plugins"), lambda: self.show_page("plugins"))
         menu.addAction(self.tr("app.tray.show_main"), self.show_main_window)
+        menu.addSeparator()
         menu.addAction(self.tr("app.tray.quit"), self.quit_app)
         self.tray_menu = menu
         if hasattr(self, "tray_icon"):
