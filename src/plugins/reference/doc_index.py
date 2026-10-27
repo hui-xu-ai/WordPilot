@@ -106,10 +106,14 @@ class DocIndex:
         self._starts = []
         self.scanned = False
 
-    def rescan(self, word) -> int:
-        """遍历当前文档的所有域，重建锚点表；返回锚点数量。"""
+    def rescan(self, word, document=None) -> int:
+        """遍历**指定文档**（默认 ActiveDocument）的所有域，重建锚点表；返回锚点数量。
+
+        `document` 由调用方传入前台窗口那份：两篇文档同时打开时 `word.ActiveDocument`
+        可能停在旧的那篇，扫出来的锚点就是别人的（用户现场：切到另一篇后点引用不弹窗）。
+        """
         try:
-            document = word.ActiveDocument
+            document = document if document is not None else word.ActiveDocument
             doc_name = document.Name
             # S10：搞一份**全路径身份**用于判断是否重扫（同名不同目录的文档不能混）
             doc_identity = str(getattr(document, "FullName", "") or doc_name)

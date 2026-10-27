@@ -98,14 +98,17 @@ def _is_caption_paragraph(selection) -> bool:
     return any(token in lowered for token in _CAPTION_STYLES)
 
 
-def labels_at_position(word, position: int, window: int = 40) -> list[str]:
+def labels_at_position(word, position: int, window: int = 40, document=None) -> list[str]:
     """按"参考文献角标规则"从**正文文字**里取出光标涉及的编号。
 
     用户建议（采纳）：不要只依赖域代码，直接看光标附近的 `[5,6]` / `[2-4]` 文字，
     按括号规则拆开 —— 这样 `[5,6]` 必然得到 5 和 6 两条。
+
+    `document` 必须是**前台窗口那份**：`word.ActiveDocument` 在两篇文档同时打开时会停在
+    旧的那篇，读出来的文字是别人的 → 永远提取不到编号 → 点了不弹窗。
     """
     try:
-        document = word.ActiveDocument
+        document = document if document is not None else word.ActiveDocument
         start = max(0, position - window)
         text = document.Range(start, position + window).Text or ""
     except Exception:                      # noqa: BLE001
@@ -397,7 +400,7 @@ class WordWatch(QThread):
                 self._emit_status(f"watch.cached:{count}")
             else:
                 self._emit_status("watch.scanning")
-                count = self._index.rescan(word)
+                count = self._index.rescan(word, document=document)
                 if self._cache is not None:
                     self._cache.save_anchors(doc_path, fp, doc_name, self._index.anchors)
                 self._emit_status(f"watch.scanned:{count}")
@@ -407,7 +410,8 @@ class WordWatch(QThread):
             return
 
         try:
-            selection = word.Selection
+            # 用**前台窗口的选区**：`word.Selection` 是 Word 的应用级状态，可能停在旧窗口
+            selection = self._selection if self._selection is not None else word.Selection
             position = int(selection.Start)
             start, end = int(selection.Start), int(selection.End)
         except Exception:                  # noqa: BLE001
@@ -422,7 +426,7 @@ class WordWatch(QThread):
         anchors = (self._index.lookup_all(position)
                    or self._index.lookup_all(position - 1))
         try:
-            text_labels = labels_at_position(word, position)
+            text_labels = labels_at_position(word, position, document=self._document)
         except Exception:                  # noqa: BLE001 - 文字解析失败不影响域锚点
             logger.debug("角标文字解析失败（忽略）", exc_info=True)
             text_labels = []
@@ -430,9 +434,14 @@ class WordWatch(QThread):
             # BUG-2 自愈：① 索引里有锚点却一个都不命中光标，而这里确实有引用文字；
             # ② 索引干脆是空的（实测 21:47:52：索引锚点=0 已扫=True 需重扫=False →
             #    监听线程认定"这篇已扫过"，于是一直用空索引，只能点「同步本文」才恢复）。
-            if self._heal_index(word, doc_identity, signature):
+            if self._heal_index(word, doc_identity, signature, document=self._document):
                 anchors = (self._index.lookup_all(position)
                            or self._index.lookup_all(position - 1))
+        state = (bool(anchors), tuple(text_labels))
+        if state != getattr(self, "_last_cursor_state", None):
+            self._last_cursor_state = state
+            logger.info("光标检查：pos=%d 域锚点=%d 文字编号=%s 索引锚点=%d 文档=%s",
+                        position, len(anchors), text_labels, len(self._index.anchors), doc_name)
         if anchors or text_labels:
             self._last_anchor = anchors[0].anchor_key if anchors else ""
             self._cleared = False
@@ -452,7 +461,7 @@ class WordWatch(QThread):
         else:
             self._handle_miss()
 
-    def _heal_index(self, word, doc_identity: str, signature) -> bool:
+    def _heal_index(self, word, doc_identity: str, signature, document=None) -> bool:
         """索引与光标对不上（或索引是空的）时重扫一次；同一篇文档只做一次，避免反复扫 COM。
 
         为什么需要：`needs_rescan` 只看"文档身份 + 内容指纹"，一旦索引被清空或被缓存填成
@@ -465,7 +474,14 @@ class WordWatch(QThread):
         self._healed.add(key)
         try:
             self._index.clear()
-            count = self._index.rescan(word)
+            count = self._index.rescan(word, document=document)
+            # 自愈结果要写回缓存：否则下次启动又装着那份"0 个锚点"的旧缓存，
+            # 每篇文档第一次点击都得靠自愈补救（用户现场：切文档后第一下不弹）。
+            if self._cache is not None and count:
+                doc_path, fp = self._document_fingerprint(word, document)
+                if doc_path:
+                    self._cache.save_anchors(doc_path, fp, self._index.doc_name,
+                                             self._index.anchors)
         except Exception:                  # noqa: BLE001 - 自愈失败不能打死监听线程
             logger.exception("索引自愈重扫失败")
             return False
