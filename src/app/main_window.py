@@ -140,20 +140,37 @@ class MainWindow(PagesMixin, QMainWindow):
         """插件加载完成后调用：渲染贡献点（页面/工具/托盘全部来自插件注册）。"""
         self.build_extension_menus()
 
+    def tray_plugin_entries(self) -> list[tuple[str, str, object]]:
+        """托盘「快速启动」项：**只列已启用插件**的页面，返回 [(文案, 页 id, 图标名)]。
+
+        已停用插件的贡献点会先被 `_collect_plugin_factories()` 里的 `retain_only` 清掉，
+        所以这里拿到的天然只有已启动的插件；`plugin_id` 为空的贡献点（内核兜底项）跳过。
+        """
+        entries: list[tuple[str, str, object]] = []
+        for label, _factory, icon, plugin_id in self.ui.pages():
+            if not plugin_id:
+                continue
+            entries.append((label, f"plugin:{plugin_id}", icon))
+        return entries
+
     def build_extension_menus(self):
-        """构建托盘右键菜单：插件管理 / 主窗口 / 退出（固定三项）。
+        """构建托盘右键菜单：已启用插件的快速启动 + 主窗口 + 退出。
 
         可重复调用：每次先清再建（切换语言、插件启停/排序都会触发）。
         托盘菜单整体重建后重新挂到托盘图标上——直接 `clear()` 老菜单再填，在弹出过程中
         可能出现"点了没反应"（Qt 侧引用已失效）。
 
-        注：插件仍可用 `ctx.ui.add_tray_action()` 注册托盘项，但外壳不再渲染
-        （用户 2026-10-27 要求托盘只保留三项固定入口；插件功能走导航轨或插件管理页）。
+        用户口径（2026-10-27）：这里列的是**已经启动**的插件入口，未启用的插件不出现；
+        动态的 `ctx.ui.add_tray_action()` 项不再渲染（曾把未翻译的 key 直接显示出来）。
         """
         menu = QMenu()
-        menu.addAction(self.tr("app.tray.plugins"), lambda: self.show_page("plugins"))
+        for label, page_id, icon_name in self.tray_plugin_entries():
+            action = menu.addAction(self._nav_icon(icon_name, False), label,
+                                    lambda target=page_id: self.show_page(target))
+            action.setObjectName(f"tray-plugin-{page_id}")
+        if menu.actions():
+            menu.addSeparator()
         menu.addAction(self.tr("app.tray.show_main"), self.show_main_window)
-        menu.addSeparator()
         menu.addAction(self.tr("app.tray.quit"), self.quit_app)
         self.tray_menu = menu
         if hasattr(self, "tray_icon"):
