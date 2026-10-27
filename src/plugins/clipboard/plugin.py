@@ -17,6 +17,24 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QLabel,
                                QPushButton, QTextEdit, QVBoxLayout, QWidget, QGridLayout)
 
 from core.sdk.plugin_base import PluginBase
+
+
+def _display_language(combo, value: str) -> str:
+    """配置值 → 下拉显示文案（auto 显示成「自动互译」，用户才看得懂）。"""
+    for index in range(combo.count()):
+        if combo.itemData(index) == value:
+            return combo.itemText(index)
+    combo.addItem(value, value)
+    return value
+
+
+def _language_value(combo) -> str:
+    """下拉显示文案 → 配置值（用户自填的语言原样返回）。"""
+    text = combo.currentText().strip()
+    for index in range(combo.count()):
+        if combo.itemText(index) == text and combo.itemData(index):
+            return str(combo.itemData(index))
+    return text or "auto"
 from core.widgets.prompt_version_bar import PromptVersionBar
 
 if TYPE_CHECKING:
@@ -270,10 +288,16 @@ class ClipboardPlugin(PluginBase):
         lang_lay.addWidget(self.translate_language_title)
         self.translate_language_edit = QComboBox()
         self.translate_language_edit.setEditable(True)
-        self.translate_language_edit.addItems(
-            ["auto", "英文", "中文", "日文", "韩文", "法文", "德文"])
-        self.translate_language_edit.setCurrentText(
-            str(config.get("translate_language", "auto") or "auto"))
+        for display_key, value in (("settings.prompt.translatelang_auto", "auto"),
+                                   ("settings.prompt.translatelang_zh", "中文"),
+                                   ("settings.prompt.translatelang_en", "英文"),
+                                   ("settings.prompt.translatelang_ja", "日文"),
+                                   ("日文", "日文"), ("韩文", "韩文"),
+                                   ("法文", "法文"), ("德文", "德文")):
+            self.translate_language_edit.addItem(self.tr(display_key), value)
+        self.translate_language_edit.setCurrentText(str(
+            _display_language(self.translate_language_edit,
+                              str(config.get("translate_language", "auto") or "auto"))))
         self.translate_language_edit.setToolTip(self.tr("settings.prompt.translatelang_tip"))
         lang_lay.addWidget(self.translate_language_edit)
         lay.addWidget(lang_card)
@@ -306,7 +330,7 @@ class ClipboardPlugin(PluginBase):
             "translate_prompt": self.translate_prompt_edit.toPlainText(),
             "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
             "correct_prompt": self.correct_prompt_edit.toPlainText(),
-            "translate_language": self.translate_language_edit.currentText().strip() or "auto",
+            "translate_language": _language_value(self.translate_language_edit),
         }
         if config.update(payload):
             for bar in getattr(self, "_prompt_bars", []):

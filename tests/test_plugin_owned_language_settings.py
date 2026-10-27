@@ -22,13 +22,13 @@ def test_main_settings_page_has_no_plugin_language_settings():
 def test_proofread_plugin_owns_proof_language():
     text = (ROOT / "src/plugins/proofread/dashboard_page.py").read_text(encoding="utf-8")
     assert "proof_language_edit" in text
-    assert '"proof_language": self.proof_language_edit.currentText()' in text
+    assert '"proof_language": _value_for(self.proof_language_edit)' in text
 
 
 def test_clipboard_plugin_owns_translate_language():
     text = (ROOT / "src/plugins/clipboard/plugin.py").read_text(encoding="utf-8")
     assert "translate_language_edit" in text
-    assert '"translate_language": self.translate_language_edit.currentText()' in text
+    assert '"translate_language": _language_value(self.translate_language_edit)' in text
 
 
 def test_plugin_i18n_has_language_labels():

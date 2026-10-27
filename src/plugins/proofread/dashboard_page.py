@@ -17,13 +17,31 @@ from typing import TYPE_CHECKING
 
 import logging
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QComboBox, QCheckBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
                                QPushButton, QSlider, QSpinBox, QTextEdit,
                                QVBoxLayout, QWidget)
 from core.services.api_logger import clear_api_log
 from core.widgets import MonitorPanel, Switch
 from core.widgets.prompt_version_bar import PromptVersionBar
+
+
+def _display_for(combo, value: str) -> str:
+    """配置值 → 下拉显示文案（auto 显示成「自动识别」，用户才看得懂）。"""
+    for index in range(combo.count()):
+        if combo.itemData(index) == value:
+            return combo.itemText(index)
+    combo.addItem(value, value)
+    return value
+
+
+def _value_for(combo) -> str:
+    """下拉显示文案 → 配置值（用户自填的语言原样返回）。"""
+    text = combo.currentText().strip()
+    for index in range(combo.count()):
+        if combo.itemText(index) == text and combo.itemData(index):
+            return str(combo.itemData(index))
+    return text or "auto"
 
 logger = logging.getLogger(__name__)
 
@@ -185,11 +203,16 @@ class DashboardPage(QWidget):
         # 校对语言（本插件自己的配置，与提示词语言解耦；auto = 按待校文本识别）
         lang_row = QHBoxLayout()
         self.proof_language_label = QLabel()
+        self.proof_language_label.setText(self.tr("settings.prompt.prooflang"))
         self.proof_language_edit = QComboBox()
         self.proof_language_edit.setEditable(True)
-        self.proof_language_edit.addItems(["auto", "中文", "English"])
-        self.proof_language_edit.setCurrentText(
-            str(self._config.get("proof_language", "auto") or "auto"))
+        for display_key, value in (("settings.prompt.prooflang_auto", "auto"),
+                                   ("settings.prompt.prooflang_zh", "中文"),
+                                   ("settings.prompt.prooflang_en", "English")):
+            self.proof_language_edit.addItem(self.tr(display_key), value)
+        self.proof_language_edit.setCurrentText(_display_for(
+            self.proof_language_edit,
+            str(self._config.get("proof_language", "auto") or "auto")))
         self.proof_language_edit.setToolTip(self.tr("settings.prompt.prooflang_tip"))
         lang_row.addWidget(self.proof_language_label)
         lang_row.addWidget(self.proof_language_edit, 1)
@@ -210,12 +233,13 @@ class DashboardPage(QWidget):
         self.proof_prompt_bar.retranslate()
         lay.addWidget(self.proof_prompt_bar)
 
-        self.save_prompt_btn = QPushButton()
-        self.save_prompt_btn.clicked.connect(self.save_plugin_settings)
-        row = QHBoxLayout()
-        row.addStretch(1)
-        row.addWidget(self.save_prompt_btn)
-        lay.addLayout(row)
+        # 提示词与语言改动**自动保存**（用户：这个卡片里不该再有「保存」按钮）
+        self._prompt_save_timer = QTimer(self)
+        self._prompt_save_timer.setSingleShot(True)
+        self._prompt_save_timer.setInterval(1200)
+        self._prompt_save_timer.timeout.connect(self.save_plugin_settings)
+        self.proof_prompt_edit.textChanged.connect(self._prompt_save_timer.start)
+        self.proof_language_edit.currentTextChanged.connect(self._prompt_save_timer.start)
         return card
 
     def save_plugin_settings(self) -> None:
@@ -225,7 +249,7 @@ class DashboardPage(QWidget):
             "suggestion_opacity": max(20, min(100, self.opacity_slider.value())) / 100.0,
             "suggestion_font_size": self.font_size_spin.value(),
             "proof_prompt": self.proof_prompt_edit.toPlainText(),
-            "proof_language": self.proof_language_edit.currentText().strip() or "auto",
+            "proof_language": _value_for(self.proof_language_edit),
         }
         self.proof_prompt_bar.commit()       # 保存即生效，并更新当前提示词版本
         if self._config.update(payload):
@@ -379,7 +403,7 @@ class DashboardPage(QWidget):
             self.save_pet_settings_btn.setText(self.tr("settings.save"))
             self.prompt_card_title.setText(self.tr("settings.prompt.proof"))
             self.prompt_hint.setText(self.tr("settings.prompt.hint"))
-            self.save_prompt_btn.setText(self.tr("settings.save"))
+            self.proof_language_label.setText(self.tr("settings.prompt.prooflang"))
         if getattr(self, "params_card_title", None) is not None:
             self.params_card_title.setText(self.tr("dashboard.params"))
             self.debounce_label.setText(self._app_tr("app.proof.debounce_label"))

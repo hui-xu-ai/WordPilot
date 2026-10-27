@@ -82,5 +82,8 @@
   "prompt.version.protected": "系统自带的「默认」版本不能删除",
   "prompt.version.saved": "提示词已保存并生效",
   "settings.prompt.prooflang": "校对语言",
-  "settings.prompt.prooflang_tip": "只在提示词里保留 {lang} 时生效（auto = 按待校文本识别）；提示词里写死语言则忽略此项"
+  "settings.prompt.prooflang_tip": "只在提示词里保留 {lang} 时生效（auto = 按待校文本识别）；提示词里写死语言则忽略此项",
+  "settings.prompt.prooflang_auto": "自动识别",
+  "settings.prompt.prooflang_zh": "中文",
+  "settings.prompt.prooflang_en": "English"
 }
