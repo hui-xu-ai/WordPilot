@@ -541,15 +541,22 @@ class WordWatch(QThread):
         # 角标文字补充：域只给出 5、正文写着 `[5,6]` 时，把 6 也补上（用户明确要求按角标规则解析）
         if position >= 0:
             known = {item["anchor_key"] for item in items}
+            # 域锚点的 key 是文献自身的键（`zotero:…` / `doi:…`），和文字补充用的
+            # `doc:<文档>:cite:<编号>` 不是一回事 —— 只比 key 会把**同一个编号**再加一遍，
+            # 于是同一个编号弹出两张一模一样的卡（用户现场）。所以编号也要一起去重。
+            known_labels = {str(item["label"] or "").strip() for item in items}
             try:
-                extra_labels = labels_at_position(word, position)
+                extra_labels = labels_at_position(word, position, document=document)
             except Exception:              # noqa: BLE001 - 文字解析失败不影响域锚点
                 logger.debug("角标文字解析失败（忽略）", exc_info=True)
                 extra_labels = []
             for label in extra_labels:
+                if str(label or "").strip() in known_labels:
+                    continue                   # 这个编号已经有锚点了，不重复加
                 key = f"doc:{doc_name}:cite:{label}"
                 if key not in known:
                     known.add(key)
+                    known_labels.add(str(label or "").strip())
                     items.append({"anchor_key": key, "label": label, "reference": None,
                                   "doc_name": doc_name, "kind": "label_text"})
 

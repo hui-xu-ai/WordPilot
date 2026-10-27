@@ -335,6 +335,7 @@ class ReferencePlugin(PluginBase):
 
         entries = []
         seen: set[str] = set()
+        seen_keys: set[str] = set()
         for item in items:
             entry = self._entry_for_item(item)
             if entry is None:
@@ -343,6 +344,13 @@ class ReferencePlugin(PluginBase):
             if identity in seen:                       # 同一文献的多个锚点 → 只留一张卡
                 continue
             seen.add(identity)
+            # 再按**解析到的文献键**去重：域锚点的 key 是 `zotero:…`/`doi:…`，文字补充的 key 是
+            # `doc:<文档>:cite:<编号>`，两者落到同一篇时会各留一张（用户现场：一个编号两张卡）。
+            resolved = str(getattr(entry, "ref_key", "") or "")
+            if resolved and resolved in seen_keys:
+                continue
+            if resolved:
+                seen_keys.add(resolved)
             entries.append(entry)
         if not entries:
             hint_missing_reference(self, items)   # 记录原因 + 界面提示
