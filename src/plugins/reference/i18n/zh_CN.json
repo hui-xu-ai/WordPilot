@@ -160,5 +160,13 @@
   "master.clear_title": "删除总库备注",
   "master.clear_confirm": "将清空**总库**里的所有备注（各子库自己的备注不受影响）。\\n原文件会备份为 notes.csv.bak-时间戳，可手动恢复。继续？",
   "master.cleared": "总库备注已清空（原文件已备份）",
-  "master.clear_failed": "清理总库失败，详见日志"
+  "master.clear_failed": "清理总库失败，详见日志",
+  "master.publish_note": "当前文献备注 → 总库",
+  "master.publish_all": "全部备注 → 总库…",
+  "master.publish_note_done": "已把这条文献的备注更新到总库",
+  "master.note_empty": "这条文献还没有子库备注，先写一条再更新",
+  "master.need_selection": "先在表格里选一条文献",
+  "master.publish_all_title": "更新到总库",
+  "master.publish_all_confirm": "把「{name}」里**所有非空备注**一次性更新到总库？\n总库中已有相同内容的不会重复添加。",
+  "master.publish_all_done": "已更新到总库：新增 {published} 条，已在总库 {duplicate} 条，无备注 {empty} 条"
 }

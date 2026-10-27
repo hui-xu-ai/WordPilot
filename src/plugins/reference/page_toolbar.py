@@ -79,6 +79,10 @@ class ToolbarMixin:
             self.export_action = self.menu.addAction("", self.export_csv)
             self.dir_action = self.menu.addAction("", self.open_directory)
             self.menu.addSeparator()
+            # 手动同步到总库（不做自动同步）：单条 / 整库，由用户决定何时推
+            self.publish_note_action = self.menu.addAction("", self.publish_note_to_master)
+            self.publish_all_action = self.menu.addAction("", self.confirm_publish_all_master)
+            self.menu.addSeparator()
             self.clear_master_action = self.menu.addAction("", self.confirm_clear_master)
             self.more_btn.setMenu(self.menu)
             toolbar.addWidget(self.more_btn)

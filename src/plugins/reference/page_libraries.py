@@ -101,6 +101,37 @@ class LibraryMixin:
         finally:
             combo.blockSignals(blocked)
 
+    def publish_note_to_master(self) -> None:
+        """把**当前选中文献**的子库备注发布到总库（单条更新，随时可用）。"""
+        handler = getattr(self, "_on_publish_note", None)
+        key = getattr(self, "_selected_key", "") or ""
+        if handler is None or not key:
+            self.append_status(self.tr("master.need_selection"))
+            return
+        note = handler(key)
+        if note is None:
+            self.append_status(self.tr("master.note_empty"))
+            return
+        self.append_status(self.tr("master.publish_note_done"))
+
+    def confirm_publish_all_master(self) -> None:
+        """整库更新到总库：二次确认后把当前子库所有非空备注推上去（不自动同步）。"""
+        handler = getattr(self, "_on_publish_all_notes", None)
+        if handler is None:
+            return
+        from PySide6.QtWidgets import QMessageBox
+
+        name = getattr(self, "_active_library", "") or self.library_combo.currentText().strip()
+        answer = QMessageBox.question(
+            self, self.tr("master.publish_all_title"),
+            self.tr("master.publish_all_confirm", name=name))
+        if answer != QMessageBox.Yes:
+            return
+        published, duplicate, empty = handler()
+        self.append_status(self.tr("master.publish_all_done", published=published,
+                                   duplicate=duplicate, empty=empty))
+        self.reload()
+
     def confirm_delete_library(self) -> None:
         """删除当前仓库：二次确认后移到 _trash（可回滚）。"""
         from PySide6.QtWidgets import QMessageBox

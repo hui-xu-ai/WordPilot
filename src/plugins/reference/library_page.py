@@ -58,7 +58,8 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
                  plugin=None, note_service=None, libraries=None,
                  active_library: str = "", on_switch_library=None,
                  on_create_library=None, on_delete_library=None,
-                 on_clear_master=None) -> None:
+                 on_clear_master=None, on_publish_note=None,
+                 on_publish_all_notes=None) -> None:
         super().__init__(parent)
         self._ctx = ctx
         self._store = store
@@ -72,6 +73,8 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         self._on_create_library = on_create_library
         self._on_delete_library = on_delete_library
         self._on_clear_master = on_clear_master
+        self._on_publish_note = on_publish_note
+        self._on_publish_all_notes = on_publish_all_notes
         self._auto_scanned = False
         self._refresh_timer = None
         self._diff_added: set[str] = set()
@@ -165,6 +168,8 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         self.refresh_btn.setText(self.tr("action.reload"))
         self.refresh_btn.setToolTip(self.tr("action.reload.tip"))
         self.excel_action.setText(self.tr("action.open_csv"))
+        self.publish_note_action.setText(self.tr("master.publish_note"))
+        self.publish_all_action.setText(self.tr("master.publish_all"))
         self.clear_master_action.setText(self.tr("master.clear"))
         self.more_btn.setText(self.tr("action.more"))
         self.more_btn.setToolTip(self.tr("action.more"))

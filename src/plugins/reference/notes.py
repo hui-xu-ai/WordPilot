@@ -178,6 +178,29 @@ class NoteService:
     def create_master_note(self, ref_key: str, text: str, label: str = "") -> "Note":
         return self._master.add(ref_key, text, label=label)
 
+    def publish_all_to_master(self, library_name: str = "") -> tuple[int, int, int]:
+        """把当前子库**所有非空备注**一次性发布到总库（用户手动触发，不做自动同步）。
+
+        返回 (新增, 已在总库跳过, 空备注跳过)。总库里已有**完全同文**的备注就不重复添加，
+        所以重复点「全部更新到总库」不会堆出重复条目。
+        """
+        published = duplicate = empty = 0
+        label = f"来自子库：{library_name}" if library_name else "来自子库"
+        for reference in self._store.all():
+            text = (reference.note or "").strip()
+            if not text:
+                empty += 1
+                continue
+            active = [note for note in self.master_notes(reference.ref_key) if not note.archived]
+            if any((note.text or "").strip() == text for note in active):
+                duplicate += 1
+                continue
+            note = self._master.add(reference.ref_key, text, label=label)
+            reference.inherit_note_id = note.note_id      # 记下来源，便于日后提示差异
+            self._store.upsert(reference)
+            published += 1
+        return published, duplicate, empty
+
     def update_master_note(self, note_id: str, text: str | None = None,
                            label: str | None = None, pinned: bool | None = None):
         return self._master.update(note_id, text=text, label=label, pinned=pinned)

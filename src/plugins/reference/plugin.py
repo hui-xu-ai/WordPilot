@@ -201,7 +201,9 @@ class ReferencePlugin(PluginBase):
                                     active_library=self._libraries.active_name(),
                                     on_switch_library=self.switch_library,
                                     on_create_library=self.create_library,
-                 on_delete_library=self.delete_library)
+                 on_delete_library=self.delete_library,
+                 on_publish_note=self.publish_note_to_master,
+                 on_publish_all_notes=self.publish_all_notes_to_master)
         self._push_current_document()
         return self._page
 
@@ -657,6 +659,33 @@ class ReferencePlugin(PluginBase):
             stats["plan"] = plan
         elif plan.action == KEEP and plan.library:
             self._libraries.bind_document(doc_path, plan.library)
+
+    def publish_note_to_master(self, ref_key: str):
+        """把单篇文献的子库备注发布到总库（用户手动触发；不做自动同步）。"""
+        if self._note_service is None:
+            return None
+        note = self._note_service.publish_to_master(ref_key)
+        if note is not None:
+            logger.info("备注已更新到总库：%s（%s）", ref_key, note.note_id)
+            self.refresh_page()
+        return note
+
+    def publish_all_notes_to_master(self) -> tuple[int, int, int]:
+        """把当前子库所有非空备注一次性更新到总库（下拉菜单里手动触发）。"""
+        if self._note_service is None:
+            return 0, 0, 0
+        result = self._note_service.publish_all_to_master(
+            getattr(self, "_active_name", "") or "")
+        logger.info("全部更新到总库：新增 %d 条，已在总库 %d 条，无备注 %d 条（库=%s）",
+                    result[0], result[1], result[2], getattr(self, "_active_name", ""))
+        self.refresh_page()
+        overlay = getattr(self, "_overlay", None)
+        if overlay is not None and hasattr(overlay, "refresh_notes"):
+            try:
+                overlay.refresh_notes()
+            except Exception:                  # noqa: BLE001
+                pass
+        return result
 
     def create_library(self, name: str) -> None:
         """新建仓库并切过去（扫描后的确认框会用到）。"""

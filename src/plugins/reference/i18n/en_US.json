@@ -160,5 +160,13 @@
   "master.clear_title": "Clear master notes",
   "master.clear_confirm": "All notes in the master library will be cleared (per-library notes are kept).\\nThe file is backed up as notes.csv.bak-<timestamp>. Continue?",
   "master.cleared": "Master notes cleared (backup kept)",
-  "master.clear_failed": "Failed to clear master notes (see log)"
+  "master.clear_failed": "Failed to clear master notes (see log)",
+  "master.publish_note": "Selected note → master…",
+  "master.publish_all": "All notes → master…",
+  "master.publish_note_done": "Selected note published to master",
+  "master.note_empty": "This reference has no note yet",
+  "master.need_selection": "Select a reference first",
+  "master.publish_all_title": "Publish to master",
+  "master.publish_all_confirm": "Publish all non-empty notes of \"{name}\" to the master library?\nIdentical notes are skipped, so it is safe to run again.",
+  "master.publish_all_done": "Published: {published} new, {duplicate} already there, {empty} empty"
 }
