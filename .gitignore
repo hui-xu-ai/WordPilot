@@ -100,5 +100,8 @@ src/config/user.qss
 # Word 打开文件时生成的锁文件（~$xxx.docx），不该入库
 src/config/~$*
 
+# 各插件的用户资产：提示词版本、缓存与个人配置（由程序在 config/plugins/<插件>/ 生成）
+src/config/plugins/
+
 # 参考文献助手的用户数据（CSV 库 + 派生索引），属于用户数据不入库
 src/config/references/
