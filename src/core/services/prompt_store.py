@@ -290,6 +290,62 @@ def effective_text(key: str, config, prompt_tr=None) -> str:
     return default_text(key, prompt_tr)
 
 
+#: 历史版本里内置过的默认提示词（**原样**保存进 config 的都不算用户自定义）
+LEGACY_DEFAULTS = {
+    "proof_prompt": (
+        "你是中文科技论文校对专家。修正错别字、语病、标点、专业词汇拼写。校对所有单位的空格："
+        "数字与℃、%、°之间不加空格（例：2℃、5%、9°）；数字与其他单位（如m）之间加半角空格"
+        "（例：10 m）。\n原文：{text}",
+        # 早期"保存"把默认文案存进 config 时不带 `原文：{text}` 尾巴
+        "你是中文科技论文校对专家。修正错别字、语病、标点、专业词汇拼写。校对所有单位的空格："
+        "数字与℃、%、°之间不加空格（例：2℃、5%、9°）；数字与其他单位（如m）之间加半角空格"
+        "（例：10 m）。",
+    ),
+    "correct_prompt": (
+        "你是中文科技论文校对专家。下面是一整段或整篇文本，请修正错别字、语病、标点、专业词汇拼写，"
+        "保持原有段落与换行结构，不要改写句式、不要增删内容；只输出校对后的全文。\n{text}",
+    ),
+    "translate_prompt": (
+        "将以下文本翻译为{target_lang}，只输出译文：\n{text}",
+        "将以下文本翻译为{target_lang}，只输出译文：",
+    ),
+    "rewrite_prompt": (
+        "按{style}风格改写以下文本，只输出改写后的内容：\n{text}",
+        "按{style}风格改写以下文本，只输出改写后的内容：",
+    ),
+}
+
+
+def _normalised(text: str) -> str:
+    """比较用：去掉**全部**空白（保存提示词时空白/换行常被折叠或补删）。"""
+    return "".join((text or "").split())
+
+
+def migrate_stale_defaults(config, root: Path | None = None) -> int:
+    """清掉 config 里"历史内置默认"的拷贝，让新的默认提示词生效。
+
+    来由（用户现场）：早期插件保存时把**当时的默认文案**写进了 config
+    （`MWindow_config.json` 里能看到 `按{style}风格改写…`），而 config 优先级高于语言包，
+    于是软件更新了默认提示词，界面与请求里用的还是老文本。
+    只清"与已知旧默认完全一致（忽略空白）"的值，用户自己改过的一律保留。
+    """
+    cleared = 0
+    for key, legacy in LEGACY_DEFAULTS.items():
+        value = _normalised(config.get(key) or "")
+        if not value:
+            continue
+        if any(value == _normalised(item) for item in legacy):
+            config.set(key, "")
+            cleared += 1
+            logger.info("已移除 %s 里的旧版内置默认提示词（将使用新版默认）", key)
+    if cleared:
+        try:
+            config.save()
+        except Exception as exc:              # noqa: BLE001 - 保存失败不阻断启动
+            logger.warning("写回配置失败：%s", exc)
+    return cleared
+
+
 def ensure_default_version(key: str, prompt_tr=None, root: Path | None = None) -> str:
     """保证「默认」版本存在，且内容 = **当前**系统自带文案（软件更新后自动跟进）。
 
