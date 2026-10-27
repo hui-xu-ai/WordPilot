@@ -43,6 +43,53 @@ def get_active_document():
         return None
 
 
+def foreground_hwnd() -> int:
+    """当前前台窗口句柄（0 表示取不到）。单独抽出来，便于单测注入。"""
+    try:
+        import ctypes
+
+        return int(ctypes.windll.user32.GetForegroundWindow() or 0)
+    except Exception:                      # noqa: BLE001
+        return 0
+
+
+def active_window(word=None):
+    """**鼠标当前激活的那个 Word 窗口**（不是 Word 自认为的 ActiveDocument）。
+
+    为什么需要：同一个 Word 进程里开着两篇文档时，`Application.ActiveDocument` /
+    `Application.Selection` 会停留在旧窗口（用户现场：切到另一篇后程序仍按旧文档判断，
+    仓库不跟着切、点了也不弹）。Word 的 `Window` 对象带 `Hwnd`，按前台窗口句柄匹配才准。
+
+    取不到就退回 `word.ActiveWindow`（再退回 None），保证单测/无 Word 时不炸。
+    """
+    if word is None:
+        try:
+            word = get_word_app()
+        except Exception:                  # noqa: BLE001
+            return None
+    hwnd = foreground_hwnd()
+    if hwnd:
+        try:
+            for window in word.Windows:
+                if int(getattr(window, "Hwnd", 0) or 0) == hwnd:
+                    return window
+        except Exception:                  # noqa: BLE001 - 枚举失败就退回
+            pass
+    try:
+        return word.ActiveWindow
+    except Exception:                      # noqa: BLE001
+        return None
+
+
+def active_window_document(word=None):
+    """前台 Word 窗口对应的文档；取不到返回 None。"""
+    window = active_window(word)
+    try:
+        return window.Document if window is not None else None
+    except Exception:                      # noqa: BLE001
+        return None
+
+
 class com_initialized:
     """线程内 COM 初始化的上下文管理器（CoInitialize/CoUninitialize 成对）。
 

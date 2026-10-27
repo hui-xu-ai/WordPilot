@@ -257,6 +257,16 @@ def screen_point(word, selection) -> tuple[int, int]:
     return int(physical[0] / ratio), int(physical[1] / ratio)
 
 
+def _active_window(word):
+    """前台 Word 窗口（失败返回 None）。延迟导入，避免无 pywin32 环境导入失败。"""
+    try:
+        from core.services.word_bridge import active_window
+
+        return active_window(word)
+    except Exception:                      # noqa: BLE001
+        return None
+
+
 class WordWatch(QThread):
     """后台轮询 Word 选区，命中文献引用时发信号。"""
 
@@ -314,10 +324,10 @@ class WordWatch(QThread):
 
     # ---------------- 单次循环 ----------------
     @staticmethod
-    def _doc_identity(word) -> str:
+    def _doc_identity(word, document=None) -> str:
         """S10：文档身份用**全路径**。同名不同目录的 same.docx 不能共用锚点。"""
         try:
-            document = word.ActiveDocument
+            document = document if document is not None else word.ActiveDocument
             return str(getattr(document, "FullName", "") or "")
         except Exception:                  # noqa: BLE001 - Word 正在关闭/未打开
             return ""
@@ -325,14 +335,27 @@ class WordWatch(QThread):
     def _tick(self, get_word_app) -> None:
         try:
             word = get_word_app()
-            doc_name = word.ActiveDocument.Name
+            # 同一个 Word 进程开着两篇文档时，`ActiveDocument` / `Selection` 会停在**旧窗口**
+            # （用户现场：切到另一篇后仓库不跟着切、点了也不弹）。按**前台窗口句柄**找到窗口，
+            # 再从窗口取 Document；若 Word 自认为的活动文档不一致，就 Activate 一次让它跟上
+            # —— 此时该窗口本来就是前台窗口，不会抢焦点，但 Selection/域位置才读得准。
+            document = word.ActiveDocument
+            try:
+                window = _active_window(word)
+                if window is not None and getattr(window, "Document", None) is not None:
+                    document = window.Document
+                    if str(getattr(word.ActiveDocument, "Name", "")) != str(document.Name):
+                        document.Activate()
+            except Exception:                  # noqa: BLE001 - 窗口匹配失败就用 ActiveDocument
+                logger.debug("按前台窗口定位文档失败，退回 ActiveDocument", exc_info=True)
+            doc_name = document.Name
         except Exception:                  # noqa: BLE001 - Word 未开/关闭中
             self._emit_status("watch.no_word")
             self._handle_miss()
             self.msleep(min(RETRY_AFTER_MS, 1000))
             return
 
-        doc_identity = self._doc_identity(word) or doc_name
+        doc_identity = self._doc_identity(word, document) or doc_name
         self._last_doc_identity = doc_identity        # 供 GUI 侧按**全路径**切绑定库
         if doc_name != getattr(self, "_last_doc_name", None):
             self._last_doc_name = doc_name
@@ -342,7 +365,7 @@ class WordWatch(QThread):
         try:
             from plugins.reference.doc_index import document_signature
 
-            signature = document_signature(word.ActiveDocument)
+            signature = document_signature(document)
         except Exception:                      # noqa: BLE001 - 取不到指纹就退回按路径判断
             signature = None
         needs = self._index.needs_rescan(doc_identity, signature)
