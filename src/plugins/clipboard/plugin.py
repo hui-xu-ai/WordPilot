@@ -240,9 +240,14 @@ class ClipboardPlugin(PluginBase):
             card_lay.addWidget(hint)
             edit = QTextEdit()
             edit.setMinimumHeight(96)
-            edit.setPlainText(str(config.get(config_key, "") or ""))
-            card_lay.addWidget(edit)
             i18n = self.ctx.get_service("i18n") if getattr(self, "ctx", None) else None
+            # 显示**生效文本**：config 有值用 config，否则显示系统默认提示词
+            # （以前只读 config，config 为空时框里空白，用户以为默认丢了）
+            from core.services import prompt_store
+
+            edit.setPlainText(prompt_store.effective_text(
+                config_key, config, getattr(i18n, "prompt_tr", None)))
+            card_lay.addWidget(edit)
             bar = PromptVersionBar(config_key, config, self.tr,
                                    read_text=edit.toPlainText,
                                    apply_text=edit.setPlainText, parent=card,

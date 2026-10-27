@@ -246,6 +246,61 @@ def backup_active(key: str, text: str, root: Path | None = None,
 
 _RAW_KEY = re.compile(r"^(\w+\.)?prompt\.[\w.]+$")
 
+#: 每个提示词对应的"系统自带默认文案"i18n key
+DEFAULT_KEYS = {
+    "proof_prompt": "prompt.proof.default",
+    "correct_prompt": "prompt.correct.default",
+    "translate_prompt": "prompt.translate.default",
+    "rewrite_prompt": "prompt.rewrite.default",
+}
+
+
+def default_keys(key: str) -> str:
+    return DEFAULT_KEYS.get(key, "")
+
+
+def default_text(key: str, prompt_tr=None, tr=None) -> str:
+    """系统自带的默认提示词正文（查不到、或查成原始 key 时返回空串）。"""
+    i18n_key = default_keys(key)
+    if not i18n_key:
+        return ""
+    text = ""
+    if callable(prompt_tr):
+        try:
+            text = (prompt_tr(i18n_key) or "").strip()
+        except Exception:                     # noqa: BLE001 - 翻译服务异常时退回插件 tr
+            text = ""
+    if not text and callable(tr):
+        text = (tr(i18n_key) or "").strip()
+    if not text or text == i18n_key or _RAW_KEY.fullmatch(text):
+        return ""
+    return text
+
+
+def effective_text(key: str, config, prompt_tr=None) -> str:
+    """界面**应该显示**的提示词正文 —— 与真正发给模型的保持一致。
+
+    优先级：`config[键]`（用户保存过的）→ 语言包里的系统默认。
+    编辑框必须按它初始化，否则 config 为空时框里空白（用户现场：
+    「纠错提示词」「校对提示词」显示为空，其实系统本来就有默认文案）。
+    """
+    text = (config.get(key) or "").strip() if config is not None else ""
+    if text:
+        return text
+    return default_text(key, prompt_tr)
+
+
+def ensure_default_version(key: str, prompt_tr=None, root: Path | None = None) -> str:
+    """保证「默认」版本存在（内容 = 系统自带文案）；不改变当前选中的版本。"""
+    text = default_text(key, prompt_tr)
+    if not text:
+        return ""
+    names = [item["name"] for item in versions(key, root)]
+    if DEFAULT_VERSION in names:
+        return DEFAULT_VERSION
+    save_version(key, DEFAULT_VERSION, text, note="系统自带", root=root, activate=not names)
+    return DEFAULT_VERSION
+
 
 def repair_bogus_versions(root: Path | None = None) -> int:
     """删掉"内容是原始 i18n key"的坏版本。

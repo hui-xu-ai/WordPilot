@@ -27,7 +27,7 @@
   "settings.saved": "已保存",
   "settings.save_failed": "保存失败",
   "settings.prompt.correct": "纠错提示词（整段文本，{text} 原文）",
-  "settings.prompt.correct_hint": "与智能纠错插件的逐句校对**完全独立**：这里处理整段文本（如整段剪贴板内容），提示词与版本都单独保存，互不影响。",
+  "settings.prompt.correct_hint": "与智能纠错插件的逐句校对完全独立：这里处理整段文本（如整段剪贴板内容），提示词与版本都单独保存，互不影响。",
   "running": "正在处理…",
   "prompt.version.save": "保存并更新版本",
   "prompt.version.delete": "删除这个版本",

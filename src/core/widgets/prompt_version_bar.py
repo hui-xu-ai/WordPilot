@@ -65,6 +65,16 @@ class PromptVersionBar(QWidget):
     # ---------------- 数据 ----------------
     def refresh(self, select: str = "") -> None:
         """按仓库里的版本列表刷新下拉（不触发应用回调）。"""
+        if callable(self._prompt_tr):
+            prompt_store.ensure_default_version(self._key, self._prompt_tr)  # 系统默认版本常驻
+            if not (self._config.get(self._key) or "").strip():
+                # config 为空时实际生效的是系统默认 → 当前版本也对齐成「默认」，
+                # 否则下拉会显示"自动-备份 · 当前"，与真正发给模型的提示词不一致。
+                if prompt_store.active_name(self._key) != prompt_store.DEFAULT_VERSION:
+                    try:
+                        prompt_store.activate(self._key, prompt_store.DEFAULT_VERSION)
+                    except KeyError:
+                        pass
         items = prompt_store.versions(self._key)
         if not items:
             # 从没用过这个提示词：把系统自带的默认文案登记成「默认」版本，方便随时切回
@@ -112,12 +122,7 @@ class PromptVersionBar(QWidget):
         return text
 
     def _default_key(self) -> str:
-        return {
-            "proof_prompt": "prompt.proof.default",
-            "correct_prompt": "prompt.correct.default",
-            "translate_prompt": "prompt.translate.default",
-            "rewrite_prompt": "prompt.rewrite.default",
-        }.get(self._key, "")
+        return prompt_store.default_keys(self._key)
 
     # ---------------- 交互 ----------------
     def _on_pick(self, _index: int) -> None:

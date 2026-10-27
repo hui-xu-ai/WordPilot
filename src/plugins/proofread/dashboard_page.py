@@ -184,7 +184,10 @@ class DashboardPage(QWidget):
         lay.addWidget(self.prompt_hint)
         self.proof_prompt_edit = QTextEdit()
         self.proof_prompt_edit.setMinimumHeight(88)
-        self.proof_prompt_edit.setPlainText(str(self._config.get("proof_prompt", "") or ""))
+        from core.services import prompt_store
+
+        self.proof_prompt_edit.setPlainText(prompt_store.effective_text(
+            "proof_prompt", self._config, getattr(self._i18n, "prompt_tr", None)))
         lay.addWidget(self.proof_prompt_edit)
         self.proof_prompt_bar = PromptVersionBar(
             "proof_prompt", self._config, self.tr,
