@@ -4,7 +4,7 @@
 
 ## .
 - [WordPilot 工作区（pydev 预设）](AGENTS.md) — 2603 B
-- [WordPilot](README.md) — 6063 B
+- [WordPilot](README.md) — 7596 B
 
 ## docs
 - [架构说明 · ARCHITECTURE](docs/ARCHITECTURE.md) — 14655 B

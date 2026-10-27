@@ -2,7 +2,7 @@
 
 面向中文毕业论文 / 科技论文写作场景的 Microsoft Word 桌面辅助工具。基于 **PySide6 + pywin32(COM)**，通过 **DeepSeek API** 提供智能纠错能力，并内置题录导航、图片无损裁剪等论文写作实用工具。
 
-> 作者：Xu Hui　当前版本：v3.0　平台：Windows（依赖本机已安装的 Microsoft Word）
+> 作者：Xu Hui　当前版本：v3.1　平台：Windows（依赖本机已安装的 Microsoft Word）
 
 ## 功能特性
 
@@ -10,14 +10,18 @@
 | --- | --- | --- |
 | 实时 AI 纠错 | 监控光标所在句子，句末完成后自动送 AI 校对，红色波浪线标出差异 | 后台监控线程 / `Ctrl+Shift+Z` |
 | 校对桌宠 | 桌宠颜色实时指示校对状态（绿=无错 / 红=有错 / 黄=校对中 / 灰=未启用），支持换肤 | 桌面桌宠 / 右键菜单 |
-| 翻译 | 选中文本或剪贴板内容翻译 | `Ctrl+Shift+T` |
-| 改写 | 按风格改写文本 | `Ctrl+Shift+R` |
+| 翻译 | 选中文本或剪贴板内容翻译（目标语言可选：自动互译 / 中文 / 英文 / 日文） | `Ctrl+Shift+T` |
+| 改写 | 按强度改写文本（轻度/中度/深度），目标是降低 AI 痕迹、保持技术内容不变 | `Ctrl+Shift+R` |
+| 整段纠错 | 对整段/整篇文本做最小改动的纠错（术语与数字体例统一、跨句衔接），与逐句校对独立 | 翻译改写页 |
 | 题录导航 | 扫描 Word 域(SEQ)，生成图/表题注列表，双击跳转、支持返回上一位置 | 左侧图标轨 / 托盘 / 桌宠菜单 |
 | 图片无损裁剪 | 借助隐藏 Word 工作文档对图片裁剪居中，保留原始像素 | 左侧图标轨「图片工具」 |
-| 剪贴板工具 | 剪贴板文本一键纠错 / 翻译 / 改写，结果可复制或插入 Word | 左侧图标轨「剪贴板」 |
+| 剪贴板工具 | 剪贴板文本一键纠错 / 翻译 / 改写，结果可复制或插入 Word | 左侧图标轨「翻译改写」 |
+| 参考文献助手 | Word 引用与本地 CSV 文献库绑定，显示并编辑题注 | 左侧图标轨「参考文献助手」 |
 | 校对开关 | `Ctrl+Shift+E` 启停实时监控 | 热键 / 顶部工具栏 |
-| 插件管理 | 安装(zip/文件夹) / 勾选启用 / 侧边栏排序，勾选后同步上桌宠右键菜单 | 左侧图标轨「插件管理」 |
-| 多语言 | 简体中文 / English，界面语言与提示词语言可独立切换 | 设置 → 外观 |
+| 提示词管理 | 每个提示词独立版本（默认/我的版本/自动备份），可切换、恢复默认；改动自动保存 | 各插件页 |
+| 插件管理 | 安装(zip/文件夹) / 启停 / 排序；托盘右键只列**已启用**插件的快速入口 | 左侧图标轨「插件管理」 |
+| API 监控 | 任务级 token 清单（输入/命中缓存/输出）、单次明细、每日/每月统计 | 设置 → API 监控 |
+| 多语言 | 简体中文 / English；提示词语言默认跟随界面语言 | 设置 → 外观 |
 | 主题 | 浅色 / 深色 Fluent 风 + 用户自定义 `config/user.qss` | 设置 → 外观 |
 
 ## 快速开始
@@ -42,15 +46,22 @@ python src\main.py
 
 ## 隐私与数据安全（重要）
 
-本工具会在 `src/config/` 下生成**含敏感信息的运行时数据**，这些文件**已通过 `.gitignore` 排除，不会推送到仓库**：
+**所有用户数据都留在本机 `config/` 目录；唯一外发的是"你要 AI 处理的那段文字"**（发往你自己配置的 DeepSeek 端点）。
 
-- `.key` —— Fernet 加密主密钥
-- `MWindow_config.json` —— 含 **API Key** 与个人偏好
-- `api_calls.log` —— 含你论文的文本片段与 token 统计
-- `ignore_db.json`、`word_caption_cache.db` —— 用户数据
-- `Image.docx` —— 图片裁剪工作文档（可能残留你的图片）
+以下运行时文件**已通过 `.gitignore` 排除，不会推送到仓库**，打包产物里也不含真实配置：
+
+| 文件 / 目录 | 内容 |
+| --- | --- |
+| `config/.key` | Fernet 加密主密钥（泄露 = API Key 可被解密） |
+| `config/MWindow_config.json` | **API Key**、模型、提示词、个人偏好 |
+| `config/api_calls.log` | 每次调用的输入/输出文本片段 + token 统计（可在「设置 → API 监控」清空） |
+| `config/proof_cache.db*`、`word_caption_cache.db*` | 校对/题注缓存（含原句与文档路径） |
+| `config/plugins/<插件>/` | 各插件的**用户资产**：提示词版本、个人设置（整个目录永不参与垃圾清理） |
+| `config/references/` | 参考文献库 CSV 与派生索引 |
+| `config/Image.docx`、`user.qss`、`*.log` | 图片工作文档、自定义样式、运行日志 |
 
 仓库中只提供 `*.example.json` 模板。**请勿把真实配置提交到 Git，也请勿把 API Key 硬编码进源码。**
+完整清单、外发边界与贡献者须知见 [`docs/PRIVACY.md`](docs/PRIVACY.md)。
 
 ## 项目结构（分层 + 微内核 + 插件化）
 
@@ -74,15 +85,17 @@ WordPilot/
 │   │                        #            / i18n / theme / skins / window_manager
 │   │                        #            / proof_cache / caption_cache / ignore / hotkeys
 │   ├── plugins/             # 每个功能一个插件包（plugin.json + plugin.py + i18n/）
-│   │   ├── proofread/       # 智能纠错（监控线程 + 桌宠窗口 + 替换逻辑 + 纠错主页）
-│   │   ├── clipboard/       # 剪贴板工具（纠错/翻译/改写）
+│   │   ├── proofread/       # 智能纠错（逐句监控 + 桌宠 + 建议窗）
+│   │   ├── clipboard/       # 翻译改写（翻译/改写/整段纠错 + 剪贴板热键）
 │   │   ├── navigator/       # 题录导航
 │   │   ├── image_toolbox/   # 图片无损裁剪
-│   │   └── reference/       # 参考文献助手（占位，默认不加载）
+│   │   └── reference/       # 参考文献助手（引用与 CSV 文献库绑定）
 │   ├── infra/               # memory_trimmer / utils（资源路径）
-│   ├── assets/              # icons(SVG 线条图标) / themes(令牌+QSS) / i18n(语言包) / skins(桌宠皮肤)
+│   ├── assets/              # 品牌图标(tray/ico) / icons(SVG) / themes / i18n / skins(桌宠皮肤)
 │   └── config/              # 运行时数据目录（隐私文件已 gitignore）
-├── docs/                    # ARCHITECTURE / PLUGIN_GUIDE / DEVELOPMENT / BUILD
+├── tests/                   # pytest（离线，无需桌面/Word）
+├── tools/                   # quality-gate / arch 检查 / 冒烟脚本
+├── docs/                    # ARCHITECTURE / PLUGIN_GUIDE / DEVELOPMENT / BUILD / PRIVACY
 ├── requirements.txt
 ├── WordPilot.spec          # PyInstaller 打包配置（显式收集各插件包）
 ├── LICENSE                 # MIT
