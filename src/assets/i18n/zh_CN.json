@@ -169,7 +169,7 @@
   "prompt.rewrite.mode.medium": "中度：可拆分或合并句子、调整句内语序，段落顺序不动",
   "prompt.rewrite.mode.strong": "深度：可重构段落内部的句子顺序与叙述视角，技术内容与结论不变",
   "settings.tab.monitor": "API 监控",
-  "api.monitor.overview": "今日：{day_calls} 次调用，输入 {day_in} / 命中缓存 {day_hit} / 输出 {day_out} tokens；本月：{month_calls} 次，输入 {month_in} / 命中缓存 {month_hit} / 输出 {month_out} tokens",
+  "api.monitor.overview": "今日：{day_calls} 次调用，输入 {day_in} / 命中缓存 {day_hit}（{day_rate}）/ 输出 {day_out} tokens；本月：{month_calls} 次，输入 {month_in} / 命中缓存 {month_hit}（{month_rate}）/ 输出 {month_out} tokens（命中来自 DeepSeek 自动前缀缓存，见文档）",
   "api.monitor.task_view": "按任务统计",
   "api.monitor.call_view": "按次明细（最近 300 条）",
   "api.monitor.day_view": "按天消耗",
@@ -187,5 +187,6 @@
   "api.monitor.col_time": "时间",
   "api.monitor.col_latency": "耗时(ms)",
   "api.monitor.col_day": "日期",
-  "api.monitor.col_month": "月份"
+  "api.monitor.col_month": "月份",
+  "api.monitor.col_rate": "命中率"
 }

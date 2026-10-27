@@ -81,7 +81,8 @@ class ApiMonitorPanel(QWidget):
             day_calls=day_stats["count"], day_in=day_stats["prompt"],
             day_hit=day_stats["cache_hit"], day_out=day_stats["completion"],
             month_calls=month_stats["count"], month_in=month_stats["prompt"],
-            month_hit=month_stats["cache_hit"], month_out=month_stats["completion"]))
+            month_hit=month_stats["cache_hit"], month_out=month_stats["completion"],
+            day_rate=self._hit_rate(day_stats), month_rate=self._hit_rate(month_stats)))
 
         mode = self.period_combo.currentData() or "task"
         if mode == "task":
@@ -93,6 +94,14 @@ class ApiMonitorPanel(QWidget):
         else:
             self._fill_period_table(logs, "month", "api.monitor.col_month")
 
+    @staticmethod
+    def _hit_rate(row: dict) -> str:
+        """命中率 = 命中缓存 / 输入 tokens；输入为 0 时显示 "-"。"""
+        prompt = row.get("prompt") or 0
+        if not prompt:
+            return "-"
+        return f"{(row.get('cache_hit') or 0) / prompt:.0%}"
+
     def _set_headers(self, headers: list[str]) -> None:
         self.table.clear()
         self.table.setColumnCount(len(headers))
@@ -103,12 +112,13 @@ class ApiMonitorPanel(QWidget):
         rows = api_logger.task_summary(logs)
         self._set_headers([self._tr("api.monitor.col_plugin"), self._tr("api.monitor.col_task"),
                            self._tr("api.monitor.col_calls"), self._tr("api.monitor.col_in"),
-                           self._tr("api.monitor.col_hit"), self._tr("api.monitor.col_out"),
+                           self._tr("api.monitor.col_hit"), self._tr("api.monitor.col_rate"),
+                           self._tr("api.monitor.col_out"),
                            self._tr("api.monitor.col_total")])
         self.table.setRowCount(len(rows))
         for r, row in enumerate(rows):
             for c, value in enumerate((row["plugin"], row["task"], row["count"],
-                                       row["prompt"], row["cache_hit"],
+                                       row["prompt"], row["cache_hit"], self._hit_rate(row),
                                        row["completion"], row["total"])):
                 self.table.setItem(r, c, QTableWidgetItem(str(value)))
         self.table.resizeColumnsToContents()
@@ -134,11 +144,13 @@ class ApiMonitorPanel(QWidget):
         rows = api_logger.period_summary(key, logs)
         self._set_headers([self._tr(header_key), self._tr("api.monitor.col_calls"),
                            self._tr("api.monitor.col_in"), self._tr("api.monitor.col_hit"),
-                           self._tr("api.monitor.col_out"), self._tr("api.monitor.col_total")])
+                           self._tr("api.monitor.col_rate"), self._tr("api.monitor.col_out"),
+                           self._tr("api.monitor.col_total")])
         self.table.setRowCount(len(rows))
         for r, row in enumerate(rows):
             for c, value in enumerate((row[key], row["count"], row["prompt"],
-                                       row["cache_hit"], row["completion"], row["total"])):
+                                       row["cache_hit"], self._hit_rate(row),
+                                       row["completion"], row["total"])):
                 self.table.setItem(r, c, QTableWidgetItem(str(value)))
         self.table.resizeColumnsToContents()
 
