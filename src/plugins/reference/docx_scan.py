@@ -99,6 +99,72 @@ class ScanResult:
         return [c for c in self.citations if c.reference is not None]
 
 
+#: 入库时"按同一篇文献"比较标题用：去掉标点/空白、统一小写
+_TITLE_NOISE = re.compile(r"[^0-9a-z\u4e00-\u9fff]+")
+
+
+def work_identities(ref: Reference) -> list[str]:
+    """同一篇文献的**所有**身份线索（DOI + 规范化标题）。
+
+    两边的键不一样、字段也未必齐全：文末列表那条可能没 DOI，域里那条有 DOI 却没编号——
+    所以用"任一身份命中"来判定同一篇（只用 DOI 会漏、只用标题会误）。
+    """
+    out: list[str] = []
+    doi = (getattr(ref, "doi", "") or "").strip().lower()
+    if doi:
+        out.append(f"doi:{doi}")
+    title = _TITLE_NOISE.sub("", (getattr(ref, "title", "") or "").lower())
+    if title:
+        out.append(f"title:{title}")
+    return out or [f"key:{getattr(ref, 'ref_key', '')}"]
+
+
+def work_identity(ref: Reference) -> str:
+    """同一篇文献的首选身份（DOI 优先，其次规范化标题）。"""
+    return work_identities(ref)[0]
+
+
+def merge_provider_citations(result: ScanResult) -> tuple[list[Reference], int, int]:
+    """算出入库候选：**以文末参考文献列表为准**，域元数据只补全同一篇，不新增。
+
+    为什么：Zotero 文档里每个域都带一份元数据，但键是 `doi:...`、**没有编号**，而文末列表
+    已经按 1..N 编号列出同一批文献。两边都入库 → 子库里出现大量"没编号、且与有编号的重复"
+    的条目（用户现场）。这里的规则：
+    - 有文末列表：列表全量入库；域引用按身份（DOI 或标题任一命中）匹配，只补空字段，
+      匹配不上的**丢弃**；
+    - 没有文末列表（如 EndNote 纯域文档）：退化成都入库，否则什么也拿不到。
+
+    返回 (候选, 补全条数, 丢弃条数)。
+    """
+    references = list(result.references)
+    if not references:
+        return [c.reference for c in result.provider_citations if c.reference is not None], 0, 0
+
+    by_identity: dict[str, Reference] = {}
+    for ref in references:
+        for identity in work_identities(ref):
+            by_identity.setdefault(identity, ref)
+
+    filled = ignored = 0
+    for citation in result.provider_citations:
+        incoming = citation.reference
+        if incoming is None:
+            continue
+        target = next((by_identity[key] for key in work_identities(incoming)
+                       if key in by_identity), None)
+        if target is None:
+            ignored += 1
+            continue
+        changed = False
+        for attr in ("title", "authors", "year", "container", "doi"):
+            if not getattr(target, attr, "") and getattr(incoming, attr, ""):
+                setattr(target, attr, getattr(incoming, attr))
+                changed = True
+        if changed:
+            filled += 1
+    return references, filled, ignored
+
+
 def _open_document(source: str | Path | bytes) -> BytesIO | zipfile.ZipFile:
     if isinstance(source, (bytes, bytearray)):
         buffer = BytesIO(source)

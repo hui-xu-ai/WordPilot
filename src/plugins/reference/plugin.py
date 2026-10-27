@@ -552,7 +552,7 @@ class ReferencePlugin(PluginBase):
         返回统计字典（供页面状态栏显示）：文档名、列表条目数、域引用数、入库条数、锚点数。
         失败时抛异常，由调用方（工作线程）转成状态栏提示。
         """
-        from plugins.reference.docx_scan import scan_docx
+        from plugins.reference.docx_scan import merge_provider_citations, scan_docx
         from core.services.word_bridge import get_word_app
 
         word = get_word_app()
@@ -575,9 +575,13 @@ class ReferencePlugin(PluginBase):
         stats["bibliography"] = len(result.references)
         stats["provider"] = len(result.provider_citations)
 
-        candidates = list(result.references)
-        candidates.extend(citation.reference for citation in result.provider_citations
-                          if citation.reference is not None)
+        # 入库候选：以文末列表为准、域元数据只补全同一篇；匹配不上的域引用丢弃
+        # （Zotero/EndNote 的域键与列表键不同，双边都入会出现大量"无编号重复条目"）。
+        candidates, filled, ignored = merge_provider_citations(result)
+        stats["filled"] = filled
+        stats["ignored"] = ignored
+        if ignored:
+            logger.info("同步本文：丢弃 %d 条文末列表里没有的域引用（文档=%s）", ignored, name)
 
         # 先按引用集合决定仓库，再入库：否则这份文档的文献会先落进当前库，
         # 两个文档就能把默认库塞满（用户实测 294 + 13 合并成 307 条）。

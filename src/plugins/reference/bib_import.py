@@ -26,7 +26,7 @@ def import_bibliography(plugin, doc_path: str, doc_name: str) -> None:
     # R1：自动导入同样先按文档绑定确定目标库，不能从"当前库"推断写入位置
     plugin._ensure_scan_library(doc_path)
 
-    from plugins.reference.docx_scan import scan_docx
+    from plugins.reference.docx_scan import merge_provider_citations, scan_docx
 
     try:
         result = scan_docx(doc_path, doc_name or os.path.basename(doc_path))
@@ -34,13 +34,9 @@ def import_bibliography(plugin, doc_path: str, doc_name: str) -> None:
         logger.warning("解析参考文献列表失败：%s", exc)
         return
 
-    # 候选集必须和「同步本文」（plugin.scan_active_document）一致：文末列表 + **域里带元数据
-    # 的引用**。只入文末列表是不够的 —— Zotero/EndNote 域里的条目（`zotero:906`、`doi:...`）
-    # 若文末列表没有对应行，就永远进不了库，点引用只得到"命中引用但没有可显示卡片"，
-    # 用户必须手动点一次「同步本文」才恢复（用户现场）。
-    candidates = list(result.references)
-    candidates.extend(citation.reference for citation in result.provider_citations
-                      if citation.reference is not None)
+    # 与「同步本文」用同一条规则（见 docx_scan.merge_provider_citations）：
+    # 文末列表为准，域元数据只补全同一篇，多出来的域引用不入库（避免库里堆无编号重复条目）。
+    candidates, _filled, _ignored = merge_provider_citations(result)
 
     imported = 0
     failed = 0
@@ -53,6 +49,10 @@ def import_bibliography(plugin, doc_path: str, doc_name: str) -> None:
             logger.warning("导入参考文献条目失败：%s", exc)
     if failed:
         logger.warning("本次有 %d 条导入失败，未标记为已完成（%s）", failed, doc_path)
+        return
+    if imported == 0:
+        # 什么都没进库就不能记"已完成"：否则这份文档以后再也不重试（旧待办 R3 的同类问题）。
+        logger.info("本次没有可导入条目，未标记为已完成（%s）", doc_path)
         return
     plugin._bib_cache[doc_path] = mtime
     if imported:

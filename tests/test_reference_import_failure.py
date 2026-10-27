@@ -12,8 +12,9 @@ from pathlib import Path
 import pytest
 
 
-def _make_plugin(tmp_path, monkeypatch, failing: bool, providers=()):
+def _make_plugin(tmp_path, monkeypatch, failing: bool, providers=(), references=None):
     from plugins.reference import plugin as plugin_module
+    from plugins.reference.reference_store import Reference
 
     plugin = plugin_module.ReferencePlugin.__new__(plugin_module.ReferencePlugin)
     plugin._bib_cache = {}
@@ -28,27 +29,33 @@ def _make_plugin(tmp_path, monkeypatch, failing: bool, providers=()):
     class _Store:
         def __init__(self):
             self.written = 0
+            self.items = []
 
         def upsert(self, reference, **kw):
             if failing:
                 raise plugin_module.ReferenceStoreError("CSV 被占用")
             self.written += 1
+            self.items.append(reference)
             return reference
 
     plugin._store = _Store()
 
-    class _Result:
-        references = [object(), object()]
-        provider_citations = list(providers)
+    if references is None:
+        references = [Reference(ref_key="bib:1", title="列表文献一", cite_label="1"),
+                      Reference(ref_key="bib:2", title="列表文献二", cite_label="2")]
 
-    class _FakeDocEntry:
+    class _Result:
         pass
+
+    result = _Result()
+    result.references = list(references)
+    result.provider_citations = list(providers)
 
     monkeypatch.setattr(plugin_module.os.path, "exists", lambda p: True)
     monkeypatch.setattr(plugin_module.os.path, "getmtime", lambda p: 1.0)
 
     docx = pytest.importorskip("plugins.reference.docx_scan")
-    monkeypatch.setattr(docx, "scan_docx", lambda path, name: _Result())
+    monkeypatch.setattr(docx, "scan_docx", lambda path, name: result)
     monkeypatch.setattr(plugin, "_route_before_import", lambda *a, **k: True)
     return plugin
 
@@ -69,26 +76,36 @@ def test_failure_does_not_mark_cached(tmp_path, monkeypatch):
     assert plugin._bib_cache == {}, "写失败后不能标记为已导入（否则重试被跳过）"
 
 
-def test_provider_citations_are_imported_too(tmp_path, monkeypatch):
-    """域里带元数据的引用必须一起入库 —— 否则点引用拿不到卡片，只能点「同步本文」。
+def test_only_bibliography_entries_are_imported(tmp_path, monkeypatch):
+    """域引用只在"同一篇已在文末列表里"时用于补全，多出来的不入库。
 
-    实测：Zotero 文档切过去后 `命中引用但没有可显示卡片`，点一次「同步本文」就好，
-    区别就是 `scan_active_document` 把 `provider_citations` 也 `upsert` 了，
-    而监听路径的 `import_bibliography` 只入文末列表。
+    用户现场：Zotero 文档文末列表 25 条（编号 1..25），域内 18 条元数据（无编号、键是 doi），
+    两边都入库 → 子库出现大量"无编号且与有编号重复"的条目。
     """
-    from plugins.reference import plugin as plugin_module
+    from plugins.reference.docx_scan import ScanCitation
+    from plugins.reference.reference_store import Reference
 
-    class _Citation:
-        def __init__(self, reference):
-            self.reference = reference
-
-    class _NoMeta:
-        reference = None                       # 空壳域（EndNote shell）不能入库
-
-    providers = [_Citation(object()), _Citation(object()), _NoMeta()]
+    providers = [ScanCitation(anchor_key="c1", kind="zotero",
+                              reference=Reference(ref_key="doi:extra", title="列表里没有的文献"))]
     plugin = _make_plugin(tmp_path, monkeypatch, failing=False, providers=providers)
 
     plugin._import_bibliography("C:/docs/论文.docx", "论文.docx")
 
-    assert plugin._store.written == 4, (
-        f"文末列表 2 条 + 域引用 2 条（空壳不算）应为 4，实际 {plugin._store.written}")
+    assert plugin._store.written == 2, "只入文末列表的两条，多余的域引用丢弃"
+
+
+def test_provider_metadata_fills_matching_entry(tmp_path, monkeypatch):
+    """域元数据与列表同一篇（按标题匹配）→ 只补字段，不新增条目。"""
+    from plugins.reference.docx_scan import ScanCitation
+    from plugins.reference.reference_store import Reference
+
+    providers = [ScanCitation(anchor_key="c1", kind="zotero",
+                              reference=Reference(ref_key="doi:10.1002/1", title="列表文献一",
+                                                  doi="10.1002/1", authors="Zhang Z H"))]
+    plugin = _make_plugin(tmp_path, monkeypatch, failing=False, providers=providers)
+
+    plugin._import_bibliography("C:/docs/论文.docx", "论文.docx")
+
+    assert plugin._store.written == 2, "不能因为域里有元数据就多写一条"
+    merged = next(item for item in plugin._store.items if item.title == "列表文献一")
+    assert merged.doi == "10.1002/1" and merged.authors == "Zhang Z H", "缺的字段应被补全"
