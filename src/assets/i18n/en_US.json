@@ -59,7 +59,6 @@
   "settings.prompt.warning": "⚠️ Do not ask the prompt to modify placeholders such as [IMG0] or [EQ1] — they stand for equations/images and are preserved automatically.",
   "settings.prompt.language": "Prompt language:",
   "settings.prompt.proof": "Proofreading prompt. {text} is the source text placeholder — do not modify it",
-  "settings.prompt.proof_placeholder": "You are a Chinese academic proofreading expert. Fix typos, grammar, punctuation and terminology. Remove the space between numbers and ℃, %, ° (e.g. 2℃, 5%, 9°); keep a half-width space before other units (e.g. 10 m).",
   "settings.prompt.translate": "Translation prompt. {text} is the source placeholder, {target_lang} is the target language placeholder — do not modify them",
   "settings.prompt.rewrite": "Rewrite prompt. {text} is the source placeholder, {style} is the style placeholder — do not modify them",
   "settings.ui.floating_group": "Pet & Suggestion Window",

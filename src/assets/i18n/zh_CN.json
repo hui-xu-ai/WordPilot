@@ -59,7 +59,6 @@
   "settings.prompt.warning": "⚠️ 请勿在提示词中要求修改 [IMG0]、[EQ1] 等占位符，它们在原文中代表公式/图片，校对时会自动保留。",
   "settings.prompt.language": "提示词语言:",
   "settings.prompt.proof": "校对提示词，{text}代表原文占位符，禁止修改",
-  "settings.prompt.proof_placeholder": "你是中文科技论文校对专家。修正错别字、语病、标点、专业词汇拼写。校对所有单位的空格：数字与℃、%、°之间不加空格（例：2℃、5%、9°）；数字与其他单位（如m）之间加半角空格（例：10 m）。",
   "settings.prompt.translate": "翻译提示词，{text}代表原文占位符，{target_lang}代表翻译结果占位符，禁止修改",
   "settings.prompt.rewrite": "改写提示词，{text}代表原文占位符，{style}代表风格占位符，禁止修改",
   "settings.ui.floating_group": "桌宠与建议窗口",
