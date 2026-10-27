@@ -186,6 +186,8 @@ class LibraryRegistry:
         from datetime import datetime
 
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        target: Path | None = None
+        moved = False
         if directory.exists():
             # Windows 上目录里若有进程仍打开的 SQLite 句柄，rename 会 PermissionError。
             # 调用方（plugin.delete_library）会先切库把句柄关掉；这里再重试几次，
@@ -193,9 +195,31 @@ class LibraryRegistry:
             import gc
             import time
 
-            target = _backup_path(trash / f"{name}-{stamp}".replace(".", "-"))
-            moved = False
+            target = trash / f"{name}-{stamp}"
+            if target.exists():
+                target = _backup_path(target)
+            # 数据结构：回收区只留**用户数据**（references.csv / notes.csv）+ 清单，
+            # index.db / doc_scan.db 是可重建缓存，不进回收区 —— 否则备份又大又会留下
+            # SQLite 的 -wal/-shm 尾巴（实测就是这些东西卡住"清空回收站"）。
+            try:
+                target.mkdir(parents=True, exist_ok=True)
+                for filename in ("references.csv", "notes.csv"):
+                    source = directory / filename
+                    if source.exists():
+                        shutil.copy2(source, target / filename)
+                (target / "manifest.json").write_text(
+                    json.dumps({"library": name, "deleted_at": stamp,
+                                "files": sorted(p.name for p in target.iterdir()
+                                                if p.is_file())},
+                               ensure_ascii=False, indent=2),
+                    encoding="utf-8")
+                shutil.rmtree(directory)
+                moved = True
+            except OSError as exc:                 # noqa: BLE001 - 目录被占用时退回整体搬移
+                logger.debug("按文件备份失败（%s），退回整目录搬移", exc)
             for attempt in range(3):
+                if moved:
+                    break
                 try:
                     directory.rename(target)
                     moved = True
@@ -218,7 +242,7 @@ class LibraryRegistry:
         if bindings:
             self._write_bindings({path: lib for path, lib in bindings.items() if lib != name})
         logger.info("已删除文献仓库：%s（移到 %s）", name, trash)
-        return trash
+        return target if (moved and target is not None) else trash
 
     def doc_bindings(self) -> dict[str, str]:
         """文档路径 → 仓库名（独立文件；首次读取时从旧 libraries.json 迁移）。"""

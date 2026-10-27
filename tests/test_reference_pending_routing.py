@@ -112,12 +112,22 @@ def test_locked_directory_keeps_library(tmp_path, monkeypatch):
     def _blocked(self, target):
         raise PermissionError(13, "拒绝访问")
 
+    import shutil as _shutil
+
+    real_rmtree = _shutil.rmtree
+
+    def _blocked_rmtree(*args, **kwargs):
+        raise PermissionError(13, "拒绝访问")
+
+    # 目录真被占用：既删不掉、也改不了名（新实现是"按文件备份 → rmtree"，失败才退回 rename）
     monkeypatch.setattr(Path, "rename", _blocked)
+    monkeypatch.setattr(_shutil, "rmtree", _blocked_rmtree)
     try:
         with pytest.raises(ValueError):
             registry.delete("乙")
     finally:
         monkeypatch.setattr(Path, "rename", real_rename)
+        monkeypatch.setattr(_shutil, "rmtree", real_rmtree)
 
     assert "乙" in registry.names(), "删除失败后注册表必须保持原样"
     assert (registry.libraries_dir / "乙").exists(), "目录不能被硬删"

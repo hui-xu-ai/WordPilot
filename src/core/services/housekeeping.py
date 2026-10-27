@@ -165,6 +165,17 @@ def inventory(root: Path | None = None, keep_days: int = 0) -> list[Group]:
         if _is_protected(path, root):
             continue
         name, suffix = path.name, path.suffix.lower()
+        # **回收区优先**：`_trash` 里已经是"删掉的库"，不管是什么后缀都归 trash ——
+        # 否则 index.db-wal/-shm 会先被 wal 规则收走，"清空回收站"永远碰不到它们
+        # （用户现场：点了清空，_trash 里还剩 6 个 -wal/-shm）。
+        if trash_root in path.parents:
+            try:
+                # keep_days <= 0 表示"连新的备份也清"（界面上是"清空回收站"）
+                if keep_days <= 0 or path.stat().st_mtime < cutoff:
+                    groups["trash"].files.append(path)
+            except OSError:
+                continue
+            continue
         if suffix == ".log":
             groups["logs"].files.append(path)
         elif suffix in {".db-wal", ".db-shm"}:
@@ -177,13 +188,6 @@ def inventory(root: Path | None = None, keep_days: int = 0) -> list[Group]:
             groups["cache"].files.append(path)
         elif name.startswith("~$"):
             groups["temp"].files.append(path)          # Word 打开文档时留的锁文件
-        elif trash_root in path.parents:
-            try:
-                # keep_days <= 0 表示"连新的备份也清"（界面上是"清空回收站"）
-                if keep_days <= 0 or path.stat().st_mtime < cutoff:
-                    groups["trash"].files.append(path)
-            except OSError:
-                continue
     return list(groups.values())
 
 
