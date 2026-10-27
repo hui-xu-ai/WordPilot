@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root": ".",
-  "count": 19,
+  "count": 20,
   "entries": [
     {
       "path": "AGENTS.md",
@@ -298,6 +298,25 @@
       "tags": [],
       "bytes": 4119,
       "mtime": "2026-10-27T13:28:17.027514+00:00",
+      "archive": false
+    },
+    {
+      "path": "docs/RELEASE.md",
+      "title": "发布说明 · RELEASE",
+      "headings": [
+        "发布说明 · RELEASE",
+        "1. 本次打包（v3.1.0）",
+        "2. 隐私复核（推送前）",
+        "3. 推送 GitHub",
+        "1) 在 GitHub 建一个空仓库（不要勾选 README/LICENSE，避免冲突）",
+        "dist/ 与 build/ 已 gitignore，exe 作为 Release 附件上传，不进仓库",
+        "然后在 GitHub Release 页面手工上传该 zip，正文可直接引用下方「发布要点」",
+        "4. 发布要点（可直接用作 Release 正文）",
+        "5. 后续可选"
+      ],
+      "tags": [],
+      "bytes": 3207,
+      "mtime": "2026-10-27T13:34:09.163568+00:00",
       "archive": false
     },
     {
