@@ -92,6 +92,29 @@ class MyFeaturePlugin(PluginBase):
 - `self.subscribe(event, handler)`：订阅事件，**deactivate 时自动退订**，
   插件侧不需要自己保存退订闭包。
 
+### 资产存放约定（强约束）
+
+**插件的一切用户数据 / 配置 / 提示词版本 / 缓存，全部放在 `ctx.data_dir` 下**
+（即 `config/plugins/<plugin_id>/`）。不要在 `config/` 根目录新建文件或文件夹。
+
+理由：主程序的「存储清理」按**文件夹**区分资产与垃圾 ——
+`config/plugins/<id>/` 整个目录**永不清理**，而 `config/` 根目录下的 `*.log`、
+孤儿 `*.db-wal`/`-shm`、可重建缓存库、`~$*.docx` 临时文件都会被当成运行垃圾清掉。
+放错位置的后果：插件数据会被当垃圾删掉（或被保护规则误留）。
+
+目录示例（`reference` / `clipboard` 插件的真实布局）：
+
+```
+config/plugins/
+  reference/                 # 参考文献助手：库列表、doc_bindings.json 等私有数据
+  clipboard/prompts/         # 翻译 / 改写 / 整段纠错的提示词版本
+  proofread/prompts/         # 逐句校对提示词版本
+```
+
+需要额外声明"这些路径要保护"时，实现 `PluginBase.assets()` 返回路径列表（文件或目录，
+可相对 `config/`）；插件管理器会在激活时自动登记、停用时撤销（见
+`core/services/housekeeping.py`）。**默认放在 `ctx.data_dir` 下则无需声明**，已被文件夹规则覆盖。
+
 ### 内核服务一览
 
 | 服务名 | 类型 | 用途 |

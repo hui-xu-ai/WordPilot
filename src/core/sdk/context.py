@@ -92,7 +92,12 @@ class PluginContext:
     # ---- 插件私有资源 ----
     @property
     def data_dir(self) -> "Path":
-        """插件私有数据目录（config/plugins/<id>/），按需自动创建。"""
+        """插件私有数据目录（`config/plugins/<id>/`），按需自动创建。
+
+        **插件的一切用户数据都应放这里**（配置、提示词版本、索引、缓存）。
+        主程序清理运行垃圾时会把 `config/plugins/<id>/` 整目录当资产跳过，
+        放到 `config/` 根目录则可能被当成垃圾清掉（`*.log` / 孤儿 `-wal` / 可重建缓存库等）。
+        """
         path = self.kernel.data_dir / self.manifest.id
         path.mkdir(parents=True, exist_ok=True)
         return path

@@ -133,6 +133,23 @@
 
 因此源码开发时的隐私数据都落在 `src/config/`，已被 `.gitignore` 覆盖。
 
+### 资产 vs 运行垃圾（清理规则）
+
+```
+config/
+  app.log / errors.log / api_calls.log   ← 运行日志（可清，删不掉时截断）
+  proof_cache.db / *.db-wal / *.db-shm   ← 缓存库与残留（可清；在用的走 checkpoint/下次启动）
+  ~$*.docx                               ← Word 锁文件（可清）
+  user.qss / *_config.json / .key        ← 核心资产（永不删）
+  references/                            ← 参考文献数据（notes.csv / 各库 references.csv 永不删）
+  references/libraries/_trash/           ← 删除库的备份（可清空）
+  plugins/<plugin_id>/                   ← **插件资产：整目录永不清理**
+```
+
+插件的一切用户数据（配置、提示词版本、索引、缓存）必须放 `ctx.data_dir`
+（= `config/plugins/<id>/`）。清理器按**文件夹**区分资产与垃圾，见
+`core/services/housekeeping.py` 与 `docs/PLUGIN_GUIDE.md`。
+
 ## 8. GUI 重设计要点（P1~P5 已落地）
 
 - **窗口治理**：所有窗口（含插件窗口）经 `WindowManager` 打开，

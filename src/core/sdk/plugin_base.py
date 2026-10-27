@@ -7,6 +7,12 @@
         plugin.py        入口类（默认名，可用 entry 覆盖）
         ...              插件自有的逻辑与界面
 
+资产存放（**强约束**）：插件的一切用户数据 / 配置 / 提示词版本 / 缓存，一律放在
+`ctx.data_dir`（= `config/plugins/<plugin_id>/`）下，不要在 `config/` 根目录新建文件。
+主程序的「存储清理」按文件夹区分：`config/plugins/<id>/` 整目录**永不清理**，
+而 `config/` 根目录的 `*.log`、孤儿 `*.db-wal`、可重建缓存库、`~$*.docx` 会被当垃圾清掉。
+放在 `ctx.data_dir` 之外的特殊路径，用 `assets()` 显式声明，否则可能被误删。
+
 plugin.json 字段：
     id                 插件唯一 id（必填，与目录名一致）
     name               显示名
@@ -104,6 +110,8 @@ class PluginBase:
     def assets(self):
         """本插件的**用户资产**清单（文件或目录，可相对 `config/`）。
 
+        放在 `ctx.data_dir`（`config/plugins/<id>/`）下的东西**默认已受保护**，
+        不需要在这里列出；只有放在别处（例如共享目录、用户文档目录）才需要声明。
         清理运行垃圾时这些路径永不删除（见 `core.services.housekeeping`）。
         每次盘点都会实时调用，所以可以返回随状态变化的内容，例如"当前所有子库的 references.csv"。
         返回目录表示"这个目录下面都不清"；返回文件表示"只保护这个文件"。
