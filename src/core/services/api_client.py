@@ -217,7 +217,10 @@ class DeepSeekClient:
         template = self._prompt_template("translate_prompt", "prompt.translate.default")
         if template is None:
             return None
-        prompt = template.replace("{text}", text).replace("{target_lang}", target_lang)
+        prompt = (template.replace("{lang}", self.detect_language(text))
+                  .replace("{language}", self.detect_language(text))
+                  .replace("{target_lang}", target_lang)
+                  .replace("{text}", text))
         messages = [
             {"role": "system", "content": self.prompt_tr("prompt.translate.system")},
             {"role": "user", "content": prompt}

@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QInputDialog, QMessageBox, QPushButton, QWidget
+from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QInputDialog, QMenu, QMessageBox,
+                               QToolButton, QWidget)
 
 from core.services import prompt_store
 
@@ -30,29 +31,32 @@ class PromptVersionBar(QWidget):
         self._read_text = read_text
         self._apply_text = apply_text
 
+        # 紧凑布局：版本下拉 + 一个「⋯」菜单（三个大按钮太占地方，用户反馈）
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         self.combo = QComboBox()
-        self.combo.setMinimumWidth(140)
+        self.combo.setMaximumWidth(220)
         layout.addWidget(self.combo, 1)
-        self.save_btn = QPushButton()
-        self.save_btn.clicked.connect(self._on_save)
-        self.delete_btn = QPushButton()
-        self.delete_btn.clicked.connect(self._on_delete)
-        self.reset_btn = QPushButton()
-        self.reset_btn.clicked.connect(self._on_reset)
-        for button in (self.save_btn, self.delete_btn, self.reset_btn):
-            layout.addWidget(button)
+        self.menu_btn = QToolButton()
+        self.menu_btn.setPopupMode(QToolButton.InstantPopup)
+        self.menu = QMenu(self.menu_btn)
+        self.save_action = self.menu.addAction("", self._on_save)
+        self.delete_action = self.menu.addAction("", self._on_delete)
+        self.menu.addSeparator()
+        self.reset_action = self.menu.addAction("", self._on_reset)
+        self.menu_btn.setMenu(self.menu)
+        layout.addWidget(self.menu_btn)
 
         self.combo.currentIndexChanged.connect(self._on_pick)
         self.refresh()
 
     # ---------------- 文案 ----------------
     def retranslate(self) -> None:
-        self.save_btn.setText(self._tr("prompt.version.save"))
-        self.delete_btn.setText(self._tr("prompt.version.delete"))
-        self.reset_btn.setText(self._tr("prompt.version.reset"))
+        self.save_action.setText(self._tr("prompt.version.save"))
+        self.delete_action.setText(self._tr("prompt.version.delete"))
+        self.reset_action.setText(self._tr("prompt.version.reset"))
+        self.menu_btn.setToolTip(self._tr("prompt.version.title"))
 
     # ---------------- 数据 ----------------
     def refresh(self, select: str = "") -> None:

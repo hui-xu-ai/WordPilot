@@ -68,5 +68,13 @@
   "error.stale_body": "The text changed after this suggestion was created (document switched or edited). Nothing was written; please proofread this sentence again.",
   "pet.menu.pause_proofread": "Pause proofreading",
   "pet.menu.resume_proofread": "Resume proofreading",
-  "status.manual_only": "Inside a table or field: marks cleared, please edit manually"
+  "status.manual_only": "Inside a table or field: marks cleared, please edit manually",
+  "prompt.version.save": "Save as version…",
+  "prompt.version.delete": "Delete current version",
+  "prompt.version.reset": "Reset to default",
+  "prompt.version.title": "Prompt versions",
+  "prompt.version.name": "Version name:",
+  "prompt.version.empty": "The prompt is empty - write something first",
+  "prompt.version.delete_confirm": "Delete version \"{name}\"?",
+  "prompt.version.last": "Keep at least one version"
 }

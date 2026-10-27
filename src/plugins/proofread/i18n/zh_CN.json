@@ -68,5 +68,13 @@
   "error.stale_body": "生成建议后原文已经改变（切换了文档或继续编辑）。为避免覆盖当前内容，本次未写回，请重新校对这一段。",
   "pet.menu.pause_proofread": "暂停校对",
   "pet.menu.resume_proofread": "继续校对",
-  "status.manual_only": "这段位于表格或域内，只清除了标记，请手动修改"
+  "status.manual_only": "这段位于表格或域内，只清除了标记，请手动修改",
+  "prompt.version.save": "另存为版本…",
+  "prompt.version.delete": "删除当前版本",
+  "prompt.version.reset": "恢复默认提示词",
+  "prompt.version.title": "提示词版本",
+  "prompt.version.name": "版本名称：",
+  "prompt.version.empty": "提示词还是空的，先写一点内容",
+  "prompt.version.delete_confirm": "删除版本「{name}」？",
+  "prompt.version.last": "至少要保留一个版本"
 }

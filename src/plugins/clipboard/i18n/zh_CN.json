@@ -28,5 +28,13 @@
   "settings.save_failed": "保存失败",
   "settings.prompt.correct": "纠错提示词（整段文本，{text} 原文）",
   "settings.prompt.correct_hint": "与桌宠逐句校对分开：这里处理整段文本（如整段剪贴板内容）。留空则沿用桌宠的校对提示词。",
-  "running": "正在处理…"
+  "running": "正在处理…",
+  "prompt.version.save": "另存为版本…",
+  "prompt.version.delete": "删除当前版本",
+  "prompt.version.reset": "恢复默认提示词",
+  "prompt.version.title": "提示词版本",
+  "prompt.version.name": "版本名称：",
+  "prompt.version.empty": "提示词还是空的，先写一点内容",
+  "prompt.version.delete_confirm": "删除版本「{name}」？",
+  "prompt.version.last": "至少要保留一个版本"
 }
