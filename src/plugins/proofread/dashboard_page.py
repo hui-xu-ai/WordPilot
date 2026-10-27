@@ -210,13 +210,6 @@ class DashboardPage(QWidget):
         lang_row = QHBoxLayout()
         self.proof_language_label = QLabel()
         self.proof_language_label.setText(self.tr("settings.prompt.prooflang"))
-        self.placeholder_help.setText(self.tr("settings.prompt.proof_placeholder_help"))
-        if hasattr(self, "prompt_hint"):
-            self.prompt_hint.setText(self.tr("settings.prompt.hint"))
-        if hasattr(self, "proof_language_edit"):
-            self.proof_language_edit.retranslate_options(self.tr)
-        if hasattr(self, "proof_prompt_bar"):
-            self.proof_prompt_bar.refresh_language()
         self.proof_language_edit = ChoiceCombo()
         self.proof_language_edit.set_choices([
             ("settings.prompt.prooflang_auto", "auto"),
@@ -416,6 +409,9 @@ class DashboardPage(QWidget):
             self.prompt_card_title.setText(self.tr("settings.prompt.proof"))
             self.prompt_hint.setText(self.tr("settings.prompt.hint"))
             self.proof_language_label.setText(self.tr("settings.prompt.prooflang"))
+            # 侧边抽屉里的占位符说明与语言下拉也必须重译（此前漏了 → 一直停在中/英文）
+            self.placeholder_help.setText(self.tr("settings.prompt.proof_placeholder_help"))
+            self.proof_language_edit.retranslate_options(self.tr)
         if getattr(self, "params_card_title", None) is not None:
             self.params_card_title.setText(self.tr("dashboard.params"))
             self.debounce_label.setText(self._app_tr("app.proof.debounce_label"))

@@ -210,7 +210,7 @@ class PluginManagerPage(QWidget):
 
         # 描述 + 状态徽标
         desc_row = QHBoxLayout()
-        desc = QLabel(manifest.description)
+        desc = QLabel(self._display_description(record))
         desc.setObjectName("hintLabel")
         desc.setWordWrap(True)
         desc_row.addWidget(desc, 1)

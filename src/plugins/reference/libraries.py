@@ -130,6 +130,44 @@ class LibraryRegistry:
                 return self._library_dir(name, entry)
         return self.libraries_dir / DEFAULT_NAME
 
+    def migrate_default_name(self) -> bool:
+        """把历史遗留的「默认库」改成当前语言的名字（目录、注册表、文档绑定一起改）。
+
+        只在"库里只有这一个库、且名字正好是旧的中文名"时动手，避免误改用户的库。
+        """
+        target = default_library_name()
+        data = self._read()
+        libraries = data.get("libraries") or {}
+        if len(libraries) != 1 or DEFAULT_NAME not in libraries or target == DEFAULT_NAME:
+            return False
+
+        source_dir = self.libraries_dir / DEFAULT_NAME
+        target_dir = self.libraries_dir / target
+        try:
+            if source_dir.exists() and not target_dir.exists():
+                source_dir.rename(target_dir)
+        except OSError:
+            logger.warning("重命名默认库目录失败，保持原名", exc_info=True)
+            return False
+
+        entry = libraries.pop(DEFAULT_NAME)
+        entry["path"] = target                     # 只存目录名
+        libraries[target] = entry
+        data["libraries"] = libraries
+        if data.get("active") == DEFAULT_NAME:
+            data["active"] = target
+
+        bindings = data.get("doc_bindings") or {}
+        for doc_path, library in list(bindings.items()):
+            if library == DEFAULT_NAME:
+                bindings[doc_path] = target
+        if bindings:
+            data["doc_bindings"] = bindings
+
+        self._write(data)
+        logger.info("默认库已重命名：%s → %s", DEFAULT_NAME, target)
+        return True
+
     def ensure_default(self) -> str:
         """首次使用：建注册表，并把根目录下的历史数据**移动**进默认库。"""
         data = self._read()

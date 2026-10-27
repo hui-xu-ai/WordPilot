@@ -169,6 +169,7 @@ class ReferencePlugin(PluginBase):
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
         self._libraries = LibraryRegistry()
+        self._libraries.migrate_default_name()   # 旧「默认库」按当前语言改名（有数据才动）
         self._libraries.ensure_default()
         self._data_dir = self._libraries.active_path()
         self._active_name = self._libraries.active_name()
