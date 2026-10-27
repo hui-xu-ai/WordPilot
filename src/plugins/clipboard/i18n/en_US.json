@@ -36,5 +36,7 @@
   "prompt.version.name": "Version name:",
   "prompt.version.empty": "The prompt is empty - write something first",
   "prompt.version.delete_confirm": "Delete version \"{name}\"?",
-  "prompt.version.last": "Keep at least one version"
+  "prompt.version.last": "Keep at least one version",
+  "prompt.version.default": "Default (built-in)",
+  "prompt.version.active": " (current)"
 }
