@@ -132,8 +132,18 @@ class ClipboardWidget(QWidget):
         return self._ctx.tr(key, **params)
 
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        for label, key in getattr(self, "_card_labels", []):
+            label.setText(self.tr(key))
+        # 设置卡片可能还没构造（只有主面板实例才有），存在才重译
+        if hasattr(self, "placeholder_help"):
+            self.placeholder_help.setText(self.tr("settings.prompt.placeholder_help"))
+        for name in ("translate_language_edit", "correct_language_edit",
+                     "rewrite_strength_edit"):
+            combo = getattr(self, name, None)
+            if combo is not None:
+                combo.retranslate_options(self.tr)
         for bar in getattr(self, "_prompt_bars", []):
-            bar.retranslate()
+            bar.refresh_language()
         self.input_label.setText(self.tr("input_label"))
         self.clip_preview.setPlaceholderText(self.tr("placeholder"))
         self.result_label.setText(self.tr("result_label"))
@@ -257,6 +267,9 @@ class ClipboardPlugin(PluginBase):
             hint.setObjectName("hintLabel")
             hint.setWordWrap(True)
             card_lay.addWidget(hint)
+            # 记下 key，切换界面语言时统一重译（否则新语言下仍是旧语言文案）
+            self._card_labels.append((title, title_key))
+            self._card_labels.append((hint, hint_key))
             edit = QTextEdit()
             edit.setMinimumHeight(96)
             i18n = self.ctx.get_service("i18n") if getattr(self, "ctx", None) else None
@@ -271,13 +284,14 @@ class ClipboardPlugin(PluginBase):
                                    read_text=edit.toPlainText,
                                    apply_text=edit.setPlainText, parent=card,
                                    prompt_tr=getattr(i18n, "prompt_tr", None))
-            bar.retranslate()
+            bar.refresh_language()
             card_lay.addWidget(bar)
             self._prompt_bars.append(bar)
             lay.addWidget(card)
             return edit
 
         self._prompt_bars: list = []
+        self._card_labels: list = []
         # 翻译目标语言（本插件自己的配置）：提示词里的 {target_lang}
         lang_card = QWidget()
         lang_card.setObjectName("card")
@@ -354,13 +368,16 @@ class ClipboardPlugin(PluginBase):
         title.setObjectName("cardTitle")
         lay.addWidget(title)
         lay.addWidget(combo)
+        labels = getattr(self, "_card_labels", None)
+        if labels is not None:
+            labels.append((title, title_key))
         return card
 
     def _language_combo(self, config, config_key: str, options, title_key: str,
                         tip_key: str) -> ChoiceCombo:
         """按 `(文案 key, 配置值)` 生成**真下拉**（预设项 + 「自定义…」）。"""
         combo = ChoiceCombo()
-        combo.set_choices([(self.tr(display_key), value) for display_key, value in options])
+        combo.set_choices(list(options), tr=self.tr)
         default = "中" if config_key == "rewrite_strength" else "auto"
         combo.set_value(str(config.get(config_key, default) or default))
         combo.setToolTip(self.tr(tip_key))

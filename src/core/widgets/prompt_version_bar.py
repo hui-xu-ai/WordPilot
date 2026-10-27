@@ -63,6 +63,23 @@ class PromptVersionBar(QWidget):
         self.menu_btn.setToolTip(self._tr("prompt.version.title"))
 
     # ---------------- 数据 ----------------
+    def refresh_language(self) -> None:
+        """界面语言切换后调用：重译标签；用户没自定义时把编辑框换成新语言的默认文案。
+
+        只认"config 里没值"这一种情况 —— 用户改过的提示词绝不因为换语言被覆盖。
+        """
+        self.retranslate()
+        try:
+            custom = (self._config.get(self._key) or "").strip()
+        except Exception:                      # noqa: BLE001
+            custom = ""
+        if custom:
+            return
+        text = self._default_text()
+        if text:
+            self._apply_text(text)
+        self.refresh()
+
     def refresh(self, select: str = "") -> None:
         """按仓库里的版本列表刷新下拉（不触发应用回调）。"""
         if callable(self._prompt_tr):

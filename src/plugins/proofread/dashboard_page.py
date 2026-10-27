@@ -198,6 +198,7 @@ class DashboardPage(QWidget):
         card, lay = self._card()
         self.prompt_card_title = self._card_title(lay)
         self.placeholder_help = QLabel(self.tr("settings.prompt.proof_placeholder_help"))
+        self.prompt_hint_key = "settings.prompt.hint"
         self.placeholder_help.setObjectName("hintLabel")
         self.placeholder_help.setWordWrap(True)
         lay.addWidget(self.placeholder_help)
@@ -209,12 +210,19 @@ class DashboardPage(QWidget):
         lang_row = QHBoxLayout()
         self.proof_language_label = QLabel()
         self.proof_language_label.setText(self.tr("settings.prompt.prooflang"))
+        self.placeholder_help.setText(self.tr("settings.prompt.proof_placeholder_help"))
+        if hasattr(self, "prompt_hint"):
+            self.prompt_hint.setText(self.tr("settings.prompt.hint"))
+        if hasattr(self, "proof_language_edit"):
+            self.proof_language_edit.retranslate_options(self.tr)
+        if hasattr(self, "proof_prompt_bar"):
+            self.proof_prompt_bar.refresh_language()
         self.proof_language_edit = ChoiceCombo()
         self.proof_language_edit.set_choices([
-            (self.tr("settings.prompt.prooflang_auto"), "auto"),
-            (self.tr("settings.prompt.prooflang_zh"), "中文"),
-            (self.tr("settings.prompt.prooflang_en"), "English"),
-        ])
+            ("settings.prompt.prooflang_auto", "auto"),
+            ("settings.prompt.prooflang_zh", "中文"),
+            ("settings.prompt.prooflang_en", "English"),
+        ], tr=self.tr)
         self.proof_language_edit.set_value(
             str(self._config.get("proof_language", "auto") or "auto"))
         self.proof_language_edit.setToolTip(self.tr("settings.prompt.prooflang_tip"))
@@ -234,7 +242,7 @@ class DashboardPage(QWidget):
             read_text=self.proof_prompt_edit.toPlainText,
             apply_text=self.proof_prompt_edit.setPlainText, parent=self,
             prompt_tr=getattr(self._i18n, "prompt_tr", None))
-        self.proof_prompt_bar.retranslate()
+        self.proof_prompt_bar.refresh_language()
         lay.addWidget(self.proof_prompt_bar)
 
         # 提示词与语言改动**自动保存**（用户：这个卡片里不该再有「保存」按钮）
@@ -397,7 +405,7 @@ class DashboardPage(QWidget):
         self.monitor_widget.retranslateUi()
         bar = getattr(self, "proof_prompt_bar", None)
         if bar is not None:
-            bar.retranslate()
+            bar.refresh_language()
         # 以下控件在次要面板里，面板未构造时跳过
         if getattr(self, "pet_settings_title", None) is not None:
             self.pet_settings_title.setText(self.tr("settings.pet_group"))
