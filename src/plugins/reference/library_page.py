@@ -374,8 +374,11 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         """打开总库备注面板（挑选 / 新建 / 转为子库备注）。"""
         if self._note_service is None:
             return
-        key = self._selected_key
+        # 选中项存在 `_current_key`（`_on_selection_changed` 里维护）；`_selected_key` 是从未
+        # 被赋值的死字段，读它会导致"明明选了行却说没选"（用户现场）。
+        key = self._current_key or self._selected_key
         if not key:
+            self.append_status(self.tr("master.need_selection"))
             return
         from plugins.reference.note_editor import NoteEditor
         from plugins.reference.note_picker import NotePicker
@@ -402,7 +405,7 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
             # 采用：复制文本进子库并记录来源 ID（不再"跟随"）
             self._note_service.adopt_master_note(ref_key, dialog.selected_note_id)
         self.reload()
-        selected = self._store.get(self._selected_key) if self._selected_key else None
+        selected = self._store.get(self._current_key) if self._current_key else None
         if selected is not None:
             self._show_reference(selected)
 

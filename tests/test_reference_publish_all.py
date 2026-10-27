@@ -49,6 +49,46 @@ def test_single_publish_to_master(tmp_path):
     assert child.get("zotero:1").inherit_note_id == note.note_id
 
 
+def test_single_publish_uses_selected_row(tmp_path):
+    """单条发布要认**表格里选中的那一行**（选中项记在 `_current_key`）。
+
+    用户现场：表格里明明高亮着一行，点「当前文献备注 → 总库」却提示"先在表格里选一条文献"
+    —— 旧实现读的是从未被赋值的 `_selected_key`。
+    """
+    from PySide6.QtWidgets import QApplication
+
+    from plugins.reference.library_page import LibraryPage
+    from plugins.reference.notes import NoteService, NoteStore
+    from plugins.reference.reference_index import ReferenceIndex
+    from plugins.reference.reference_store import Reference, ReferenceStore
+
+    QApplication.instance() or QApplication([])
+    store = ReferenceStore(directory=tmp_path / "子库")
+    store.upsert(Reference(ref_key="zotero:1", title="文献1", note="备注A"))
+    index = ReferenceIndex(db_path=tmp_path / "子库" / "index.db")
+    service = NoteService(store, NoteStore(directory=tmp_path))
+
+    class _Ctx:
+        def tr(self, key, /, **params):
+            return key.format(**params) if params else key
+
+        def get_service(self, name):
+            return None
+
+    published: list[str] = []
+    widget = LibraryPage(_Ctx(), store, index, note_service=service,
+                         libraries=["子库"], active_library="子库",
+                         on_publish_note=lambda key: (published.append(key), object())[1])
+    widget._current_key = "zotero:1"            # 等价于"表格里选中了这一行"
+
+    widget.publish_note_to_master()
+
+    assert published == ["zotero:1"], "必须按选中的那条发布"
+    assert "master.publish_note_done" in widget.footer_label.text()
+    index.close()
+    widget.deleteLater()
+
+
 def test_page_menu_triggers_publish_all(tmp_path, monkeypatch):
     """下拉菜单里的「全部备注 → 总库」要能真的调到插件（并写进底部状态栏）。"""
     from PySide6.QtWidgets import QApplication, QMessageBox

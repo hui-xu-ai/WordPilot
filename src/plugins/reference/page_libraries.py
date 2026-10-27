@@ -104,7 +104,8 @@ class LibraryMixin:
     def publish_note_to_master(self) -> None:
         """把**当前选中文献**的子库备注发布到总库（单条更新，随时可用）。"""
         handler = getattr(self, "_on_publish_note", None)
-        key = getattr(self, "_selected_key", "") or ""
+        # 表格选中项记在 `_current_key`；`_selected_key` 是死字段（从未赋值），别读它
+        key = (getattr(self, "_current_key", "") or getattr(self, "_selected_key", "") or "")
         if handler is None or not key:
             self.append_status(self.tr("master.need_selection"))
             return
