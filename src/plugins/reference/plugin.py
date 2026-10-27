@@ -363,7 +363,7 @@ class ReferencePlugin(PluginBase):
             # 这条早退分支 → 卡片再也回不到前台（用户现场：日志说显示、屏幕上看不到）。
             overlay.raise_()
             _force_topmost(overlay)                # 每次命中都重新压到最上层
-            logger.info("悬浮卡已在显示，同组引用不重画：%d 张 pos=%s 库=%s",
+            logger.debug("悬浮卡已在显示，同组引用不重画：%d 张 pos=%s 库=%s",
                         len(entries), (overlay.x(), overlay.y()),
                         getattr(self, "_active_name", ""))
             return                                  # 同一组锚点且已在显示 → 不重画，避免闪烁

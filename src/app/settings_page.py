@@ -391,6 +391,36 @@ class SettingsPage(QWidget):
         self.about_paths_value.setObjectName("hintLabel")
         lay2.addWidget(self.about_paths_value)
         layout.addWidget(card2)
+
+        # ---- 存储管理：区分用户资产与运行垃圾（用户要求：不能误删资产）----
+        card3, lay3 = self._card()
+        self.storage_title = QLabel()
+        self.storage_title.setObjectName("cardTitle")
+        lay3.addWidget(self.storage_title)
+        self.storage_value = QLabel()
+        self.storage_value.setObjectName("hintLabel")
+        self.storage_value.setWordWrap(True)
+        lay3.addWidget(self.storage_value)
+        storage_row = QHBoxLayout()
+        storage_row.setSpacing(8)
+        self.storage_logs_btn = QPushButton()
+        self.storage_logs_btn.clicked.connect(lambda: self._clean_storage(["logs", "wal"]))
+        self.storage_cache_btn = QPushButton()
+        self.storage_cache_btn.clicked.connect(lambda: self._clean_storage(["cache"]))
+        self.storage_trash_btn = QPushButton()
+        self.storage_trash_btn.clicked.connect(self._confirm_empty_trash)
+        storage_row.addWidget(self.storage_logs_btn)
+        storage_row.addWidget(self.storage_cache_btn)
+        storage_row.addWidget(self.storage_trash_btn)
+        storage_row.addStretch(1)
+        lay3.addLayout(storage_row)
+        self.storage_result = QLabel()
+        self.storage_result.setObjectName("hintLabel")
+        self.storage_result.setWordWrap(True)
+        lay3.addWidget(self.storage_result)
+        layout.addWidget(card3)
+        self._refresh_storage()
+        layout.addWidget(card2)
         layout.addStretch(1)
         return page
 
@@ -398,6 +428,41 @@ class SettingsPage(QWidget):
         from core.services.config_manager import CONFIG_DIR
 
         return CONFIG_DIR
+
+    # ---------------- 存储管理 ----------------
+    def _refresh_storage(self) -> None:
+        """按类别统计可清理的空间（只统计，不删除）。"""
+        try:
+            from core.services import housekeeping
+
+            groups = housekeeping.inventory()
+            self.storage_value.setText("\n".join(
+                self.tr("settings.storage.item", title=group.title,
+                        size=f"{group.size / 1024:.0f}", count=group.count)
+                for group in groups))
+        except Exception as exc:               # noqa: BLE001 - 统计失败不该挡住设置页
+            self.storage_value.setText(str(exc))
+
+    def _clean_storage(self, keys: list[str], keep_days: int = 7) -> None:
+        """清理指定类别；用户资产一律不动（白名单在 housekeeping 里）。"""
+        from core.services import housekeeping
+
+        try:
+            housekeeping.checkpoint_wal()
+            result = housekeeping.clean(keys, keep_days=keep_days)
+            removed = sum(count for count, _ in result.values())
+            freed = sum(size for _, size in result.values())
+            self.storage_result.setText(self.tr("settings.storage.done",
+                                                count=removed, size=f"{freed / 1024:.0f}"))
+        except Exception as exc:               # noqa: BLE001 - 清理失败要能看见
+            self.storage_result.setText(self.tr("settings.storage.failed", error=exc))
+        self._refresh_storage()
+
+    def _confirm_empty_trash(self) -> None:
+        answer = QMessageBox.question(self, self.tr("settings.storage.title"),
+                                      self.tr("settings.storage.trash_confirm"))
+        if answer == QMessageBox.Yes:
+            self._clean_storage(["trash"], keep_days=0)
 
     # ---------------- 多语言（热切换） ----------------
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
@@ -426,6 +491,10 @@ class SettingsPage(QWidget):
         self.about_author_label.setText(self.tr("settings.about.author"))
         self.about_env_label.setText(self.tr("settings.about.env"))
         self.about_paths_title.setText(self.tr("settings.about.paths"))
+        self.storage_title.setText(self.tr("settings.storage.title"))
+        self.storage_logs_btn.setText(self.tr("settings.storage.logs"))
+        self.storage_cache_btn.setText(self.tr("settings.storage.cache"))
+        self.storage_trash_btn.setText(self.tr("settings.storage.trash"))
         self.label_prompt_language.setText(self.tr("settings.prompt.language"))
 
         self.theme_group_title.setText(self.tr("settings.appearance.theme_group"))

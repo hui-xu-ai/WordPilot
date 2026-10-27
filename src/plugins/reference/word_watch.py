@@ -352,7 +352,7 @@ class WordWatch(QThread):
                     if str(getattr(word.ActiveDocument, "Name", "")) != str(document.Name):
                         document.Activate()
                     # 只在文档或匹配方式变化时记一行：切文档后到底认的是哪篇、凭哪条线索认的
-                    key = (str(document.Name), source)
+                    key = str(document.Name)      # 只看文档变化，匹配方式抖动不记日志
                     if key != getattr(self, "_last_window_log", None):
                         self._last_window_log = key
                         logger.info("当前文档窗口：%s（匹配方式=%s）", document.Name, source)
@@ -440,7 +440,7 @@ class WordWatch(QThread):
         state = (bool(anchors), tuple(text_labels))
         if state != getattr(self, "_last_cursor_state", None):
             self._last_cursor_state = state
-            logger.info("光标检查：pos=%d 域锚点=%d 文字编号=%s 索引锚点=%d 文档=%s",
+            logger.debug("光标检查：pos=%d 域锚点=%d 文字编号=%s 索引锚点=%d 文档=%s",
                         position, len(anchors), text_labels, len(self._index.anchors), doc_name)
         if anchors or text_labels:
             self._last_anchor = anchors[0].anchor_key if anchors else ""

@@ -141,5 +141,13 @@
   "pet.menu.resume_proofread": "Resume proofreading",
   "library.new": "New library",
   "library.new_title": "New reference library",
-  "library.new_prompt": "Name the new library (it will be switched to):"
+  "library.new_prompt": "Name the new library (it will be switched to):",
+  "settings.storage.title": "Storage",
+  "settings.storage.item": "{title}: {count} files / {size} KB",
+  "settings.storage.logs": "Clean logs",
+  "settings.storage.cache": "Clean caches",
+  "settings.storage.trash": "Empty trash…",
+  "settings.storage.trash_confirm": "Delete all deleted-library backups in _trash?\\nThis cannot be undone; active libraries are untouched.",
+  "settings.storage.done": "Removed {count} files, freed {size} KB",
+  "settings.storage.failed": "Cleanup failed: {error}"
 }

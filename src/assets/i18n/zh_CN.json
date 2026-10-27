@@ -141,5 +141,13 @@
   "pet.menu.resume_proofread": "继续校对",
   "library.new": "新建仓库",
   "library.new_title": "新建文献仓库",
-  "library.new_prompt": "给新仓库起个名字（会自动切换过去）："
+  "library.new_prompt": "给新仓库起个名字（会自动切换过去）：",
+  "settings.storage.title": "存储管理",
+  "settings.storage.item": "{title}：{count} 个 / {size} KB",
+  "settings.storage.logs": "清理日志与残留",
+  "settings.storage.cache": "清理缓存",
+  "settings.storage.trash": "清空回收站…",
+  "settings.storage.trash_confirm": "删除 _trash 里所有已删仓库的备份？\\n该操作不可撤销；当前在用的仓库不受影响。",
+  "settings.storage.done": "已清理 {count} 个文件，释放 {size} KB",
+  "settings.storage.failed": "清理失败：{error}"
 }
