@@ -1,5 +1,9 @@
-# tests/test_brand_assets.py
-"""品牌图标资源：换成设计稿 A 后，托盘/建议窗/exe 图标都要存在且尺寸合规。"""
+# tests/test_assets_brand_icons.py
+"""品牌图标资源：03-jade 稿已复制进打包资源目录，尺寸规格合规。
+
+用户要求（2026-10-27）：用 work/design/2026-10-27-logo-free 的 03-jade.png / 03-jade.ico，
+并复制到程序打包专用资源目录，避免打包后路径失效。
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -27,3 +31,20 @@ def test_ico_has_multi_sizes():
 
     for required in ((16, 16), (24, 24), (32, 32), (48, 48), (256, 256)):
         assert required in sizes, f"icon.ico 缺少 {required}，Windows 各场景会糊"
+
+
+def test_brand_assets_are_packaged():
+    """打包清单必须收录这三枚资源 —— 否则 exe 换机器后图标路径失效。"""
+    spec = (ROOT / "WordPilot.spec").read_text(encoding="utf-8")
+
+    assert "src/assets/tray_icon.png" in spec
+    assert "src/assets/icon_float.png" in spec
+    assert "src/assets/icon.ico" in spec
+
+
+def test_design_source_still_available():
+    """设计稿原件保留在 work/design 下（不入包），方便日后换肤/改稿。"""
+    design = ROOT / "work/design/2026-10-27-logo-free"
+
+    assert (design / "03-jade.png").is_file()
+    assert (design / "03-jade.ico").is_file()
