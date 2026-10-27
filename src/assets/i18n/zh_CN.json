@@ -149,5 +149,7 @@
   "settings.storage.trash": "清空回收站…",
   "settings.storage.trash_confirm": "删除 _trash 里所有已删仓库的备份？\\n该操作不可撤销；当前在用的仓库不受影响。",
   "settings.storage.done": "已清理 {count} 个文件，释放 {size} KB",
-  "settings.storage.failed": "清理失败：{error}"
+  "settings.storage.failed": "清理失败：{error}",
+  "settings.tab.storage": "存储",
+  "settings.storage.hint": "只清理运行垃圾；用户资产（文献库/总库备注/Image.docx/配置）永不删除。"
 }

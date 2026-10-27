@@ -149,5 +149,7 @@
   "settings.storage.trash": "Empty trash…",
   "settings.storage.trash_confirm": "Delete all deleted-library backups in _trash?\\nThis cannot be undone; active libraries are untouched.",
   "settings.storage.done": "Removed {count} files, freed {size} KB",
-  "settings.storage.failed": "Cleanup failed: {error}"
+  "settings.storage.failed": "Cleanup failed: {error}",
+  "settings.tab.storage": "Storage",
+  "settings.storage.hint": "Only runtime junk is removed; user assets (libraries, master notes, Image.docx, configs) are never deleted."
 }

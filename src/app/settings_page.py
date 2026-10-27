@@ -31,7 +31,8 @@ PROMPT_LANGUAGE_NAMES = {
     "en_US": "English",
 }
 
-_NAV_KEYS = ("settings.tab.api", "settings.tab.appearance", "settings.tab.about")
+_NAV_KEYS = ("settings.tab.api", "settings.tab.appearance", "settings.tab.storage",
+             "settings.tab.about")
 
 
 def _qt_version() -> str:
@@ -120,6 +121,7 @@ class SettingsPage(QWidget):
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_api_section())
         self.stack.addWidget(self._build_appearance_section())
+        self.stack.addWidget(self._build_storage_section())
         self.stack.addWidget(self._build_about_section())
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -348,6 +350,48 @@ class SettingsPage(QWidget):
         return page
 
     # ---------------- 关于 ----------------
+    def _build_storage_section(self) -> QWidget:
+        """存储管理：区分用户资产与运行垃圾（用户要求：不能误删资产；独立 Tab，不塞在关于里）。"""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(14)
+
+        card3, lay3 = self._card()
+        self.storage_title = QLabel()
+        self.storage_title.setObjectName("cardTitle")
+        lay3.addWidget(self.storage_title)
+        self.storage_value = QLabel()
+        self.storage_value.setObjectName("hintLabel")
+        self.storage_value.setWordWrap(True)
+        lay3.addWidget(self.storage_value)
+        storage_row = QHBoxLayout()
+        storage_row.setSpacing(8)
+        self.storage_logs_btn = QPushButton()
+        self.storage_logs_btn.clicked.connect(lambda: self._clean_storage(["logs", "wal"]))
+        self.storage_cache_btn = QPushButton()
+        self.storage_cache_btn.clicked.connect(lambda: self._clean_storage(["cache"]))
+        self.storage_trash_btn = QPushButton()
+        self.storage_trash_btn.clicked.connect(self._confirm_empty_trash)
+        storage_row.addWidget(self.storage_logs_btn)
+        storage_row.addWidget(self.storage_cache_btn)
+        storage_row.addWidget(self.storage_trash_btn)
+        storage_row.addStretch(1)
+        lay3.addLayout(storage_row)
+        self.storage_result = QLabel()
+        self.storage_result.setObjectName("hintLabel")
+        self.storage_result.setWordWrap(True)
+        lay3.addWidget(self.storage_result)
+        self.storage_hint = QLabel()
+        self.storage_hint.setObjectName("hintLabel")
+        self.storage_hint.setWordWrap(True)
+        lay3.addWidget(self.storage_hint)
+        layout.addWidget(card3)
+
+        layout.addStretch(1)
+        self._refresh_storage()
+        return page
+
     def _build_about_section(self) -> QWidget:
         """软件名/版本/作者等元信息：版本号统一取自 `src/__version__.py`（单一来源）。"""
         from __version__ import APP_NAME, AUTHOR, __version__
@@ -392,33 +436,6 @@ class SettingsPage(QWidget):
         lay2.addWidget(self.about_paths_value)
         layout.addWidget(card2)
 
-        # ---- 存储管理：区分用户资产与运行垃圾（用户要求：不能误删资产）----
-        card3, lay3 = self._card()
-        self.storage_title = QLabel()
-        self.storage_title.setObjectName("cardTitle")
-        lay3.addWidget(self.storage_title)
-        self.storage_value = QLabel()
-        self.storage_value.setObjectName("hintLabel")
-        self.storage_value.setWordWrap(True)
-        lay3.addWidget(self.storage_value)
-        storage_row = QHBoxLayout()
-        storage_row.setSpacing(8)
-        self.storage_logs_btn = QPushButton()
-        self.storage_logs_btn.clicked.connect(lambda: self._clean_storage(["logs", "wal"]))
-        self.storage_cache_btn = QPushButton()
-        self.storage_cache_btn.clicked.connect(lambda: self._clean_storage(["cache"]))
-        self.storage_trash_btn = QPushButton()
-        self.storage_trash_btn.clicked.connect(self._confirm_empty_trash)
-        storage_row.addWidget(self.storage_logs_btn)
-        storage_row.addWidget(self.storage_cache_btn)
-        storage_row.addWidget(self.storage_trash_btn)
-        storage_row.addStretch(1)
-        lay3.addLayout(storage_row)
-        self.storage_result = QLabel()
-        self.storage_result.setObjectName("hintLabel")
-        self.storage_result.setWordWrap(True)
-        lay3.addWidget(self.storage_result)
-        layout.addWidget(card3)
         self._refresh_storage()
         layout.addWidget(card2)
         layout.addStretch(1)
@@ -492,6 +509,7 @@ class SettingsPage(QWidget):
         self.about_env_label.setText(self.tr("settings.about.env"))
         self.about_paths_title.setText(self.tr("settings.about.paths"))
         self.storage_title.setText(self.tr("settings.storage.title"))
+        self.storage_hint.setText(self.tr("settings.storage.hint"))
         self.storage_logs_btn.setText(self.tr("settings.storage.logs"))
         self.storage_cache_btn.setText(self.tr("settings.storage.cache"))
         self.storage_trash_btn.setText(self.tr("settings.storage.trash"))
