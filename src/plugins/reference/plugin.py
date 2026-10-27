@@ -150,6 +150,22 @@ class ReferencePlugin(PluginBase):
         self._shown_signature: tuple[str, ...] = ()
         self._bib_cache: dict[str, float] = {}     # 文档路径 → 已导入的 mtime
 
+    def assets(self):
+        """本插件的**用户资产**：文献库本体、总库备注、库列表与文档绑定（清理时永不删）。
+
+        每次盘点实时调用 —— 所以这里遍历的是**当前**所有子库，新建库立刻受保护。
+        `doc_scan.db` / `index.db` 是缓存，故意不列进来。
+        """
+        items: list = []
+        try:
+            items.extend([self._libraries.registry_path, self._libraries.bindings_path,
+                          self._libraries.root / "notes.csv"])
+            for name in self._libraries.names():
+                items.append(self._libraries.library_dir(name) / "references.csv")
+        except Exception:                  # noqa: BLE001 - 未激活/读失败就只返回已知的
+            logger.debug("收集参考文献资产清单失败", exc_info=True)
+        return items
+
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
         self._libraries = LibraryRegistry()

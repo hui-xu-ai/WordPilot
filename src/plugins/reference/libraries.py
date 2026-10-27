@@ -80,6 +80,10 @@ class LibraryRegistry:
         stored = (entry or {}).get("path") or name
         return self.libraries_dir / Path(str(stored)).name
 
+    def library_dir(self, name: str, entry: dict | None = None) -> Path:
+        """公开版：库目录（供资产声明等外部用途）。"""
+        return self._library_dir(name, entry)
+
     @property
     def bindings_path(self) -> Path:
         return self.root / "doc_bindings.json"

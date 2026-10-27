@@ -101,6 +101,15 @@ class PluginBase:
     def activate(self, ctx: "PluginContext") -> None:
         self.ctx = ctx
 
+    def assets(self):
+        """本插件的**用户资产**清单（文件或目录，可相对 `config/`）。
+
+        清理运行垃圾时这些路径永不删除（见 `core.services.housekeeping`）。
+        每次盘点都会实时调用，所以可以返回随状态变化的内容，例如"当前所有子库的 references.csv"。
+        返回目录表示"这个目录下面都不清"；返回文件表示"只保护这个文件"。
+        """
+        return ()
+
     def deactivate(self) -> None:
         # 先退订，避免残留处理器持有已销毁的对象
         for unsubscribe in self._unsubscribes:

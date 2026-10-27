@@ -262,6 +262,7 @@ class PluginManager:
             plugin_cls = getattr(module, manifest.entry_class)
             instance = plugin_cls()
             instance.activate(PluginContext(self.kernel, manifest))
+            self._register_plugin_assets(manifest, instance)
         except Exception as exc:
             record.state = PluginState.FAILED
             record.error = str(exc)
@@ -304,8 +305,29 @@ class PluginManager:
         except Exception:                      # noqa: BLE001
             pass
 
+    def _register_plugin_assets(self, manifest: PluginManifest, instance) -> None:
+        """把插件声明的**用户资产**登记给清理服务（`PluginBase.assets()`）。
+
+        与清理模块解耦：清理侧只认登记表，不认识任何插件；插件卸载时自动撤销。
+        """
+        provider = getattr(instance, "assets", None)
+        if not callable(provider):
+            return
+        try:
+            from core.services import housekeeping
+
+            housekeeping.register_asset_source(manifest.id, provider)
+        except Exception:                 # noqa: BLE001 - 资产登记失败不该挡住插件激活
+            logger.exception("插件 [%s] 资产登记失败", manifest.id)
+
     def _cleanup_partial(self, plugin_id: str) -> None:
         """activate 失败后的补偿清理：把可能已注册的贡献点全部收回（best-effort）。"""
+        try:
+            from core.services import housekeeping
+
+            housekeeping.unregister_asset_source(plugin_id)
+        except Exception:                 # noqa: BLE001
+            logger.exception("插件 [%s] 补偿撤销资产登记失败", plugin_id)
         try:
             self.kernel.ui.remove_plugin(plugin_id)
         except Exception:
@@ -345,6 +367,12 @@ class PluginManager:
                 instance.deactivate()
             except Exception:
                 logger.exception("插件 [%s] 停用异常", plugin_id)
+        try:
+            from core.services import housekeeping
+
+            housekeeping.unregister_asset_source(plugin_id)   # 插件停用 → 撤销资产声明
+        except Exception:                 # noqa: BLE001
+            logger.exception("插件 [%s] 撤销资产登记失败", plugin_id)
         i18n = self.kernel.services.get("i18n")
         if i18n is not None:
             i18n.unregister_namespace(plugin_id)

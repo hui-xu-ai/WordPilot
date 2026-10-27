@@ -25,13 +25,13 @@ TRASH_KEEP_DAYS = 7
 #: 可重建的缓存库（删了会自动重建，代价是重扫/重算）
 CACHE_DB_NAMES = {"doc_scan.db", "proof_cache.db", "word_caption_cache.db"}
 
-#: 资产白名单：这些名字**永远**不删（防止误伤用户数据）
+#: 核心自己的资产（插件资产由插件用 `register_asset_source` 声明，见 `PluginBase.assets`）
 PROTECTED_NAMES = {
-    "references.csv",       # 子库文献本体
-    "notes.csv",            # 总库备注
-    "doc_bindings.json", "libraries.json",
-    "Image.docx", "user.qss",
+    "user.qss",
 }
+
+#: 插件资产来源登记表：key（一般用 plugin_id）→ 返回资产路径的可调用对象
+_ASSET_SOURCES: dict[str, object] = {}
 
 
 @dataclass
@@ -59,6 +59,81 @@ class Group:
         return len(self.files)
 
 
+def register_asset_source(key: str, source) -> None:
+    """登记一份**用户资产**清单（由插件声明，清理时永不删除）。
+
+    key 用插件 id，卸载/禁用插件时 `unregister_asset_source(key)` 撤销。
+    `source` 是不带参数的函数，每次盘点时实时调用 —— 所以插件可以返回"当前所有库的
+    references.csv"这类随状态变化的路径。
+    """
+    if not key or not callable(source):
+        return
+    _ASSET_SOURCES[key] = source
+    logger.debug("登记资产来源：%s", key)
+
+
+def unregister_asset_source(key: str) -> None:
+    _ASSET_SOURCES.pop(key, None)
+
+
+def asset_sources() -> list[str]:
+    """当前已登记的资产来源（供界面/诊断查看）。"""
+    return sorted(_ASSET_SOURCES)
+
+
+def declared_assets(root: Path | None = None) -> set[Path]:
+    """把各插件声明的资产展开成绝对路径集合（文件或目录）。"""
+    root = Path(root) if root is not None else config_dir()
+    assets: set[Path] = set()
+    for key, source in list(_ASSET_SOURCES.items()):
+        try:
+            items = source() or ()
+        except Exception as exc:                     # noqa: BLE001 - 插件给的东西出错不能影响清理
+            logger.warning("读取资产清单失败（%s）：%s", key, exc)
+            continue
+        for item in items:
+            if not item:
+                continue
+            path = Path(item)
+            if not path.is_absolute():
+                path = root / path
+            assets.add(path)
+    return assets
+
+
+def _is_protected(path: Path, root: Path) -> bool:
+    if path.name in PROTECTED_NAMES:
+        return True
+    # 插件声明的资产：文件本身或**目录下的所有内容**
+    for asset in declared_assets(root):
+        if path == asset or asset in path.parents:
+            return True
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return True
+    # 保险线：references/ 下（非 _trash）的 csv/json 一律当资产 —— 即使某个插件忘了声明，
+    # 也不会把用户的文献库/总库备注删掉（参考助手也会自己声明，见 ReferencePlugin.assets）。
+    if relative.parts and relative.parts[0] == "references":
+        if path.suffix in {".csv", ".json"} and "_trash" not in relative.parts:
+            return True
+    return False
+
+    @property
+    def size(self) -> int:
+        total = 0
+        for path in self.files:
+            try:
+                total += path.stat().st_size
+            except OSError:
+                continue
+        return total
+
+    @property
+    def count(self) -> int:
+        return len(self.files)
+
+
 def config_dir() -> Path:
     from core.services.config_manager import CONFIG_DIR
 
@@ -69,20 +144,6 @@ def _iter_files(root: Path):
     for dirpath, _dirnames, filenames in os.walk(root):
         for name in filenames:
             yield Path(dirpath) / name
-
-
-def _is_protected(path: Path, root: Path) -> bool:
-    if path.name in PROTECTED_NAMES:
-        return True
-    # 子库本体与总库备注所在目录里的 csv/json 一律视为资产
-    try:
-        relative = path.relative_to(root)
-    except ValueError:
-        return True
-    if relative.parts and relative.parts[0] == "references":
-        if path.suffix in {".csv", ".json"} and "_trash" not in relative.parts:
-            return True
-    return False
 
 
 def inventory(root: Path | None = None, keep_days: int = TRASH_KEEP_DAYS) -> list[Group]:

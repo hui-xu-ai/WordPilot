@@ -25,6 +25,10 @@ CONFIG_FILE = CONFIG_DIR / "Image.docx"
 
 
 class ImageToolboxPlugin(PluginBase):
+    def assets(self):
+        """图片工具箱的用户资产：可以无损保存图片的 `Image.docx` 工作文档。"""
+        return [CONFIG_FILE]
+
     def activate(self, ctx: "PluginContext") -> None:
         super().activate(ctx)
         self._widget: ImageReshaperWidget | None = None
