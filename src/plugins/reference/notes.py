@@ -188,12 +188,17 @@ class NoteService:
             self._store.upsert(reference)
 
     def publish_to_master(self, ref_key: str, label: str = "") -> "Note | None":
-        """用户点击"保存到总库"：把当前子库备注发布成一条总库备注（带文献信息快照）。"""
+        """把当前子库备注发布到总库：**按身份码（ref_key）唯一定位**，同内容就地更新而不新增。"""
         text = self.child_note(ref_key).strip()
         if not text:
             return None
-        note = self._master.add(ref_key, text, label=label or "来自子库",
-                                meta=self._reference_meta(ref_key))
+        meta = self._reference_meta(ref_key)
+        existing = self._master.find_by_text(ref_key, text)
+        if existing is not None:
+            # 身份码 + 内容都相同 → 就是同一条：只刷新文献信息快照（子库改过标题/年份就同步过来）
+            note = self._master.update(existing.note_id, meta=meta) or existing
+        else:
+            note = self._master.add(ref_key, text, label=label or "来自子库", meta=meta)
         reference = self._store.get(ref_key)
         if reference is not None:
             reference.inherit_note_id = note.note_id
@@ -246,6 +251,11 @@ class NoteService:
                 continue
             active = [note for note in self.master_notes(reference.ref_key) if not note.archived]
             if any((note.text or "").strip() == text for note in active):
+                # 同内容已在总库：按身份码定位到那条，只刷新文献信息快照，不再新增一条
+                existing = self._master.find_by_text(reference.ref_key, text)
+                if existing is not None:
+                    self._master.update(existing.note_id,
+                                        meta=self._reference_meta(reference.ref_key))
                 duplicate += 1
                 continue
             note = self._master.add(reference.ref_key, text, label=label,
@@ -354,7 +364,7 @@ class NoteStore:
         return note
 
     def update(self, note_id: str, text: str | None = None, label: str | None = None,
-               pinned: bool | None = None) -> Note | None:
+               pinned: bool | None = None, meta: dict[str, str] | None = None) -> Note | None:
         note = self._notes.get(note_id)
         if note is None:
             return None
@@ -364,9 +374,21 @@ class NoteStore:
             note.label = label.strip()
         if pinned is not None:
             note.pinned = pinned
+        for key in ("title", "authors", "year", "container", "doi", "cite_label"):
+            value = (meta or {}).get(key)
+            if value:
+                setattr(note, key, str(value))
         note.updated = _now()
         self._flush()
         return note
+
+    def find_by_text(self, ref_key: str, text: str) -> Note | None:
+        """同一篇文献里内容完全相同的那条（`ref_key` 即"身份码"，用来唯一定位、不重复新增）。"""
+        target = (text or "").strip()
+        for note in self.notes_for(ref_key):
+            if (note.text or "").strip() == target:
+                return note
+        return None
 
     def archive(self, note_id: str) -> None:
         note = self._notes.get(note_id)
