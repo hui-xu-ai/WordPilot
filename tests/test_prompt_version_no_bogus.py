@@ -60,7 +60,7 @@ def test_commit_with_default_text_does_not_create_version(app):
     assert bar.commit() is True
 
     names = [item["name"] for item in prompt_store.versions("proof_prompt")]
-    assert "我的版本 1" not in names, names
+    assert "mine-1" not in names, names
     assert config.data["proof_prompt"] == "", "默认文案不该被固化进 config"
 
 
@@ -74,7 +74,7 @@ def test_commit_with_edited_text_creates_version(app):
     bar.commit()
 
     names = [item["name"] for item in prompt_store.versions("proof_prompt")]
-    assert "我的版本 1" in names
+    assert "mine-1" in names
     assert config.data["proof_prompt"] == "我改过的 {text}"
 
 
@@ -97,19 +97,19 @@ def test_language_refresh_then_autosave_creates_no_version(app):
     bar.commit()          # 自动保存拿到的是刚刷新的默认文案
 
     names = [item["name"] for item in prompt_store.versions("proof_prompt")]
-    assert "我的版本 1" not in names, names
+    assert "mine-1" not in names, names
 
 
 def test_redundant_versions_are_cleaned(app):
     from core.services import prompt_store
 
-    prompt_store.save_version("proof_prompt", "我的版本 1", "系统默认 {text}", activate=True)
-    prompt_store.save_version("proof_prompt", "我的版本 2", "真的改过 {text}")
+    prompt_store.save_version("proof_prompt", "mine-1", "系统默认 {text}", activate=True)
+    prompt_store.save_version("proof_prompt", "mine-2", "真的改过 {text}")
 
     removed = prompt_store.drop_redundant_versions("proof_prompt",
                                                   lambda key: "系统默认 {text}")
 
     names = [item["name"] for item in prompt_store.versions("proof_prompt")]
     assert removed == 1
-    assert "我的版本 1" not in names
-    assert "我的版本 2" in names, "真正改过的版本必须保留"
+    assert "mine-1" not in names
+    assert "mine-2" in names, "真正改过的版本必须保留"

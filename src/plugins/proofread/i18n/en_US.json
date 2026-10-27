@@ -86,5 +86,7 @@
   "settings.prompt.prooflang_auto": "Auto detect",
   "settings.prompt.prooflang_zh": "Chinese",
   "settings.prompt.prooflang_en": "English",
-  "settings.prompt.proof_placeholder_help": "Placeholders: {text} = the sentence to proofread (required); {lang} = proofreading language (dropdown below, auto = detect). Delete {lang} and write your own wording if you want a fixed language."
+  "settings.prompt.proof_placeholder_help": "Placeholders: {text} = the sentence to proofread (required); {lang} = proofreading language (dropdown below, auto = detect). Delete {lang} and write your own wording if you want a fixed language.",
+  "prompt.version.mine": "My version {index}",
+  "prompt.version.auto": "Auto backup {stamp}"
 }

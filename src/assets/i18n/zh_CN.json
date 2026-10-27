@@ -221,5 +221,7 @@
   "skin.mint_dragon": "薄荷龙",
   "skin.mochi_bunny": "麻薯兔",
   "skin.page_spirit": "书页精灵",
-  "skin.sky_whale": "晴空鲸"
+  "skin.sky_whale": "晴空鲸",
+  "prompt.version.mine": "我的版本 {index}",
+  "prompt.version.auto": "自动备份 {stamp}"
 }

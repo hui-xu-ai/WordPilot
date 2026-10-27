@@ -86,5 +86,7 @@
   "settings.prompt.prooflang_auto": "自动识别",
   "settings.prompt.prooflang_zh": "中文",
   "settings.prompt.prooflang_en": "English",
-  "settings.prompt.proof_placeholder_help": "占位符：{text} = 待校对的原句（必须保留）；{lang} = 校对语言（下方下拉，auto 按文本自动识别）。不需要自动语言就把 {lang} 删掉，直接写「你是中文校对专家」之类。"
+  "settings.prompt.proof_placeholder_help": "占位符：{text} = 待校对的原句（必须保留）；{lang} = 校对语言（下方下拉，auto 按文本自动识别）。不需要自动语言就把 {lang} 删掉，直接写「你是中文校对专家」之类。",
+  "prompt.version.mine": "我的版本 {index}",
+  "prompt.version.auto": "自动备份 {stamp}"
 }

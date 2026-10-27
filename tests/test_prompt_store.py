@@ -39,7 +39,7 @@ def test_backup_keeps_old_text_and_caps_count():
         prompt_store.backup_active("rewrite_prompt", f"旧内容 {index}")
 
     autos = [item for item in prompt_store.versions("rewrite_prompt")
-             if item["name"].startswith("自动-")]
+             if item["name"].startswith(("auto-", "自动-"))]
     assert 0 < len(autos) <= prompt_store.AUTO_KEEP
 
 

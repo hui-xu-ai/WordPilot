@@ -107,9 +107,7 @@ class PromptVersionBar(QWidget):
         try:
             self.combo.clear()
             for item in items:
-                label = item["name"]
-                if item["name"] == prompt_store.DEFAULT_VERSION:
-                    label = self._tr("prompt.version.default")
+                label = self._display_version_name(item["name"])
                 if item["active"]:
                     label += self._tr("prompt.version.active")
                 self.combo.addItem(label, item["name"])
@@ -139,6 +137,24 @@ class PromptVersionBar(QWidget):
         if text == key or re.fullmatch(r"(\w+\.)?prompt\.[\w.]+", text or ""):
             return ""
         return text
+
+    def _display_version_name(self, name: str) -> str:
+        """版本名 → 当前语言的可读文案。
+
+        存储只放语言无关 id（`mine-1` / `auto-20261027-172806`），
+        历史数据里的中文名（我的版本 1 / 自动-…）也在这里映射，切语言后一样会变。
+        """
+        if not name:
+            return ""
+        if name == prompt_store.DEFAULT_VERSION:
+            return self._tr("prompt.version.default")
+        match = re.match(r"^(?:mine|我的版本)\s*[- ]?\s*(\d+)$", name)
+        if match:
+            return self._tr("prompt.version.mine", index=match.group(1))
+        match = re.match(r"^(?:auto|自动)-(.+)$", name)
+        if match:
+            return self._tr("prompt.version.auto", stamp=match.group(1))
+        return name
 
     def _default_key(self) -> str:
         return prompt_store.default_keys(self._key)
@@ -182,7 +198,7 @@ class PromptVersionBar(QWidget):
             mine = [item for item in prompt_store.versions(self._key)
                     if item["name"] != prompt_store.DEFAULT_VERSION
                     and not item["name"].startswith("自动-")]
-            name = f"我的版本 {len(mine) + 1}"
+            name = f"mine-{len(mine) + 1}"      # 语言无关 id，显示时翻译
             prompt_store.save_version(self._key, name, content, note="用户保存", activate=True)
         else:
             old = prompt_store.read(self._key, active)

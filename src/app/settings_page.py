@@ -532,6 +532,9 @@ class SettingsPage(QWidget):
         self.about_paths_title.setText(self.tr("settings.about.paths"))
         if hasattr(self, "monitor_panel"):
             self.monitor_panel.retranslate()      # 表格表头/按钮也要跟着换语言
+        # 清单文案是"组名 + 数量"拼出来的，切语言必须重算，否则仍是旧语言
+        if hasattr(self, "storage_value"):
+            self._refresh_storage()
         self.storage_title.setText(self.tr("settings.storage.title"))
         self.storage_hint.setText(self.tr("settings.storage.hint"))
         self.storage_logs_btn.setText(self.tr("settings.storage.logs"))

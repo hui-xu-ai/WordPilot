@@ -229,13 +229,14 @@ def delete_version(key: str, name: str, root: Path | None = None) -> bool:
 
 def backup_active(key: str, text: str, root: Path | None = None,
                   keep: int = AUTO_KEEP) -> str:
-    """把即将被覆盖的当前文本留一份自动备份（`自动-yyyymmdd-hhmmss`）。"""
+    """把即将被覆盖的当前文本留一份自动备份（`auto-yyyymmdd-hhmmss`，语言无关 id）。"""
     if not (text or "").strip():
         return ""
-    name = time.strftime("自动-%Y%m%d-%H%M%S")
+    name = time.strftime("auto-%Y%m%d-%H%M%S")
     saved = save_version(key, name, text, note="自动备份", root=root)
     data = _read_index(_key_dir(key, root))
-    autos = [item for item in data["versions"] if item["name"].startswith("自动-")]
+    autos = [item for item in data["versions"]
+             if item["name"].startswith(("auto-", "自动-"))]
     for item in autos[:-keep] if len(autos) > keep else []:
         try:
             (_key_dir(key, root) / item.get("file", "")).unlink(missing_ok=True)
@@ -372,6 +373,29 @@ def default_text_variants(key: str, prompt_tr=None) -> set[str]:
     except Exception:                          # noqa: BLE001
         pass
     return variants
+
+
+def drop_frozen_defaults(config, prompt_tr=None, root: Path | None = None) -> int:
+    """把 config 里"等于某个语言默认文案"的提示词清空，让它重新跟随系统默认。
+
+    为什么需要：早先「保存」会把当时的默认文案写进 config；用户后来切换语言，
+    框里就一直显示旧语言（如英文界面里出现中文默认提示词），且以后软件升级默认词也不生效。
+    """
+    cleared = 0
+    for key in PROMPT_KEYS:
+        value = _normalised(config.get(key) or "")
+        if not value:
+            continue
+        if value in default_text_variants(key, prompt_tr):
+            config.set(key, "")
+            cleared += 1
+            logger.info("%s 里存的是系统默认提示词的旧语言副本，已清空", key)
+    if cleared:
+        try:
+            config.save()
+        except Exception as exc:               # noqa: BLE001
+            logger.warning("写回配置失败：%s", exc)
+    return cleared
 
 
 def drop_redundant_versions(key: str, prompt_tr=None, root: Path | None = None) -> int:

@@ -55,9 +55,9 @@ def test_commit_saves_config_and_creates_version(app):
     assert bar.commit() is True
 
     names = [item["name"] for item in prompt_store.versions("rewrite_prompt")]
-    assert "我的版本 1" in names, f"当前是默认版本时应新建一个自定义版本，实际 {names}"
-    assert prompt_store.active_name("rewrite_prompt") == "我的版本 1"
-    assert prompt_store.read("rewrite_prompt", "我的版本 1") == "我的改写提示：{text}"
+    assert "mine-1" in names, f"当前是默认版本时应新建一个自定义版本，实际 {names}"
+    assert prompt_store.active_name("rewrite_prompt") == "mine-1"
+    assert prompt_store.read("rewrite_prompt", "mine-1") == "我的改写提示：{text}"
     assert config.data["rewrite_prompt"] == "我的改写提示：{text}"
     assert config.saved >= 1
 
@@ -74,9 +74,9 @@ def test_second_commit_updates_same_version_with_backup(app):
     bar.commit()
 
     names = [item["name"] for item in prompt_store.versions("rewrite_prompt")]
-    assert "我的版本 1" in names and "我的版本 2" not in names, "同一版本就地更新"
-    assert prompt_store.read("rewrite_prompt", "我的版本 1") == "第二版：{text}"
-    assert any(name.startswith("自动-") for name in names), "覆盖前应留自动备份"
+    assert "mine-1" in names and "mine-2" not in names, "同一版本就地更新"
+    assert prompt_store.read("rewrite_prompt", "mine-1") == "第二版：{text}"
+    assert any(name.startswith("auto-") for name in names), "覆盖前应留自动备份"
 
 
 def test_empty_prompt_is_not_committed(app):

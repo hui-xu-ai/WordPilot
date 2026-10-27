@@ -65,6 +65,7 @@ class Kernel:
 
             prompt_store.migrate_legacy()              # 旧 config/prompts → plugins/<插件>/prompts
             prompt_store.repair_bogus_versions()       # 清掉内容为原始 key 的坏版本
+            prompt_store.drop_frozen_defaults(config, self.services.get("i18n").prompt_tr)
             prompt_store.migrate_stale_defaults(config)  # config 里的旧版内置默认 → 用新默认
             prompt_store.seed_from_config(config)      # 已有自定义提示词 → 登记为「默认」版本
         except Exception:                  # noqa: BLE001 - 登记失败不阻断启动
