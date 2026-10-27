@@ -27,16 +27,18 @@
   "settings.saved": "Saved",
   "settings.save_failed": "Save failed",
   "settings.prompt.correct": "Correction prompt (whole text, {text} = source)",
-  "settings.prompt.correct_hint": "Separate from the desk-pet sentence proofreading: this one handles whole blocks of text. Leave empty to fall back to the proofreading prompt.",
+  "settings.prompt.correct_hint": "Fully independent from the proofreading plugin's sentence-level pass: this one handles whole paragraphs, with its own prompt and its own versions.",
   "running": "Working…",
-  "prompt.version.save": "Save as version…",
-  "prompt.version.delete": "Delete current version",
+  "prompt.version.save": "Save (update version)",
+  "prompt.version.delete": "Delete this version",
   "prompt.version.reset": "Reset to default",
   "prompt.version.title": "Prompt versions",
   "prompt.version.name": "Version name:",
   "prompt.version.empty": "The prompt is empty - write something first",
   "prompt.version.delete_confirm": "Delete version \"{name}\"?",
   "prompt.version.last": "Keep at least one version",
-  "prompt.version.default": "Default (built-in)",
-  "prompt.version.active": " (current)"
+  "prompt.version.default": "Default",
+  "prompt.version.active": " (current)",
+  "prompt.version.protected": "The built-in Default version cannot be deleted",
+  "prompt.version.saved": "Prompt saved and active"
 }

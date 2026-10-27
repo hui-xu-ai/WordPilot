@@ -165,6 +165,6 @@
   "prompt.version.empty": "提示词还是空的，先写一点内容",
   "prompt.version.delete_confirm": "删除版本「{name}」？",
   "prompt.version.last": "至少要保留一个版本",
-  "prompt.version.default": "默认（系统自带）",
+  "prompt.version.default": "默认",
   "prompt.version.active": " · 当前"
 }

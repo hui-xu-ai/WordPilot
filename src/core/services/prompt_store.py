@@ -209,6 +209,8 @@ def delete_version(key: str, name: str, root: Path | None = None) -> bool:
     """删除一个版本（至少保留一个；删的是当前版本时自动切到最新的那个）。"""
     directory = _key_dir(key, root)
     data = _read_index(directory)
+    if name == DEFAULT_VERSION:
+        return False                          # 系统自带的「默认」不允许删除（防误删）
     target = next((item for item in data["versions"] if item.get("name") == name), None)
     if target is None or len(data["versions"]) <= 1:
         return False

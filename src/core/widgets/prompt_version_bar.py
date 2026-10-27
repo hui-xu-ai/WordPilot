@@ -131,28 +131,46 @@ class PromptVersionBar(QWidget):
         self._config.set(self._key, text)
         self._save_config()
 
+    def commit(self, text: str | None = None) -> bool:
+        """用户在页面点「保存」时调用：让提示词**生效**，并把内容更新进当前版本。
+
+        设计（用户 2026-10-27 澄清）：不需要"另存为版本 + 起名"这一套 —— 保存即生效；
+        当前是系统自带的「默认」时自动新建一个「我的版本 N」，避免覆盖系统原文；
+        当前已是自定义版本则就地更新它（覆盖前留一份自动备份）。
+        """
+        content = (text if text is not None else self._read_text() or "").strip()
+        if not content:
+            return False
+        self._config.set(self._key, content)
+        self._save_config()
+        active = prompt_store.active_name(self._key)
+        if not active or active == prompt_store.DEFAULT_VERSION:
+            # 自定义版本从 1 开始编号（默认版与自动备份不占号）
+            mine = [item for item in prompt_store.versions(self._key)
+                    if item["name"] != prompt_store.DEFAULT_VERSION
+                    and not item["name"].startswith("自动-")]
+            name = f"我的版本 {len(mine) + 1}"
+            prompt_store.save_version(self._key, name, content, note="用户保存", activate=True)
+        else:
+            old = prompt_store.read(self._key, active)
+            if old.strip() and old.strip() != content:
+                prompt_store.backup_active(self._key, old)
+            prompt_store.save_version(self._key, active, content)
+        self.refresh()
+        return True
+
     def _on_save(self) -> None:
-        text = self._read_text()
-        if not text.strip():
+        if not self.commit():
             QMessageBox.information(self, self._tr("prompt.version.title"),
                                     self._tr("prompt.version.empty"))
-            return
-        default_name = f"我的版本 {len(prompt_store.versions(self._key)) + 1}"
-        name, ok = QInputDialog.getText(self, self._tr("prompt.version.title"),
-                                        self._tr("prompt.version.name"), text=default_name)
-        if not ok or not name.strip():
-            return
-        old = prompt_store.read(self._key, prompt_store.active_name(self._key))
-        if old.strip() and old.strip() != text.strip():
-            prompt_store.backup_active(self._key, old)      # 覆盖前先留一份自动备份
-        prompt_store.save_version(self._key, name.strip(), text, activate=True)
-        self._config.set(self._key, text)
-        self._save_config()
-        self.refresh(select=name.strip())
 
     def _on_delete(self) -> None:
         name = self.combo.currentData()
         if not name:
+            return
+        if name == prompt_store.DEFAULT_VERSION:
+            QMessageBox.information(self, self._tr("prompt.version.title"),
+                                    self._tr("prompt.version.protected"))
             return
         answer = QMessageBox.question(
             self, self._tr("prompt.version.title"),

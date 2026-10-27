@@ -284,6 +284,8 @@ class ClipboardPlugin(PluginBase):
             "correct_prompt": self.correct_prompt_edit.toPlainText(),
         }
         if config.update(payload):
+            for bar in getattr(self, "_prompt_bars", []):
+                bar.commit()                 # 保存即生效，并更新当前提示词版本
             self.ctx.events.emit("settings.saved", None)
             self.ctx.ui.status(self.tr("settings.saved"), 2000)
         else:

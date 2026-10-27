@@ -210,6 +210,7 @@ class DashboardPage(QWidget):
             "suggestion_font_size": self.font_size_spin.value(),
             "proof_prompt": self.proof_prompt_edit.toPlainText(),
         }
+        self.proof_prompt_bar.commit()       # 保存即生效，并更新当前提示词版本
         if self._config.update(payload):
             # 透明度/字号立即生效（不必等下一句建议）
             pet = getattr(self._plugin, "floating_btn", None)

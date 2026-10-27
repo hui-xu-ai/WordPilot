@@ -69,14 +69,16 @@
   "pet.menu.pause_proofread": "Pause proofreading",
   "pet.menu.resume_proofread": "Resume proofreading",
   "status.manual_only": "Inside a table or field: marks cleared, please edit manually",
-  "prompt.version.save": "Save as version…",
-  "prompt.version.delete": "Delete current version",
+  "prompt.version.save": "Save (update version)",
+  "prompt.version.delete": "Delete this version",
   "prompt.version.reset": "Reset to default",
   "prompt.version.title": "Prompt versions",
   "prompt.version.name": "Version name:",
   "prompt.version.empty": "The prompt is empty - write something first",
   "prompt.version.delete_confirm": "Delete version \"{name}\"?",
   "prompt.version.last": "Keep at least one version",
-  "prompt.version.default": "Default (built-in)",
-  "prompt.version.active": " (current)"
+  "prompt.version.default": "Default",
+  "prompt.version.active": " (current)",
+  "prompt.version.protected": "The built-in Default version cannot be deleted",
+  "prompt.version.saved": "Prompt saved and active"
 }
