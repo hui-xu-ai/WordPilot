@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel,
                                QPushButton, QTextEdit, QVBoxLayout, QWidget, QGridLayout)
 
 from core.sdk.plugin_base import PluginBase
+from core.widgets.prompt_version_bar import PromptVersionBar
 
 if TYPE_CHECKING:
     from core.sdk.context import PluginContext
@@ -112,6 +113,8 @@ class ClipboardWidget(QWidget):
         return self._ctx.tr(key, **params)
 
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        for bar in getattr(self, "_prompt_bars", []):
+            bar.retranslate()
         self.input_label.setText(self.tr("input_label"))
         self.clip_preview.setPlaceholderText(self.tr("placeholder"))
         self.result_label.setText(self.tr("result_label"))
@@ -239,9 +242,16 @@ class ClipboardPlugin(PluginBase):
             edit.setMinimumHeight(96)
             edit.setPlainText(str(config.get(config_key, "") or ""))
             card_lay.addWidget(edit)
+            bar = PromptVersionBar(config_key, config, self.tr,
+                                  read_text=edit.toPlainText,
+                                   apply_text=edit.setPlainText, parent=card)
+            bar.retranslate()
+            card_lay.addWidget(bar)
+            self._prompt_bars.append(bar)
             lay.addWidget(card)
             return edit
 
+        self._prompt_bars: list = []
         self.translate_prompt_edit = _card("settings.prompt.translate",
                                            "settings.prompt.translate_hint",
                                            "translate_prompt")

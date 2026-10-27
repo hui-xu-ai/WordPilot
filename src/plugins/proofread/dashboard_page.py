@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (QComboBox, QCheckBox, QFormLayout, QHBoxLayout, Q
                                QVBoxLayout, QWidget)
 from core.services.api_logger import clear_api_log
 from core.widgets import MonitorPanel, Switch
+from core.widgets.prompt_version_bar import PromptVersionBar
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,12 @@ class DashboardPage(QWidget):
         self.proof_prompt_edit.setMinimumHeight(88)
         self.proof_prompt_edit.setPlainText(str(self._config.get("proof_prompt", "") or ""))
         lay.addWidget(self.proof_prompt_edit)
+        self.proof_prompt_bar = PromptVersionBar(
+            "proof_prompt", self._config, self.tr,
+            read_text=self.proof_prompt_edit.toPlainText,
+            apply_text=self.proof_prompt_edit.setPlainText, parent=self)
+        self.proof_prompt_bar.retranslate()
+        lay.addWidget(self.proof_prompt_bar)
 
         self.save_prompt_btn = QPushButton()
         self.save_prompt_btn.clicked.connect(self.save_plugin_settings)
@@ -341,6 +348,9 @@ class DashboardPage(QWidget):
         # API 监控在主区（常驻）
         self.monitor_card_title.setText(self._app_tr("app.nav.monitor"))
         self.monitor_widget.retranslateUi()
+        bar = getattr(self, "proof_prompt_bar", None)
+        if bar is not None:
+            bar.retranslate()
         # 以下控件在次要面板里，面板未构造时跳过
         if getattr(self, "pet_settings_title", None) is not None:
             self.pet_settings_title.setText(self.tr("settings.pet_group"))

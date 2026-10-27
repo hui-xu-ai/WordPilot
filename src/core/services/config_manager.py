@@ -100,7 +100,10 @@ class ConfigManager:
         # 外观（P2 起由 theme_service 消费；P3 起 ui_language 由 i18n 服务消费）
         config.setdefault("theme", "light")
         config.setdefault("ui_language", "zh_CN")       # 界面语言（与提示词语言解耦）
-        config.setdefault("prompt_language", "zh_CN")   # 送 AI 的提示词语言，独立控制
+        config.setdefault("prompt_language", "zh_CN")   # 提示词本身用哪种语言写，独立控制
+        # 校对/纠错的**文本语言**（与提示词语言解耦）：auto = 按待校文本自动判断
+        config.setdefault("proof_language", "auto")
+        config.setdefault("rewrite_strength", "中")
         config.setdefault("font_family", "Microsoft YaHei")
         config.setdefault("font_size", 12)
         config.setdefault("exclude_patterns", ["参考文献", "致谢", "注释"])

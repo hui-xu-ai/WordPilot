@@ -60,6 +60,12 @@ class Kernel:
         if self._booted:
             return self
         config = ConfigManager()
+        try:
+            from core.services import prompt_store
+
+            prompt_store.seed_from_config(config)      # 已有自定义提示词 → 登记为「当前」版本
+        except Exception:                  # noqa: BLE001 - 登记失败不阻断启动
+            pass
         self.services.register("config", config)
         self.services.register("i18n", I18nService(config))
         self.services.register("theme", ThemeService(config))

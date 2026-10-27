@@ -266,6 +266,16 @@ class SettingsPage(QWidget):
             self.prompt_language_combo.addItem(name, code)
         lang_row.addWidget(self.label_prompt_language)
         lang_row.addWidget(self.prompt_language_combo, 1)
+
+        # 校对语言与提示词语言解耦：可以自动识别，也可以指定（注入提示词的 {lang}）
+        self.label_proof_language = QLabel()
+        self.proof_language_edit = QComboBox()
+        self.proof_language_edit.setEditable(True)
+        self.proof_language_edit.addItems(["auto", "中文", "English"])
+        prooflang_row = QHBoxLayout()
+        prooflang_row.addWidget(self.label_proof_language)
+        prooflang_row.addWidget(self.proof_language_edit, 1)
+        layout.addLayout(prooflang_row)
         form_host.addLayout(lang_row)
         layout.addWidget(card)
         layout.addStretch(1)
@@ -522,6 +532,8 @@ class SettingsPage(QWidget):
         self.storage_cache_btn.setText(self.tr("settings.storage.cache"))
         self.storage_trash_btn.setText(self.tr("settings.storage.trash"))
         self.label_prompt_language.setText(self.tr("settings.prompt.language"))
+        self.label_proof_language.setText(self.tr("settings.prompt.prooflang"))
+        self.proof_language_edit.setToolTip(self.tr("settings.prompt.prooflang_tip"))
 
         self.theme_group_title.setText(self.tr("settings.appearance.theme_group"))
         self.label_theme.setText(self.tr("settings.appearance.theme"))
@@ -562,6 +574,8 @@ class SettingsPage(QWidget):
         self._select_data(self.ui_language_combo,
                           self.i18n.current if self.i18n is not None else "zh_CN")
         self._select_data(self.prompt_language_combo, self.config.get("prompt_language", "zh_CN"))
+        self.proof_language_edit.setCurrentText(
+            str(self.config.get("proof_language", "auto") or "auto"))
         self._select_data(self.skin_combo,
                           self.skins.current_id if self.skins is not None else DEFAULT_SKIN_ID)
 
@@ -584,6 +598,7 @@ class SettingsPage(QWidget):
             # 动态窗口样式（配色改由主题令牌统一控制）
             # 提示词语言（与界面语言解耦，由调用方决定是否重建客户端）
             "prompt_language": self.prompt_language_combo.currentData(),
+            "proof_language": self.proof_language_edit.currentText().strip() or "auto",
             # 界面语言：保存后由主窗口拉起全局重翻译
             "ui_language": self.ui_language_combo.currentData(),
         }

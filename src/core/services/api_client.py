@@ -109,6 +109,26 @@ class DeepSeekClient:
 
         threading.Thread(target=_warm, name="api-warmup", daemon=True).start()
 
+    # ---------------- 语言 ----------------
+    @staticmethod
+    def detect_language(text: str) -> str:
+        """粗判文本语言：中日韩字符占比高 → 中文，否则英文。
+
+        只用于给提示词的 `{lang}` 占位符填值，不需要很准 —— 用户也可以在设置里直接指定。
+        """
+        sample = (text or "")[:2000]
+        if not sample.strip():
+            return "中文"
+        cjk = sum(1 for ch in sample if "\u4e00" <= ch <= "\u9fff")
+        return "中文" if cjk / max(1, len(sample)) >= 0.15 else "English"
+
+    def target_language(self, text: str) -> str:
+        """校对/纠错的文本语言：设置项 `proof_language` 为 auto 时按文本识别。"""
+        configured = (self.config.get("proof_language") or "auto").strip()
+        if configured and configured.lower() != "auto":
+            return configured
+        return self.detect_language(text)
+
     # 新增辅助方法：判断文本是否包含占位符(如[IMG0]、[EQ1])
     def _has_placeholders(self, text: str) -> bool:
         return bool(re.search(r'\[(IMG|EQ)\d+\]', text))
@@ -157,9 +177,8 @@ class DeepSeekClient:
             return cached.strip()
 
         template = (self.config.get(prompt_key) or "").strip()
-        if not template and prompt_key != "proof_prompt":
-            # 场景提示词留空时退回通用校对提示词，避免发空提示
-            template = (self.config.get("proof_prompt") or "").strip()
+        # **各场景各自独立**：以前 `correct_prompt` 为空会退回 `proof_prompt`，导致
+        # 翻译改写页的"纠错"和智能纠错插件共用一个提示词（用户明确要求解耦）。
         if not template:
             # 默认提示词走「提示词语言」，与界面语言互不影响；
             # 整段纠错有自己的默认文案（强调保持段落结构、不改写）
@@ -168,7 +187,9 @@ class DeepSeekClient:
             template = self.prompt_tr(default_key)
         if "{text}" not in template:
             template += "\n{text}"
-        prompt = template.replace("{text}", text)
+        prompt = (template.replace("{lang}", self.target_language(text))
+                  .replace("{language}", self.target_language(text))
+                  .replace("{text}", text))
 
         # 根据是否含有占位符，动态设置 system 消息，减少无占位符时的 token 消耗
         if self._has_placeholders(text):
@@ -206,13 +227,15 @@ class DeepSeekClient:
         log_api_call("translate", text, result or "", tokens, bool(result), latency_ms=self.last_latency_ms)
         return None if result is None else result.strip()
 
-    def rewrite(self, text: str, style: str = "更流畅") -> str | None:
+    def rewrite(self, text: str, style: str = "中", strength: str | None = None) -> str | None:
         if not text.strip():
             return None
         template = self._prompt_template("rewrite_prompt", "prompt.rewrite.default")
         if template is None:
             return None
-        prompt = template.replace("{text}", text).replace("{style}", style)
+        level = strength or style or "中"
+        prompt = (template.replace("{strength}", level).replace("{style}", level)
+                  .replace("{text}", text))
         messages = [
             {"role": "system", "content": self.prompt_tr("prompt.rewrite.system")},
             {"role": "user", "content": prompt}
