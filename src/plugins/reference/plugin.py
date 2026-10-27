@@ -142,6 +142,7 @@ class ReferencePlugin(PluginBase):
         self._overlay: ReferenceOverlay | None = None
         self._watch: WordWatch | None = None
         self._dismissed: set[str] = set()
+        self._dismissed_signature: tuple[str, ...] = ()
         self._scan_cache: ScanCache | None = None
         self._last_point: tuple[int, int] = (200, 200)
         self._last_pet_rect: tuple[int, int, int, int] | None = None
@@ -235,13 +236,20 @@ class ReferencePlugin(PluginBase):
             return f"title:{title}"
         return f"key:{self._store.resolve_key(anchor_key) or anchor_key}"
 
+    def _is_dismissed(self, anchor_key: str) -> bool:
+        """这个锚点是否被用户点过 ✕。
+
+        只有**同一组引用**才压制：点 ✕ 压制的是当次那几张卡，换成另一个引用就该正常弹。
+        以前是永久压制 `_dismissed`，光标不离开就再也不弹（用户现场：关一次之后连换引用都没反应）。
+        """
+        return (anchor_key in self._dismissed
+                or self._identity_of(anchor_key) in self._dismissed)
+
     def _entry_for_item(self, item: dict) -> OverlayEntry | None:
         """把一个选区命中项解析成悬浮窗条目（域元数据 → 库 → anchors.csv 绑定）。"""
         store = self._store
         anchor_key = item.get("anchor_key") or ""
-        if not anchor_key or anchor_key in self._dismissed:
-            return None
-        if self._identity_of(anchor_key) in self._dismissed:
+        if not anchor_key or self._is_dismissed(anchor_key):
             return None
         doc_name = item.get("doc_name") or ""
         label = item.get("label") or _label_from_key(anchor_key)
@@ -301,6 +309,10 @@ class ReferencePlugin(PluginBase):
 
         items = payload.get("items") or []
         self._last_items = items
+        # 换了一组引用 → 解除"上次点 ✕ 的压制"，否则同一篇里换引用也不弹（用户现场）
+        signature_now = tuple(str(item.get("anchor_key") or "") for item in items)
+        if signature_now != getattr(self, "_dismissed_signature", ()):
+            self._dismissed = set()
         point = payload.get("point") or (200, 200)
         self._last_point = (int(point[0]), int(point[1]))
         pet_anchor = self._pet_anchor_point()
@@ -471,6 +483,8 @@ class ReferencePlugin(PluginBase):
 
     def _on_overlay_dismissed(self, anchor_key: str) -> None:
         # 关一次就关掉整个弹窗：压制当前显示的**所有**条目（[7-8] 不该只剩 [8]）
+        self._dismissed_signature = tuple(
+            str(item.get("anchor_key") or "") for item in self._last_items)
         for item in self._last_items:
             key = item.get("anchor_key") or ""
             if not key:
