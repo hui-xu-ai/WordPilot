@@ -184,6 +184,9 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         self.save_btn.setText(self.tr("action.save"))
         self.delete_btn.setText(self.tr("action.delete"))
         self.read_note_title.setText(self.tr("field.note"))
+        from plugins.reference.page_panel import retranslate_panel
+
+        retranslate_panel(self)
         self.table.setHorizontalHeaderLabels([self.tr(f"col.{name}") for name in _TABLE_COLUMNS])
         self._refresh_panel_title()
 

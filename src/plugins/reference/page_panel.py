@@ -19,6 +19,33 @@ READ_FIELDS = ("cite_label", "title", "authors", "year", "container", "doi", "ty
 FIELD_LABEL_KEYS = {"cite_label": "field.label"}
 
 
+def retranslate_panel(host) -> None:
+    """切换界面语言后重译右栏：字段行标签、备注标题、只读/编辑占位符。"""
+    for key, label in getattr(host, "read_row_labels", {}).items():
+        label.setText(host.tr(FIELD_LABEL_KEYS.get(key, f"field.{key}")))
+    for key, label in getattr(host, "edit_row_labels", {}).items():
+        label.setText(host.tr(key))
+    for widget, key in ((getattr(host, "label_edit", None), "field.label"),
+                        (getattr(host, "title_edit", None), "field.title"),
+                        (getattr(host, "authors_edit", None), "field.authors"),
+                        (getattr(host, "year_edit", None), "field.year"),
+                        (getattr(host, "container_edit", None), "field.container"),
+                        (getattr(host, "doi_edit", None), "field.doi"),
+                        (getattr(host, "type_edit", None), "field.type"),
+                        (getattr(host, "tags_edit", None), "field.tags"),
+                        (getattr(host, "note_edit", None), "field.note")):
+        if widget is not None:
+            widget.setPlaceholderText(host.tr(key))
+    if hasattr(host, "read_note_title"):
+        host.read_note_title.setText(host.tr("field.note"))
+    if hasattr(host, "starred_check"):
+        host.starred_check.setText(host.tr("field.starred"))
+    for name, key in (("bind_btn", "action.bind_orphan"), ("edit_btn", "action.edit")):
+        button = getattr(host, name, None)
+        if button is not None:
+            button.setText(host.tr(key))
+
+
 def build_panel(host) -> QWidget:
     """构建右栏并把它需要的控件挂到 `host` 上（页面类保持薄）。"""
     panel = QWidget()
@@ -43,12 +70,16 @@ def build_panel(host) -> QWidget:
     form_read = QFormLayout()
     form_read.setSpacing(8)
     host.read_labels: dict[str, QLabel] = {}
+    #: 字段 → 左侧标签控件；切换界面语言时要重新 setText（否则一直是建面板时的语言）
+    host.read_row_labels: dict[str, QLabel] = {}
     for key in READ_FIELDS:
         value = QLabel("")
         value.setWordWrap(True)
         value.setTextInteractionFlags(Qt.TextSelectableByMouse)
         host.read_labels[key] = value
-        form_read.addRow(QLabel(host.tr(FIELD_LABEL_KEYS.get(key, f"field.{key}"))), value)
+        label = QLabel(host.tr(FIELD_LABEL_KEYS.get(key, f"field.{key}")))
+        host.read_row_labels[key] = label
+        form_read.addRow(label, value)
     read_layout.addLayout(form_read)
 
     notes_row = QHBoxLayout()
@@ -104,12 +135,15 @@ def build_panel(host) -> QWidget:
     host.doi_edit = QLineEdit()
     host.type_edit = QLineEdit()
     host.tags_edit = QLineEdit()
+    host.edit_row_labels: dict[str, QLabel] = {}
     for widget, key in ((host.label_edit, "field.label"), (host.title_edit, "field.title"),
                         (host.authors_edit, "field.authors"), (host.year_edit, "field.year"),
                         (host.container_edit, "field.container"), (host.doi_edit, "field.doi"),
                         (host.type_edit, "field.type"), (host.tags_edit, "field.tags")):
         widget.setPlaceholderText(host.tr(key))
-        form.addRow(host.tr(key), widget)
+        label = QLabel(host.tr(key))
+        host.edit_row_labels[key] = label
+        form.addRow(label, widget)
     host.starred_check = QCheckBox(host.tr("field.starred"))
     form.addRow("", host.starred_check)
     edit_layout.addLayout(form)
