@@ -42,5 +42,5 @@
   "prompt.version.protected": "The built-in Default version cannot be deleted",
   "prompt.version.saved": "Prompt saved and active",
   "settings.prompt.translatelang": "Translate into",
-  "settings.prompt.translatelang_tip": "auto = Chinese→English, others→Chinese; or set e.g. English / Japanese"
+  "settings.prompt.translatelang_tip": "Only used when the prompt keeps {target_lang}; if the prompt hardcodes a language this is ignored"
 }

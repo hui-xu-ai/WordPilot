@@ -42,5 +42,5 @@
   "prompt.version.protected": "系统自带的「默认」版本不能删除",
   "prompt.version.saved": "提示词已保存并生效",
   "settings.prompt.translatelang": "翻译目标语言",
-  "settings.prompt.translatelang_tip": "auto = 中文译成英文、其他语言译成中文；也可填「英文」「日文」等"
+  "settings.prompt.translatelang_tip": "只在提示词里保留 {target_lang} 时生效（auto = 中文译成英文、其他译成中文）；提示词里写死语言则忽略此项"
 }
