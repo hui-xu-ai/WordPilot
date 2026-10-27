@@ -82,8 +82,12 @@ class SwitchDialog(QDialog):
         self.accept()
 
     def _on_new(self) -> None:
-        """第一次点展开命名框，第二次点确认新建（避免误触）。"""
-        if not self._name_shown:
+        """命名框还没出现时先展开；已经出现（含页面预填了建议名的情况）就直接确认新建。
+
+        以前判断用的是内部标志位，而 `handle_switch_plan()` 会先 `setVisible(True)` 预填建议名，
+        于是第一次点"新建"什么都不变（看起来"没反应"），第二次才真正创建（用户现场）。
+        """
+        if not self.name_edit.isVisibleTo(self):
             self._name_shown = True
             self.name_edit.setVisible(True)
             self.name_edit.setFocus()

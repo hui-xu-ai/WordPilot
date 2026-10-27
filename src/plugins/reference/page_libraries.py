@@ -210,9 +210,16 @@ class LibraryMixin:
         self._note_service = note_service
         if active_name:
             self._active_library = active_name
-            self.library_combo.blockSignals(True)
-            self.library_combo.setCurrentText(active_name)
-            self.library_combo.blockSignals(False)
+            # **必须重填下拉**：新建仓库走的正是这条路（确认框 → create_library →
+            # switch_library → rebind）。只 setCurrentText 时，新库不在条目里，
+            # 用户看到"文件夹有、界面列表里没有"（用户现场）。
+            rebuild = getattr(self, "rebuild_library_combo", None)
+            if callable(rebuild):
+                rebuild(active_name)
+            else:
+                self.library_combo.blockSignals(True)
+                self.library_combo.setCurrentText(active_name)
+                self.library_combo.blockSignals(False)
         self._selected_key = ""
         self.reload()
         hint = self.tr("status.library", name=active_name).replace("{name}", active_name)

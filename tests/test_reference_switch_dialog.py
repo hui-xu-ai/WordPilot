@@ -72,6 +72,21 @@ def test_new_requires_second_click_and_a_name(qapp):
     dialog.deleteLater()
 
 
+def test_prefilled_visible_name_creates_on_first_click(qapp):
+    """页面预填建议名并展开命名框后，**第一次**点"新建"就该创建（用户现场：第一次没反应）。"""
+    from plugins.reference.switch_dialog import SwitchDialog
+
+    dialog = SwitchDialog(_plan("new", score=0.0), tr=lambda _key, **kwargs: _key)
+    dialog.name_edit.setText("论文B")
+    dialog.name_edit.setVisible(True)          # handle_switch_plan() 会这么做
+
+    dialog._on_new()
+
+    assert dialog.choice == "new"
+    assert dialog.new_name == "论文B"
+    dialog.deleteLater()
+
+
 def test_duplicate_name_is_rejected(qapp):
     from plugins.reference.switch_dialog import SwitchDialog
 

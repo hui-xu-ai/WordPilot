@@ -86,6 +86,20 @@ def test_new_library_appears_in_combo(page, monkeypatch):
     assert widget.library_combo.currentText() == "丙", "应自动选中新建的库"
 
 
+def test_rebind_rebuilds_combo_for_new_library(page):
+    """新建仓库走的是 rebind 这条路（确认框 → create_library → switch_library → rebind），
+    下拉必须一起重填 —— 否则"文件夹里有、界面列表里没有"（用户现场）。"""
+    widget, plugin = page
+    plugin._libraries.create("丙")
+    plugin._active_name = "丙"
+
+    widget.rebind(widget._store, widget._index, widget._note_service, "丙")
+
+    items = [widget.library_combo.itemText(i) for i in range(widget.library_combo.count())]
+    assert "丙" in items, f"rebind 后下拉应包含新库，实际 {items}"
+    assert widget.library_combo.currentText() == "丙"
+
+
 def test_deleted_library_disappears_from_combo(page, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
     widget, plugin = page

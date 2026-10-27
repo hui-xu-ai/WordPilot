@@ -101,8 +101,41 @@ def active_window(text=..., word=None):
     return window
 
 
+def window_visible(window) -> bool:
+    """Word 窗口是否对用户可见。
+
+    图片工具箱会用 `Documents.Open(Visible=False)` 打开隐藏的 `Image.docx` 干活，
+    且不恢复用户原来的活动文档 —— 于是 `ActiveDocument` 变成那篇隐藏文档。参考助手
+    必须只认**可见**的窗口，否则会一直按隐藏文档判断（用户现场：文档识别错、点引用不弹）。
+    """
+    try:
+        return bool(getattr(window, "Visible", True))
+    except Exception:                      # noqa: BLE001
+        return True
+
+
+def visible_windows(word) -> list:
+    """Word 里所有**可见**的文档窗口（隐藏的工具箱工作文档会被剔除）。"""
+    try:
+        windows = [window for window in word.Windows if window_visible(window)]
+    except Exception:                      # noqa: BLE001
+        return []
+    return windows
+
+
 def active_window_with_source(text=..., word=None):
-    """同 `active_window()`，额外返回匹配方式（前台窗口 / 鼠标位置 / ActiveWindow），便于日志定位。"""
+    """**用户当前在操作的那个 Word 窗口**（不是 Word 自认为的 ActiveDocument）。
+
+    为什么需要：同一个 Word 进程里开着两篇文档时，`Application.ActiveDocument` /
+    `Application.Selection` 会停留在旧窗口（用户现场：切到另一篇后程序仍按旧文档判断，
+    仓库不跟着切、点了也不弹）。
+
+    匹配顺序（都用**根祖先**比较，Word 的 Window.Hwnd 是 MDI 子窗口）：
+    1. 前台窗口 —— 用户刚点过文档，通常就是它；
+    2. 鼠标所在窗口 —— 前台被任务栏/别的程序抢走时的兜底；
+    3. 都匹配不上时用 ActiveWindow，但它必须可见；不可见就取第一个可见窗口。
+    隐藏窗口（图片工具箱的 `Image.docx`）一律不参与。
+    """
     if word is None:
         word = text if text is not ... else None
     if word is None:
@@ -110,27 +143,30 @@ def active_window_with_source(text=..., word=None):
             word = get_word_app()
         except Exception:                  # noqa: BLE001
             return None, "无 Word"
+    windows = visible_windows(word)
     candidates = [hwnd for hwnd in (foreground_hwnd(), cursor_hwnd()) if hwnd]
     roots = {root_hwnd(hwnd) for hwnd in candidates}
-    if roots:
-        try:
-            for window in word.Windows:
-                try:
-                    hwnd = int(getattr(window, "Hwnd", 0) or 0)
-                except Exception:          # noqa: BLE001
-                    continue
-                if not hwnd:
-                    continue
-                if hwnd == candidates[0] or root_hwnd(hwnd) == root_hwnd(candidates[0]):
-                    return window, "前台窗口"
-                if hwnd in candidates or root_hwnd(hwnd) in roots:
-                    return window, "鼠标位置"
-        except Exception:                  # noqa: BLE001 - 枚举失败就退回
-            pass
+    if roots and windows:
+        for window in windows:
+            try:
+                hwnd = int(getattr(window, "Hwnd", 0) or 0)
+            except Exception:              # noqa: BLE001
+                continue
+            if not hwnd:
+                continue
+            if hwnd == candidates[0] or root_hwnd(hwnd) == root_hwnd(candidates[0]):
+                return window, "前台窗口"
+            if hwnd in candidates or root_hwnd(hwnd) in roots:
+                return window, "鼠标位置"
     try:
-        return word.ActiveWindow, "ActiveWindow（句柄没对上）"
+        active = word.ActiveWindow
     except Exception:                      # noqa: BLE001
-        return None, "无活动窗口"
+        active = None
+    if active is not None and window_visible(active):
+        return active, "ActiveWindow"
+    if windows:
+        return windows[-1], "可见窗口兜底"
+    return None, "无可见窗口"
 
 
 def active_window_document(word=None):
