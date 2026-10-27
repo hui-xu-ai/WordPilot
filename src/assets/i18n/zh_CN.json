@@ -164,5 +164,8 @@
   "prompt.version.last": "至少要保留一个版本",
   "prompt.version.default": "默认",
   "prompt.version.active": " · 当前",
-  "prompt.correct.system": "只输出纠错后的完整全文，不解释、不提问、不加前言或结语。输入中的 [IMG0]、[EQ1] 等占位符必须原样保留。"
+  "prompt.correct.system": "只输出纠错后的完整全文，不解释、不提问、不加前言或结语。输入中的 [IMG0]、[EQ1] 等占位符必须原样保留。",
+  "prompt.rewrite.mode.light": "轻度：只替换用词与标点，句序与段落顺序完全不动",
+  "prompt.rewrite.mode.medium": "中度：可拆分或合并句子、调整句内语序，段落顺序不动",
+  "prompt.rewrite.mode.strong": "深度：可重构段落内部的句子顺序与叙述视角，技术内容与结论不变"
 }

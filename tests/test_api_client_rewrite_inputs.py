@@ -66,7 +66,7 @@ def test_rewrite_reads_strength_from_config():
 
     client.rewrite(f"这是一段中文。{uuid.uuid4().hex}")
 
-    assert "按强强度改写" in sent[-1], sent[-1]
+    assert "深度" in sent[-1], f"强度应展开成具体指令：{sent[-1]}"
 
 
 def test_rewrite_explicit_strength_wins():
@@ -74,7 +74,7 @@ def test_rewrite_explicit_strength_wins():
 
     client.rewrite(f"这是一段中文。{uuid.uuid4().hex}", strength="轻")
 
-    assert "按轻强度改写" in sent[-1]
+    assert "轻度" in sent[-1]
 
 
 def test_correct_language_is_independent_of_proof_language():
@@ -94,8 +94,8 @@ def test_clipboard_page_has_strength_and_correction_language_controls():
 
     assert "rewrite_strength_edit" in text
     assert "correct_language_edit" in text
-    assert '"rewrite_strength": _language_value(self.rewrite_strength_edit)' in text
-    assert '"correct_language": _language_value(self.correct_language_edit)' in text
+    assert '"rewrite_strength": self.rewrite_strength_edit.current_value()' in text
+    assert '"correct_language": self.correct_language_edit.current_value()' in text
 
 
 @pytest.mark.parametrize("locale", ["zh_CN", "en_US"])

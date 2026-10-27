@@ -56,5 +56,8 @@
   "settings.prompt.strength_tip": "改写提示词里的 {strength}：轻 = 只调词句标点；中 = 可重排句序；强 = 可重构段内顺序",
   "settings.prompt.strength_light": "轻",
   "settings.prompt.strength_medium": "中",
-  "settings.prompt.strength_strong": "强"
+  "settings.prompt.strength_strong": "强",
+  "choice.custom": "自定义…",
+  "choice.title": "自定义",
+  "choice.prompt": "请输入要使用的值："
 }

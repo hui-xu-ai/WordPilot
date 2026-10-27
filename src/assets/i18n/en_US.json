@@ -164,5 +164,8 @@
   "prompt.version.last": "Keep at least one version",
   "prompt.version.default": "Default",
   "prompt.version.active": " (current)",
-  "prompt.correct.system": "Output only the corrected full text. No explanation, no preamble, no closing remarks. Keep placeholders such as [IMG0] or [EQ1] exactly as they are."
+  "prompt.correct.system": "Output only the corrected full text. No explanation, no preamble, no closing remarks. Keep placeholders such as [IMG0] or [EQ1] exactly as they are.",
+  "prompt.rewrite.mode.light": "light: swap words and punctuation only; keep sentence and paragraph order untouched",
+  "prompt.rewrite.mode.medium": "medium: may split or merge sentences and reorder words inside a sentence; paragraph order stays",
+  "prompt.rewrite.mode.strong": "strong: may restructure sentence order and narrative viewpoint inside a paragraph, without changing content or conclusions"
 }

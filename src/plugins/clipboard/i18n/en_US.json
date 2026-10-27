@@ -56,5 +56,8 @@
   "settings.prompt.strength_tip": "{strength} of the rewrite prompt: light = wording only; medium = may reorder; strong = may restructure a paragraph",
   "settings.prompt.strength_light": "Light",
   "settings.prompt.strength_medium": "Medium",
-  "settings.prompt.strength_strong": "Strong"
+  "settings.prompt.strength_strong": "Strong",
+  "choice.custom": "Custom…",
+  "choice.title": "Custom",
+  "choice.prompt": "Enter a value:"
 }

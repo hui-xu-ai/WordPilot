@@ -20,6 +20,9 @@ from core.services.proof_cache import get_default_cache
 
 logger = logging.getLogger(__name__)
 
+#: 改写强度短标签 → i18n key（真实指令写在语言包里，随提示词语言切换）
+_MODE_KEYS = {"轻": "light", "中": "medium", "强": "strong"}
+
 LOG_FILE = Path(__file__).parent / "api_calls.log"
 
 _SESSION_LOCK = threading.Lock()
@@ -248,6 +251,22 @@ class DeepSeekClient:
         log_api_call("translate", text, result or "", tokens, bool(result), latency_ms=self.last_latency_ms)
         return None if result is None else result.strip()
 
+    def _rewrite_mode(self, value: str) -> str:
+        """把「轻/中/强」这类短标签展开成**具体改写指令**（模型不需要猜强度是什么）。
+
+        自定义值原样使用 —— 用户想自己写一段要求，也直接可用。
+        """
+        key = (value or "").strip()
+        mapping = {
+            "轻": "轻度：只替换用词与标点，句序与段落顺序完全不动",
+            "中": "中度：可拆分或合并句子、调整句内语序，段落顺序不动",
+            "强": "深度：可重构段落内部的句子顺序与叙述视角，技术内容与结论不变",
+        }
+        if key in mapping:
+            translated = self.prompt_tr(f"prompt.rewrite.mode.{_MODE_KEYS[key]}")
+            return translated if translated and not translated.startswith("prompt.") else mapping[key]
+        return key
+
     def rewrite(self, text: str, style: str | None = None,
                 strength: str | None = None) -> str | None:
         if not text.strip():
@@ -255,7 +274,8 @@ class DeepSeekClient:
         template = self._prompt_template("rewrite_prompt", "prompt.rewrite.default")
         if template is None:
             return None
-        level = (strength or style or self.config.get("rewrite_strength") or "中").strip()
+        level = self._rewrite_mode(strength or style
+                                   or self.config.get("rewrite_strength") or "中")
         prompt = (template.replace("{strength}", level).replace("{style}", level)
                   .replace("{text}", text))
         messages = [

@@ -85,5 +85,8 @@
   "settings.prompt.prooflang_tip": "Only used when the prompt keeps {lang}; if the prompt hardcodes a language this is ignored",
   "settings.prompt.prooflang_auto": "Auto detect",
   "settings.prompt.prooflang_zh": "Chinese",
-  "settings.prompt.prooflang_en": "English"
+  "settings.prompt.prooflang_en": "English",
+  "choice.custom": "Custom…",
+  "choice.title": "Custom",
+  "choice.prompt": "Enter a value:"
 }

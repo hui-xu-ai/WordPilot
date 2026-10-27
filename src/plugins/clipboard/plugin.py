@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QLabel,
                                QPushButton, QTextEdit, QVBoxLayout, QWidget, QGridLayout)
 
 from core.sdk.plugin_base import PluginBase
+from core.widgets.choice_combo import ChoiceCombo
 
 
 def _display_language(combo, value: str) -> str:
@@ -286,18 +287,14 @@ class ClipboardPlugin(PluginBase):
         self.translate_language_title = QLabel(self.tr("settings.prompt.translatelang"))
         self.translate_language_title.setObjectName("cardTitle")
         lang_lay.addWidget(self.translate_language_title)
-        self.translate_language_edit = QComboBox()
-        self.translate_language_edit.setEditable(True)
-        for display_key, value in (("settings.prompt.translatelang_auto", "auto"),
-                                   ("settings.prompt.translatelang_zh", "中文"),
-                                   ("settings.prompt.translatelang_en", "英文"),
-                                   ("settings.prompt.translatelang_ja", "日文"),
-                                   ("日文", "日文"), ("韩文", "韩文"),
-                                   ("法文", "法文"), ("德文", "德文")):
-            self.translate_language_edit.addItem(self.tr(display_key), value)
-        self.translate_language_edit.setCurrentText(str(
-            _display_language(self.translate_language_edit,
-                              str(config.get("translate_language", "auto") or "auto"))))
+        self.translate_language_edit = self._language_combo(
+            config, "translate_language",
+            (("settings.prompt.translatelang_auto", "auto"),
+             ("settings.prompt.translatelang_zh", "中文"),
+             ("settings.prompt.translatelang_en", "英文"),
+             ("settings.prompt.translatelang_ja", "日文"),
+             ("韩文", "韩文"), ("法文", "法文"), ("德文", "德文")),
+            "settings.prompt.translatelang", "settings.prompt.translatelang_tip")
         self.translate_language_edit.setToolTip(self.tr("settings.prompt.translatelang_tip"))
         lang_lay.addWidget(self.translate_language_edit)
         lay.addWidget(lang_card)
@@ -355,16 +352,13 @@ class ClipboardPlugin(PluginBase):
         return card
 
     def _language_combo(self, config, config_key: str, options, title_key: str,
-                        tip_key: str) -> QComboBox:
-        """按 `(文案 key, 配置值)` 生成下拉，并把当前配置值显示成可读文案。"""
-        combo = QComboBox()
-        combo.setEditable(True)
-        for display_key, value in options:
-            combo.addItem(self.tr(display_key), value)
-        combo.setCurrentText(_display_language(
-            combo, str(config.get(config_key, "auto") or "auto")
-            if config_key != "rewrite_strength"
-            else str(config.get(config_key, "中") or "中")))
+                        tip_key: str) -> ChoiceCombo:
+        """按 `(文案 key, 配置值)` 生成**真下拉**（预设项 + 「自定义…」）。"""
+        combo = ChoiceCombo(custom_label=self.tr("choice.custom"))
+        combo.retranslate(self.tr, self.tr("choice.custom"))
+        combo.set_choices([(self.tr(display_key), value) for display_key, value in options])
+        default = "中" if config_key == "rewrite_strength" else "auto"
+        combo.set_value(str(config.get(config_key, default) or default))
         combo.setToolTip(self.tr(tip_key))
         return combo
 
@@ -375,9 +369,9 @@ class ClipboardPlugin(PluginBase):
             "translate_prompt": self.translate_prompt_edit.toPlainText(),
             "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
             "correct_prompt": self.correct_prompt_edit.toPlainText(),
-            "translate_language": _language_value(self.translate_language_edit),
-            "correct_language": _language_value(self.correct_language_edit),
-            "rewrite_strength": _language_value(self.rewrite_strength_edit),
+            "translate_language": self.translate_language_edit.current_value(),
+            "correct_language": self.correct_language_edit.current_value(),
+            "rewrite_strength": self.rewrite_strength_edit.current_value(),
         }
         if config.update(payload):
             for bar in getattr(self, "_prompt_bars", []):

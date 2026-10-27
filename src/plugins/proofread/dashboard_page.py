@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (QComboBox, QCheckBox, QFormLayout, QHBoxLayout, Q
                                QVBoxLayout, QWidget)
 from core.services.api_logger import clear_api_log
 from core.widgets import MonitorPanel, Switch
+from core.widgets.choice_combo import ChoiceCombo
 from core.widgets.prompt_version_bar import PromptVersionBar
 
 
@@ -204,15 +205,15 @@ class DashboardPage(QWidget):
         lang_row = QHBoxLayout()
         self.proof_language_label = QLabel()
         self.proof_language_label.setText(self.tr("settings.prompt.prooflang"))
-        self.proof_language_edit = QComboBox()
-        self.proof_language_edit.setEditable(True)
-        for display_key, value in (("settings.prompt.prooflang_auto", "auto"),
-                                   ("settings.prompt.prooflang_zh", "中文"),
-                                   ("settings.prompt.prooflang_en", "English")):
-            self.proof_language_edit.addItem(self.tr(display_key), value)
-        self.proof_language_edit.setCurrentText(_display_for(
-            self.proof_language_edit,
-            str(self._config.get("proof_language", "auto") or "auto")))
+        self.proof_language_edit = ChoiceCombo(custom_label=self.tr("choice.custom"))
+        self.proof_language_edit.retranslate(self.tr, self.tr("choice.custom"))
+        self.proof_language_edit.set_choices([
+            (self.tr("settings.prompt.prooflang_auto"), "auto"),
+            (self.tr("settings.prompt.prooflang_zh"), "中文"),
+            (self.tr("settings.prompt.prooflang_en"), "English"),
+        ])
+        self.proof_language_edit.set_value(
+            str(self._config.get("proof_language", "auto") or "auto"))
         self.proof_language_edit.setToolTip(self.tr("settings.prompt.prooflang_tip"))
         lang_row.addWidget(self.proof_language_label)
         lang_row.addWidget(self.proof_language_edit, 1)
@@ -249,7 +250,7 @@ class DashboardPage(QWidget):
             "suggestion_opacity": max(20, min(100, self.opacity_slider.value())) / 100.0,
             "suggestion_font_size": self.font_size_spin.value(),
             "proof_prompt": self.proof_prompt_edit.toPlainText(),
-            "proof_language": _value_for(self.proof_language_edit),
+            "proof_language": self.proof_language_edit.current_value(),
         }
         self.proof_prompt_bar.commit()       # 保存即生效，并更新当前提示词版本
         if self._config.update(payload):
