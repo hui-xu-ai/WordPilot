@@ -211,7 +211,8 @@ class ReferencePlugin(PluginBase):
                                     on_create_library=self.create_library,
                  on_delete_library=self.delete_library,
                  on_publish_note=self.publish_note_to_master,
-                 on_publish_all_notes=self.publish_all_notes_to_master)
+                 on_publish_all_notes=self.publish_all_notes_to_master,
+                 on_dedupe=self.dedupe_references)
         self._push_current_document()
         return self._page
 
@@ -671,6 +672,44 @@ class ReferencePlugin(PluginBase):
             stats["plan"] = plan
         elif plan.action == KEEP and plan.library:
             self._libraries.bind_document(doc_path, plan.library)
+
+    def dedupe_references(self) -> tuple[int, int]:
+        """把"无编号、但与某条有编号条目是同一篇"的重复文献并进那条（默认不动其它行）。
+
+        来由：旧版「同步本文」把文末列表和域元数据都入库，同一篇出现两次
+        （`bib:<hash>` 有编号 / `doi:...`、`zotero:...` 无编号）。这里**合并而不是硬删**：
+        把重复条的 ref_key 收进保留条的别名，旧锚点/旧键仍能解析，然后才删掉重复行。
+
+        返回 (合并条数, 保留条数)。
+        """
+        if self._store is None:
+            return 0, 0
+        from plugins.reference.docx_scan import work_identities
+
+        references = list(self._store.all())
+        labeled = [ref for ref in references if (ref.cite_label or "").strip()]
+        by_identity: dict[str, Reference] = {}
+        for ref in labeled:
+            for identity in work_identities(ref):
+                by_identity.setdefault(identity, ref)
+
+        merged = 0
+        for ref in references:
+            if (ref.cite_label or "").strip():
+                continue
+            targets = {id(by_identity[key]): by_identity[key]
+                       for key in work_identities(ref) if key in by_identity}
+            if len(targets) != 1:
+                continue                       # 无重复，或对不上唯一的保留条 → 不动
+            target = next(iter(targets.values()))
+            aliases = list(dict.fromkeys([*target.aliases, ref.ref_key, *ref.aliases]))
+            target.aliases = [alias for alias in aliases if alias != target.ref_key]
+            self._store.upsert(target)
+            self._store.delete(ref.ref_key)
+            merged += 1
+        if merged:
+            logger.info("清理重复文献：合并 %d 条，保留有编号的 %d 条", merged, len(labeled))
+        return merged, len(labeled)
 
     def publish_note_to_master(self, ref_key: str):
         """把单篇文献的子库备注发布到总库（用户手动触发；不做自动同步）。"""

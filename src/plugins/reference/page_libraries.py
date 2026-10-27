@@ -133,6 +133,20 @@ class LibraryMixin:
                                    duplicate=duplicate, empty=empty))
         self.reload()
 
+    def confirm_dedupe(self) -> None:
+        """清理"无编号且与有编号条目重复"的历史条目（合并到有编号那条，保留别名）。"""
+        handler = getattr(self, "_on_dedupe", None)
+        if handler is None:
+            return
+        from PySide6.QtWidgets import QMessageBox
+
+        answer = QMessageBox.question(self, self.tr("dedupe.title"), self.tr("dedupe.confirm"))
+        if answer != QMessageBox.Yes:
+            return
+        merged, kept = handler()
+        self.append_status(self.tr("dedupe.done", merged=merged, kept=kept))
+        self.reload()
+
     def confirm_delete_library(self) -> None:
         """删除当前仓库：二次确认后移到 _trash（可回滚）。"""
         from PySide6.QtWidgets import QMessageBox

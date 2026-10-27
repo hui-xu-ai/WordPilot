@@ -168,5 +168,9 @@
   "master.need_selection": "先在表格里选一条文献",
   "master.publish_all_title": "更新到总库",
   "master.publish_all_confirm": "把「{name}」里**所有非空备注**一次性更新到总库？\n总库中已有相同内容的不会重复添加。",
-  "master.publish_all_done": "已更新到总库：新增 {published} 条，已在总库 {duplicate} 条，无备注 {empty} 条"
+  "master.publish_all_done": "已更新到总库：新增 {published} 条，已在总库 {duplicate} 条，无备注 {empty} 条",
+  "dedupe.menu": "清理重复条目…",
+  "dedupe.title": "清理重复条目",
+  "dedupe.confirm": "把「没有编号、但与某条有编号文献是同一篇」的重复条目合并进有编号那条？\n重复条的键会保留为别名（旧锚点仍可解析），其余条目不动。",
+  "dedupe.done": "已合并重复条目 {merged} 条（保留有编号条目 {kept} 条）"
 }

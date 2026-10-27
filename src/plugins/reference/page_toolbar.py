@@ -82,6 +82,7 @@ class ToolbarMixin:
             # 手动同步到总库（不做自动同步）：单条 / 整库，由用户决定何时推
             self.publish_note_action = self.menu.addAction("", self.publish_note_to_master)
             self.publish_all_action = self.menu.addAction("", self.confirm_publish_all_master)
+            self.dedupe_action = self.menu.addAction("", self.confirm_dedupe)
             self.menu.addSeparator()
             self.clear_master_action = self.menu.addAction("", self.confirm_clear_master)
             self.more_btn.setMenu(self.menu)

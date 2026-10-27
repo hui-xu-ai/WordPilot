@@ -111,6 +111,9 @@ def work_identities(ref: Reference) -> list[str]:
     """
     out: list[str] = []
     doi = (getattr(ref, "doi", "") or "").strip().lower()
+    key = (getattr(ref, "ref_key", "") or "").strip().lower()
+    if not doi and key.startswith("doi:"):
+        doi = key[4:]                      # 旧条目常把 DOI 写在键里（`doi:10.xxxx/...`）
     if doi:
         out.append(f"doi:{doi}")
     title = _TITLE_NOISE.sub("", (getattr(ref, "title", "") or "").lower())
