@@ -5,6 +5,8 @@ import shutil
 import tempfile
 import time
 import zipfile
+from core.services.i18n import message
+
 
 import numpy as np
 import piexif
@@ -66,7 +68,7 @@ class WordImageProcessor:
         try:
             self.word_app = attach_word_app()
         except WordNotRunningError:
-            raise RuntimeError("未检测到 Word 应用程序，请先打开 Word")
+            raise RuntimeError(message("word.error.not_running"))
 
     def _open_workspace(self):
         user32 = self.user32  # 在 __init__ 中定义的 ctypes.windll.user32
@@ -163,7 +165,7 @@ class WordImageProcessor:
                     'height': shape.Height
                 }
             else:
-                raise RuntimeError("未选中图片，请点击 Word 中的图片")
+                raise RuntimeError(message("image.error.no_selection"))
             return shape, is_inline, info
         except Exception as e:
             raise RuntimeError(f"获取选中图片失败: {e}")
@@ -237,7 +239,7 @@ class WordImageProcessor:
         with zipfile.ZipFile(self.temp_docx_path, 'r') as z:
             media_files = [n for n in z.namelist() if n.startswith("word/media/")]
             if not media_files:
-                raise ValueError("Image.docx 中未找到图片")
+                raise ValueError(message("image.error.no_image"))
             target = media_files[-1]
             ext = os.path.splitext(target)[1]
             original_path = os.path.join(extract_dir, f"original{ext}")
@@ -312,7 +314,7 @@ class WordImageProcessor:
 
         left, top, right, bottom = self._detect_content_bounds(img, bg_color)
         if right < left:
-            raise ValueError("图片内容全为空白")
+            raise ValueError(message("image.error.blank"))
 
         content_w = right - left + 1
         content_h = bottom - top + 1

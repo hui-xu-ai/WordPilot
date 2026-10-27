@@ -235,18 +235,14 @@ class SettingsPage(QWidget):
         key_layout.setContentsMargins(0, 0, 0, 0)
         key_layout.addWidget(self.api_key_edit, 1)
         key_layout.addWidget(self.api_key_toggle)
-        # 接口地址：默认 DeepSeek，但任何 OpenAI 兼容端点都可填（换服务商不用改代码）
-        self.endpoint_edit = QLineEdit()
-        self.label_endpoint = QLabel()
-        endpoint_row = QHBoxLayout()
-        endpoint_row.addWidget(self.label_endpoint)
-        endpoint_row.addWidget(self.endpoint_edit, 1)
-        form_host.addLayout(endpoint_row)
-
         self.model_edit = QLineEdit()
         self.label_api_key = QLabel()
         self.label_model = QLabel()
         form.addRow(self.label_api_key, key_row)
+        # 接口地址（OpenAI 兼容端点）：与其它行同一 form，边框自然对齐
+        self.endpoint_edit = QLineEdit()
+        self.label_endpoint = QLabel()
+        form.addRow(self.label_endpoint, self.endpoint_edit)
         form.addRow(self.label_model, self.model_edit)
 
         self.temp_edit = QDoubleSpinBox()
@@ -570,7 +566,7 @@ class SettingsPage(QWidget):
 
     def load_settings(self):
         self.api_key_edit.setText(self.config.get_api_key())
-        self.model_edit.setText(self.config.get("model", "deepseek-v4-flash"))
+        self.model_edit.setText(self.config.get("model", "deepseek-flash"))
         self.endpoint_edit.setText(
             str(self.config.get("api_endpoint", "https://api.deepseek.com") or ""))
         self.temp_edit.setValue(self.config.get("temperature", 0.4))

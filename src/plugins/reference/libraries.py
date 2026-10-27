@@ -14,6 +14,8 @@
 """
 from __future__ import annotations
 
+from core.services.i18n import message
+
 import json
 import logging
 import shutil
@@ -152,7 +154,7 @@ class LibraryRegistry:
     def create(self, name: str) -> Path:
         name = (name or "").strip()
         if not name:
-            raise ValueError("仓库名不能为空")
+            raise ValueError(message("library.error.empty_name"))
         # S7：库名会成为目录名，必须挡掉能跳出库根的输入
         if name in (".", "..") or any(sep in name for sep in ("/", "\\")) or ".." in name:
             raise ValueError(f"仓库名不合法：{name}")
@@ -178,7 +180,7 @@ class LibraryRegistry:
         if name not in libraries:
             raise KeyError(name)
         if len(libraries) <= 1:
-            raise ValueError("至少保留一个仓库")
+            raise ValueError(message("library.error.keep_one"))
 
         directory = self._library_dir(name, libraries[name])
         trash = self.libraries_dir / "_trash"

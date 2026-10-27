@@ -34,7 +34,7 @@ CONFIG_DIR = BASE_DIR / "config"
 CONFIG_FILE = CONFIG_DIR / "MWindow_config.json"
 KEY_FILE = CONFIG_DIR / ".key"
 DEFAULT_ENDPOINT = "https://api.deepseek.com"
-DEFAULT_MODEL = "deepseek-v4-flash"
+DEFAULT_MODEL = "deepseek-flash"
 
 DEFAULT_CONFIG = {
     "api_key": "",
@@ -77,6 +77,10 @@ class ConfigManager:
         # 补全其他必要默认项
         config.setdefault("api_endpoint", DEFAULT_ENDPOINT)
         config.setdefault("model", DEFAULT_MODEL)
+        # 官方已把 deepseek-v4-flash 下线（旧名仍可调用但由新模型提供服务）→ 自动迁移
+        if str(config.get("model", "")).strip() in {"deepseek-v4-flash",
+                                                   "deepseek-v4-flash-vision-exp"}:
+            config["model"] = DEFAULT_MODEL
 
 # --修改16
         config.setdefault("temperature", 0.4)

@@ -1,4 +1,3 @@
-# word_bridge.py
 """Word COM 统一入口（内核级基础服务）。
 
 所有对 Word 对象模型的访问必须经过本模块，以便：
@@ -8,6 +7,9 @@
 
 注意：COM 对象不可跨线程持有。在使用 Word 对象的线程内调用 com_initialized()。
 """
+
+from core.services.i18n import message
+
 import pythoncom
 import win32com.client
 
@@ -24,7 +26,7 @@ def get_word_app():
     try:
         return win32com.client.GetActiveObject("Word.Application")
     except Exception as e:
-        raise WordNotRunningError("未检测到正在运行的 Word，请先打开 Word 文档") from e
+        raise WordNotRunningError(message("word.error.not_running_doc")) from e
 
 
 def attach_word_app():
@@ -32,7 +34,7 @@ def attach_word_app():
     try:
         return win32com.client.GetObject(Class="Word.Application")
     except Exception as e:
-        raise WordNotRunningError("未检测到 Word 应用程序，请先打开 Word") from e
+        raise WordNotRunningError(message("word.error.not_running")) from e
 
 
 def get_active_document():

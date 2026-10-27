@@ -73,7 +73,12 @@ class Kernel:
         self.services.register("i18n", I18nService(config))
         self.services.register("theme", ThemeService(config))
         self.services.register("skins", SkinService(config))
-        self.services.register("ai_client", DeepSeekClient(config, i18n=self.services.get("i18n")))
+        i18n_service = self.services.get("i18n")
+        if i18n_service is not None:
+            from core.services.i18n import set_message_service
+
+            set_message_service(i18n_service)     # 让核心模块也能取到用户可见文案
+        self.services.register("ai_client", DeepSeekClient(config, i18n=i18n_service))
         self.services.register("ignore", IgnoreCacheManager())
         self.services.register("caption_cache", CaptionCache())
         self.services.register("proof_cache", get_default_cache())

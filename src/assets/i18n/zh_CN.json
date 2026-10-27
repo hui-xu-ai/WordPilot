@@ -48,7 +48,7 @@
   "settings.api.key": "API Key:",
   "settings.api.key_placeholder": "输入服务商 API Key",
   "settings.api.model": "模型:",
-  "settings.api.model_placeholder": "模型名，如 deepseek-v4-flash",
+  "settings.api.model_placeholder": "模型名，如 deepseek-flash",
   "settings.api.temperature": "温度:",
   "settings.api.max_tokens": "最大Token:",
   "settings.api.test": "🔗 测试连接",
@@ -190,9 +190,16 @@
   "api.monitor.col_rate": "命中率",
   "app.tray.plugins": "插件管理",
   "settings.api.endpoint": "接口地址",
-  "settings.api.endpoint_placeholder": "OpenAI 兼容端点，如 https://api.deepseek.com",
+  "settings.api.endpoint_placeholder": "https://api.deepseek.com（OpenAI 兼容端点）",
   "api.error.template": "提示词模板缺失或缺少 {text} 占位符（{key}）",
   "api.error.request": "请求失败：{reason}",
   "api.error.bad_response": "响应格式异常：{reason}",
-  "api.error.truncated": "响应被截断（达到 max_tokens），未采用"
+  "api.error.truncated": "响应被截断（达到 max_tokens），未采用",
+  "word.error.not_running": "未检测到 Word 应用程序，请先打开 Word",
+  "word.error.not_running_doc": "未检测到正在运行的 Word，请先打开 Word 文档",
+  "image.error.blank": "图片内容全为空白",
+  "image.error.no_image": "工作文档中未找到图片",
+  "image.error.no_selection": "未选中图片，请点击 Word 中的图片",
+  "library.error.empty_name": "仓库名不能为空",
+  "library.error.keep_one": "至少保留一个仓库"
 }

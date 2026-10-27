@@ -55,7 +55,7 @@ class DeepSeekClient:
             self.api_key = config.get_api_key()
         else:
             self.api_key = config.get("api_key", "")
-        self.model = config.get("model", "deepseek-v4-flash")
+        self.model = config.get("model", "deepseek-flash")
         self.base_url = self._resolve_base_url(config)
         self.last_messages = None
         self.last_usage = None
@@ -81,9 +81,12 @@ class DeepSeekClient:
             return default
         if not raw.lower().startswith(("http://", "https://")):
             return default                     # 非法 scheme 回退，避免把 key 发到奇怪地方
-        if raw.rstrip("/").endswith("/chat/completions"):
-            return raw
-        return raw.rstrip("/") + "/v1/chat/completions"
+        base = raw.rstrip("/")
+        if base.endswith("/chat/completions"):
+            return base                        # 用户填了完整路径
+        if base.endswith("/v1"):
+            return base + "/chat/completions"  # 用户填了 .../v1
+        return base + "/v1/chat/completions"   # 用户只填了主机根（官方推荐写法）
 
     def _cache_policy_tag(self, prompt_key: str) -> str:
         """B05：缓存键带上模型 + 该场景的**生效**提示词指纹，换策略后不复用旧结果。

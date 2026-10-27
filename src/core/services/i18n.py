@@ -172,3 +172,36 @@ class I18nService:
             logger.exception("语言包解析失败: %s", path)
             return {}
         return {k: v for k, v in data.items() if isinstance(v, str)}
+
+
+# ---------------- 模块级消息（异常/状态文本，可被界面直接显示） ----------------
+_message_service = None
+#: 服务未就绪时的中文兜底（保证异常信息不会变成裸 key）
+_FALLBACK = {}
+
+
+def set_message_service(service) -> None:
+    """由内核在启动时注入 i18n 服务，供无 Qt/无 ctx 的核心模块取文案。"""
+    global _message_service
+    _message_service = service
+
+
+def register_fallback(entries: dict[str, str]) -> None:
+    """登记中文兜底文案（一般直接用语言包内容，测试里可注入）。"""
+    _FALLBACK.update(entries)
+
+
+def message(key: str, **params) -> str:
+    """取一条用户可见文案：i18n 服务 → 兜底表 → key 本身。"""
+    templates = []
+    if _message_service is not None:
+        templates.append(_message_service.tr(key))
+    if key in _FALLBACK:
+        templates.append(_FALLBACK[key])
+    for template in templates:
+        if template and template != key:
+            try:
+                return template.format(**params)
+            except Exception:                  # noqa: BLE001 - 占位符不匹配就原样返回
+                return template
+    return key

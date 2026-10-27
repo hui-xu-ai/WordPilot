@@ -6,7 +6,7 @@
   "show_floating_button": true,
   "auto_show_suggestion": true,
   "api_endpoint": "https://api.deepseek.com",
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "temperature": 0.4,
   "max_tokens": 2000,
   "proof_prompt": "",
