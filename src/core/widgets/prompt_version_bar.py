@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QInputDialog, QMenu, QMessageBox,
                                QToolButton, QWidget)
@@ -23,13 +24,16 @@ class PromptVersionBar(QWidget):
     - `apply_text(text)` 把文本写进编辑框（切版本/恢复默认时用）。
     """
 
-    def __init__(self, key: str, config, tr, read_text, apply_text, parent=None) -> None:
+    def __init__(self, key: str, config, tr, read_text, apply_text, parent=None,
+                 prompt_tr=None) -> None:
         super().__init__(parent)
         self._key = key
         self._config = config
         self._tr = tr
         self._read_text = read_text
         self._apply_text = apply_text
+        # prompt_tr 是**应用级**提示词翻译（i18n.prompt_tr）；插件的 tr 带命名空间，查 prompt.* 只会拿到 key
+        self._prompt_tr = prompt_tr
 
         # 紧凑布局：版本下拉 + 一个「⋯」菜单（三个大按钮太占地方，用户反馈）
         layout = QHBoxLayout(self)
@@ -94,8 +98,18 @@ class PromptVersionBar(QWidget):
         key = self._default_key()
         if not key:
             return ""
-        text = self._tr(key)
-        return "" if text == key else text
+        text = ""
+        if callable(getattr(self, "_prompt_tr", None)):
+            try:
+                text = self._prompt_tr(key) or ""
+            except Exception:                # noqa: BLE001 - 翻译服务异常退回插件 tr
+                text = ""
+        if not text:
+            text = self._tr(key)
+        # 查不到时 tr 会原样返回 key —— 绝不能把 key 当成提示词写进版本
+        if text == key or re.fullmatch(r"(\w+\.)?prompt\.[\w.]+", text or ""):
+            return ""
+        return text
 
     def _default_key(self) -> str:
         return {

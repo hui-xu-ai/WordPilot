@@ -242,8 +242,47 @@ def backup_active(key: str, text: str, root: Path | None = None,
     return saved
 
 
+_RAW_KEY = re.compile(r"^(\w+\.)?prompt\.[\w.]+$")
+
+
+def repair_bogus_versions(root: Path | None = None) -> int:
+    """删掉"内容是原始 i18n key"的坏版本。
+
+    来由：早期实现用**插件**命名空间查默认文案（`proofread.prompt.proof.default` 查不到 →
+    原样返回 key），于是把 key 当成提示词写进了版本（用户现场截图）。
+    """
+    removed = 0
+    for key in PROMPT_KEYS:
+        directory = _key_dir(key, root)
+        if not directory.exists():
+            continue
+        data = _read_index(directory)
+        changed = False
+        for item in list(data.get("versions", [])):
+            try:
+                text = (directory / item.get("file", "")).read_text(encoding="utf-8").strip()
+            except OSError:
+                continue
+            if not _RAW_KEY.fullmatch(text):
+                continue
+            try:
+                (directory / item.get("file", "")).unlink(missing_ok=True)
+            except OSError:
+                pass
+            data["versions"] = [x for x in data["versions"] if x["name"] != item["name"]]
+            if data.get("active") == item["name"]:
+                data["active"] = data["versions"][-1]["name"] if data["versions"] else ""
+            removed += 1
+            changed = True
+        if changed:
+            _write_index(directory, data)
+    if removed:
+        logger.info("已清理 %d 个内容为原始 key 的坏提示词版本", removed)
+    return removed
+
+
 def seed_from_config(config, root: Path | None = None) -> int:
-    """首次使用：把 config 里现有的提示词文本登记为「当前」版本。返回登记数量。"""
+    """首次使用：把 config 里现有的提示词文本登记为「默认」版本。返回登记数量。"""
     added = 0
     for key in PROMPT_KEYS:
         text = (config.get(key) or "").strip() if config is not None else ""

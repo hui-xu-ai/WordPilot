@@ -242,9 +242,11 @@ class ClipboardPlugin(PluginBase):
             edit.setMinimumHeight(96)
             edit.setPlainText(str(config.get(config_key, "") or ""))
             card_lay.addWidget(edit)
+            i18n = self.ctx.get_service("i18n") if getattr(self, "ctx", None) else None
             bar = PromptVersionBar(config_key, config, self.tr,
-                                  read_text=edit.toPlainText,
-                                   apply_text=edit.setPlainText, parent=card)
+                                   read_text=edit.toPlainText,
+                                   apply_text=edit.setPlainText, parent=card,
+                                   prompt_tr=getattr(i18n, "prompt_tr", None))
             bar.retranslate()
             card_lay.addWidget(bar)
             self._prompt_bars.append(bar)

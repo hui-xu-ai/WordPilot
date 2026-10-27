@@ -189,7 +189,8 @@ class DashboardPage(QWidget):
         self.proof_prompt_bar = PromptVersionBar(
             "proof_prompt", self._config, self.tr,
             read_text=self.proof_prompt_edit.toPlainText,
-            apply_text=self.proof_prompt_edit.setPlainText, parent=self)
+            apply_text=self.proof_prompt_edit.setPlainText, parent=self,
+            prompt_tr=getattr(self._i18n, "prompt_tr", None))
         self.proof_prompt_bar.retranslate()
         lay.addWidget(self.proof_prompt_bar)
 
