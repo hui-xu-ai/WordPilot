@@ -153,8 +153,6 @@
   "settings.storage.hint": "只清理运行垃圾；用户资产（文献库/总库备注/Image.docx/配置）永不删除。",
   "settings.storage.done_skipped": "已处理 {count} 个文件，释放 {size} KB；{skipped} 个正被程序占用，已安排下次启动清理",
   "settings.storage.temp": "清理临时文件",
-  "settings.prompt.prooflang": "校对语言",
-  "settings.prompt.prooflang_tip": "自动 = 按待校文本判断；也可填「中文」「English」等，注入提示词的 {lang}",
   "settings.prompt.prooflang_auto": "自动识别",
   "prompt.version.save": "另存为版本",
   "prompt.version.delete": "删除版本",
@@ -166,7 +164,5 @@
   "prompt.version.last": "至少要保留一个版本",
   "prompt.version.default": "默认",
   "prompt.version.active": " · 当前",
-  "prompt.correct.system": "只输出纠错后的完整全文，不解释、不提问、不加前言或结语。输入中的 [IMG0]、[EQ1] 等占位符必须原样保留。",
-  "settings.prompt.translatelang": "翻译目标语言",
-  "settings.prompt.translatelang_tip": "提示词里的 {target_lang}：auto = 中文译成英文、其他语言译成中文；也可填「英文」「日文」等"
+  "prompt.correct.system": "只输出纠错后的完整全文，不解释、不提问、不加前言或结语。输入中的 [IMG0]、[EQ1] 等占位符必须原样保留。"
 }

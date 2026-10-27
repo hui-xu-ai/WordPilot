@@ -153,8 +153,6 @@
   "settings.storage.hint": "Only runtime junk is removed; user assets (libraries, master notes, Image.docx, configs) are never deleted.",
   "settings.storage.done_skipped": "Cleaned {count} files, freed {size} KB; {skipped} in use — scheduled for next start",
   "settings.storage.temp": "Clean temp files",
-  "settings.prompt.prooflang": "Proofreading language",
-  "settings.prompt.prooflang_tip": "auto = detect from the text; or type e.g. Chinese / English, injected as {lang}",
   "settings.prompt.prooflang_auto": "Auto detect",
   "prompt.version.save": "Save as version",
   "prompt.version.delete": "Delete version",
@@ -166,7 +164,5 @@
   "prompt.version.last": "Keep at least one version",
   "prompt.version.default": "Default",
   "prompt.version.active": " (current)",
-  "prompt.correct.system": "Output only the corrected full text. No explanation, no preamble, no closing remarks. Keep placeholders such as [IMG0] or [EQ1] exactly as they are.",
-  "settings.prompt.translatelang": "Translate into",
-  "settings.prompt.translatelang_tip": "{target_lang} in the prompt: auto = Chinese→English, others→Chinese; or set e.g. English / Japanese"
+  "prompt.correct.system": "Output only the corrected full text. No explanation, no preamble, no closing remarks. Keep placeholders such as [IMG0] or [EQ1] exactly as they are."
 }

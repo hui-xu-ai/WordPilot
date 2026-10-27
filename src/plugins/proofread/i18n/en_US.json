@@ -80,5 +80,7 @@
   "prompt.version.default": "Default",
   "prompt.version.active": " (current)",
   "prompt.version.protected": "The built-in Default version cannot be deleted",
-  "prompt.version.saved": "Prompt saved and active"
+  "prompt.version.saved": "Prompt saved and active",
+  "settings.prompt.prooflang": "Proofreading language",
+  "settings.prompt.prooflang_tip": "auto = detect from text; or set e.g. Chinese / English"
 }

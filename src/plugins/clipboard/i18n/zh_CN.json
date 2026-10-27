@@ -27,7 +27,7 @@
   "settings.saved": "已保存",
   "settings.save_failed": "保存失败",
   "settings.prompt.correct": "纠错提示词（整段文本，{text} 原文）",
-  "settings.prompt.correct_hint": "与智能纠错插件的逐句校对完全独立：这里处理整段文本（如整段剪贴板内容），提示词与版本都单独保存，互不影响。",
+  "settings.prompt.correct_hint": "占位符必须保留：{text} 会被替换成待纠错的整段正文。",
   "running": "正在处理…",
   "prompt.version.save": "保存并更新版本",
   "prompt.version.delete": "删除这个版本",
@@ -40,5 +40,7 @@
   "prompt.version.default": "默认",
   "prompt.version.active": " · 当前",
   "prompt.version.protected": "系统自带的「默认」版本不能删除",
-  "prompt.version.saved": "提示词已保存并生效"
+  "prompt.version.saved": "提示词已保存并生效",
+  "settings.prompt.translatelang": "翻译目标语言",
+  "settings.prompt.translatelang_tip": "auto = 中文译成英文、其他语言译成中文；也可填「英文」「日文」等"
 }

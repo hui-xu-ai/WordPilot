@@ -182,6 +182,19 @@ class DashboardPage(QWidget):
         self.prompt_hint.setObjectName("hintLabel")
         self.prompt_hint.setWordWrap(True)
         lay.addWidget(self.prompt_hint)
+        # 校对语言（本插件自己的配置，与提示词语言解耦；auto = 按待校文本识别）
+        lang_row = QHBoxLayout()
+        self.proof_language_label = QLabel()
+        self.proof_language_edit = QComboBox()
+        self.proof_language_edit.setEditable(True)
+        self.proof_language_edit.addItems(["auto", "中文", "English"])
+        self.proof_language_edit.setCurrentText(
+            str(self._config.get("proof_language", "auto") or "auto"))
+        self.proof_language_edit.setToolTip(self.tr("settings.prompt.prooflang_tip"))
+        lang_row.addWidget(self.proof_language_label)
+        lang_row.addWidget(self.proof_language_edit, 1)
+        lay.addLayout(lang_row)
+
         self.proof_prompt_edit = QTextEdit()
         self.proof_prompt_edit.setMinimumHeight(88)
         from core.services import prompt_store
@@ -212,6 +225,7 @@ class DashboardPage(QWidget):
             "suggestion_opacity": max(20, min(100, self.opacity_slider.value())) / 100.0,
             "suggestion_font_size": self.font_size_spin.value(),
             "proof_prompt": self.proof_prompt_edit.toPlainText(),
+            "proof_language": self.proof_language_edit.currentText().strip() or "auto",
         }
         self.proof_prompt_bar.commit()       # 保存即生效，并更新当前提示词版本
         if self._config.update(payload):

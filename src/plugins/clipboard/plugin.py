@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QThread, Signal
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel,
+from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QLabel,
                                QPushButton, QTextEdit, QVBoxLayout, QWidget, QGridLayout)
 
 from core.sdk.plugin_base import PluginBase
@@ -259,6 +259,25 @@ class ClipboardPlugin(PluginBase):
             return edit
 
         self._prompt_bars: list = []
+        # 翻译目标语言（本插件自己的配置）：提示词里的 {target_lang}
+        lang_card = QWidget()
+        lang_card.setObjectName("card")
+        lang_lay = QVBoxLayout(lang_card)
+        lang_lay.setContentsMargins(14, 12, 14, 12)
+        lang_lay.setSpacing(8)
+        self.translate_language_title = QLabel(self.tr("settings.prompt.translatelang"))
+        self.translate_language_title.setObjectName("cardTitle")
+        lang_lay.addWidget(self.translate_language_title)
+        self.translate_language_edit = QComboBox()
+        self.translate_language_edit.setEditable(True)
+        self.translate_language_edit.addItems(
+            ["auto", "英文", "中文", "日文", "韩文", "法文", "德文"])
+        self.translate_language_edit.setCurrentText(
+            str(config.get("translate_language", "auto") or "auto"))
+        self.translate_language_edit.setToolTip(self.tr("settings.prompt.translatelang_tip"))
+        lang_lay.addWidget(self.translate_language_edit)
+        lay.addWidget(lang_card)
+
         self.translate_prompt_edit = _card("settings.prompt.translate",
                                            "settings.prompt.translate_hint",
                                            "translate_prompt")
@@ -287,6 +306,7 @@ class ClipboardPlugin(PluginBase):
             "translate_prompt": self.translate_prompt_edit.toPlainText(),
             "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
             "correct_prompt": self.correct_prompt_edit.toPlainText(),
+            "translate_language": self.translate_language_edit.currentText().strip() or "auto",
         }
         if config.update(payload):
             for bar in getattr(self, "_prompt_bars", []):
