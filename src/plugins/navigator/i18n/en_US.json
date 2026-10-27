@@ -1,6 +1,6 @@
 {
   "plugin.name": "Navigator",
-  "plugin.description": "Scan headings, figure/table captions and equations into a searchable, jumpable navigation panel",
+  "plugin.description": "Scan headings, figure/table captions and equations to build a searchable, click-to-jump navigator",
   "tool_label": "Navigator",
   "nav.page": "Navigator",
   "tray_label": "Word Navigator",

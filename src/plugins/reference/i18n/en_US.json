@@ -1,6 +1,6 @@
 {
   "plugin.name": "Reference assistant",
-  "plugin.description": "Bind citations in Word (Zotero/EndNote fields, footnotes, REF cross-references) to a local CSV library and edit notes",
+  "plugin.description": "Bind Word citations (Zotero/EndNote fields, footnotes, REF cross-references) to a local CSV library",
   "log.activated": "Reference assistant plugin activated",
   "page_label": "References",
   "search.placeholder": "Search title / authors / journal / notes…",

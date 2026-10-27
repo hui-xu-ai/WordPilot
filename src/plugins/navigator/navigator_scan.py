@@ -393,7 +393,7 @@ class ScanMixin:
 
         if self._scan_silent:
             self.status_label.setText(self.tr("status.auto_updated"))
-            QTimer.singleShot(3000, lambda: self.status_label.setText("就绪"))
+            QTimer.singleShot(3000, lambda: self.status_label.setText(self.tr("status.ready")))
         else:
             self.status_label.setText(
                 self.tr("status.loaded", total=num_table + num_figure,

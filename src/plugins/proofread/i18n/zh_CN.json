@@ -1,6 +1,6 @@
 {
   "plugin.name": "智能纠错",
-  "plugin.description": "监控光标所在句子，句末完成后自动送 AI 校对并标出差异",
+  "plugin.description": "后台监听 Word 光标，自动校对当前句子，并在悬浮卡片中给出可一键应用的修改建议",
   "nav.page": "智能纠错",
   "nav.monitor": "API 监控",
   "dashboard.pet_hint": "桌宠的颜色实时反映校对状态（绿=无错 / 红=有错 / 黄=校对中 / 灰=未启用）。",

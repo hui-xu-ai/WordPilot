@@ -57,5 +57,6 @@
   "settings.prompt.strength_light": "Light",
   "settings.prompt.strength_medium": "Medium",
   "settings.prompt.strength_strong": "Strong",
-  "settings.prompt.placeholder_help": "Placeholders on this page: {text} = text to process (required); {target_lang} = translation target (dropdown above); {lang} = language of the text (dropdown above, auto = detect); {strength} = rewrite strength (dropdown above). To pin a language or rule, delete that placeholder and write your own wording."
+  "settings.prompt.placeholder_help": "Placeholders on this page: {text} = text to process (required); {target_lang} = translation target (dropdown above); {lang} = language of the text (dropdown above, auto = detect); {strength} = rewrite strength (dropdown above). To pin a language or rule, delete that placeholder and write your own wording.",
+  "plugin.description": "Read clipboard text and translate / rewrite / proofread it in one click; copy the result back"
 }

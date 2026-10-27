@@ -162,7 +162,7 @@ class DeepSeekClient:
         """
         template = (self.config.get(config_key) or "").strip() or self.prompt_tr(default_key)
         if not template or "{text}" not in template:
-            self.last_error = f"提示词模板缺失或缺少 {{text}}：{config_key}"
+            self.last_error = self.prompt_tr("api.error.template").replace("{key}", str(config_key))
             logger.error("%s", self.last_error)
             return None
         return template
@@ -326,7 +326,7 @@ class DeepSeekClient:
             self.last_usage = None
             self.last_api_success = False
             self.last_latency_ms = int((time.perf_counter() - started) * 1000)
-            self.last_error = f"请求异常: {exc}"
+            self.last_error = self.prompt_tr("api.error.request").replace("{reason}", str(exc))
             logger.warning("API 调用失败: %s", exc)
             return None
         self.last_latency_ms = int((time.perf_counter() - started) * 1000)
@@ -346,7 +346,7 @@ class DeepSeekClient:
         except Exception as exc:  # noqa: BLE001  响应结构不符合预期同样算失败
             self.last_usage = None
             self.last_api_success = False
-            self.last_error = f"响应格式异常: {exc}"
+            self.last_error = self.prompt_tr("api.error.bad_response").replace("{reason}", str(exc))
             logger.warning("API 响应无法解析: %s", exc)
             return None
 
@@ -355,7 +355,7 @@ class DeepSeekClient:
             # B04：被 max_tokens 截断的半句绝不能当成完整修改（会删掉原文后半段）
             self.last_usage = data.get("usage", None)
             self.last_api_success = False
-            self.last_error = "响应被截断（finish_reason=length），未采用"
+            self.last_error = self.prompt_tr("api.error.truncated")
             logger.warning("API 响应被截断，长度上限 max_tokens 可能过小")
             return None
 

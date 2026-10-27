@@ -66,7 +66,7 @@ def test_truncated_response_is_failure(api_mod, monkeypatch):
 
     assert client.proof_text("这是一整句话。") is None, "截断结果不能当成功返回"
     assert client.last_api_success is False
-    assert "截断" in client.last_error
+    assert "截断" in client.last_error or "truncat" in client.last_error.lower(), client.last_error
     assert client.last_finish_reason == "length"
 
 

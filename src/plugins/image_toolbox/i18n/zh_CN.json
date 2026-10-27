@@ -1,6 +1,6 @@
 {
   "plugin.name": "图片工具",
-  "plugin.description": "按页面版心批量裁剪并居中 Word 中的图片",
+  "plugin.description": "按页面版心批量裁剪并居中 Word 中的图片，支持边距、对齐与 EXIF 处理",
   "tool_label": "图片工具箱",
   "tray_label": "图片工具箱",
   "window.title": "图片工具箱",

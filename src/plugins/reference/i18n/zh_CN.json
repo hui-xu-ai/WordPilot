@@ -1,6 +1,6 @@
 {
   "plugin.name": "参考文献助手",
-  "plugin.description": "把 Word 里的引用（Zotero/EndNote 域、脚注尾注、REF 交叉引用）与本地 CSV 文献库绑定，显示并编辑备注",
+  "plugin.description": "把 Word 里的引用（Zotero/EndNote 域、脚注尾注、REF 交叉引用）与本地 CSV 文献库绑定",
   "log.activated": "参考文献助手插件已激活",
   "page_label": "参考文献助手",
   "search.placeholder": "搜索标题 / 作者 / 期刊 / 备注…",

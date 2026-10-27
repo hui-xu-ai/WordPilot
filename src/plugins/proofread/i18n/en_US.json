@@ -1,6 +1,6 @@
 {
   "plugin.name": "Proofreading",
-  "plugin.description": "Watch the sentence at the cursor and proofread it automatically when finished",
+  "plugin.description": "Watch the Word caret in the background, proofread the current sentence and offer one-click fixes in a floating card",
   "nav.page": "Smart Proofreading",
   "nav.monitor": "API Monitor",
   "dashboard.pet_hint": "The desk pet's color mirrors the proofreading state (green = clean / red = issues / amber = proofing / gray = off).",

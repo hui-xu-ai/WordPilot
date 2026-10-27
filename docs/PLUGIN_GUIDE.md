@@ -216,3 +216,16 @@ ctx.events.emit("my_feature.done", payload)
 | 主界面内容页（扫文档 + 列表 + 跳转，无窗口） | `plugins/navigator/` |
 | 带工作文档的模态工具箱 | `plugins/image_toolbox/` |
 | 占位 / 开发中功能如何声明 | `plugins/reference/`（注意 `enabled_by_default: false`） |
+
+## 界面文案规约（硬性）
+
+1. **任何用户可见文字都必须走语言包**：用 `self.tr("key")`（插件里前缀自动加插件 id），
+   不允许在 `QLabel("中文")` / `setText("中文")` / `setToolTip` / `QMessageBox.*` 里写字面量。
+   守卫测试：`tests/test_no_hardcoded_ui_strings.py`（AST 扫描真实 UI 调用点，出现中文字面量即失败）。
+2. **插件名称/简介**：语言包提供 `plugin.name`、`plugin.description`；
+   `plugin.json` 里的同名字段只作"没带语言包时"的兜底。
+3. **建控件时不要"求值一次就丢"**：留下控件引用，并在 `retranslateUi()` 里重新 `setText`；
+   下拉/版本条优先用自带 `retranslate_options()` / `refresh_language()` 的通用控件。
+4. **中英语言包 key 集合必须一致**，英文包里不得残留中文字符（`tests/test_i18n_language_switch.py` 会检查）。
+5. **会显示给用户的错误信息**（`last_error` / 状态栏 / 对话框）也要入库，例如 `api.error.request`；
+   只给开发看的日志、异常、断言信息不必翻译。

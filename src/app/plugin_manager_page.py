@@ -143,7 +143,7 @@ class PluginManagerPage(QWidget):
                 row, col = divmod(index, 2)
                 self.grid.addWidget(card, row, col)
                 self._cards.append((card, self._display_name(record),
-                                    record.manifest.description))
+                                    self._display_description(record)))
             self._apply_filter()
         finally:
             self._building = False
@@ -158,6 +158,14 @@ class PluginManagerPage(QWidget):
         if translated and translated != key:
             return translated
         return record.manifest.name or record.manifest.id
+
+    def _display_description(self, record) -> str:
+        """插件简介：语言包 `plugin.description` 优先，manifest.description 兜底。"""
+        key = f"{record.manifest.id}.plugin.description"
+        translated = self.i18n.tr(key) if self.i18n is not None else key
+        if translated and translated != key:
+            return translated
+        return record.manifest.description or ""
 
     def _make_card(self, record, icon_name: str | None) -> QWidget:
         manifest = record.manifest

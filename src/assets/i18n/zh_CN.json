@@ -190,5 +190,9 @@
   "api.monitor.col_rate": "命中率",
   "app.tray.plugins": "插件管理",
   "settings.api.endpoint": "接口地址",
-  "settings.api.endpoint_placeholder": "OpenAI 兼容端点，如 https://api.deepseek.com"
+  "settings.api.endpoint_placeholder": "OpenAI 兼容端点，如 https://api.deepseek.com",
+  "api.error.template": "提示词模板缺失或缺少 {text} 占位符（{key}）",
+  "api.error.request": "请求失败：{reason}",
+  "api.error.bad_response": "响应格式异常：{reason}",
+  "api.error.truncated": "响应被截断（达到 max_tokens），未采用"
 }

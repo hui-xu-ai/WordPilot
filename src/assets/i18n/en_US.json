@@ -190,5 +190,9 @@
   "api.monitor.col_rate": "Hit rate",
   "app.tray.plugins": "Plugins",
   "settings.api.endpoint": "Endpoint",
-  "settings.api.endpoint_placeholder": "OpenAI-compatible endpoint, e.g. https://api.deepseek.com"
+  "settings.api.endpoint_placeholder": "OpenAI-compatible endpoint, e.g. https://api.deepseek.com",
+  "api.error.template": "Prompt template missing or lacks the {text} placeholder ({key})",
+  "api.error.request": "Request failed: {reason}",
+  "api.error.bad_response": "Unexpected response format: {reason}",
+  "api.error.truncated": "Response truncated at max_tokens, discarded"
 }
