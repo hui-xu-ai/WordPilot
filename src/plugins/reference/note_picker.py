@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget,
                                QListWidgetItem, QPushButton, QVBoxLayout)
 
@@ -96,9 +96,11 @@ class NotePicker(QDialog):
             summary = (note.text or "").replace("\n", " ").strip()
             if len(summary) > 46:
                 summary = summary[:46] + "…"
-            item = QListWidgetItem(f"{note.label or self._tr('picker.untitled')}\n{summary}")
+            item = QListWidgetItem(f"{note.label or self._tr('picker.untitled')}\n"
+                                   f"{note.meta_line()}\n{summary}")
             item.setData(Qt.UserRole, note.note_id)
-            item.setToolTip(f"{note.updated}\n{note.text}")
+            item.setToolTip(f"{note.meta_line()}\n{note.updated}\n{note.text}")
+            item.setSizeHint(QSize(0, ROW_HEIGHT + 14))     # 多一行文献标识，加高避免挤压
             self.list_widget.addItem(item)
             if note.note_id == self.selected_note_id:
                 self.list_widget.setCurrentItem(item)

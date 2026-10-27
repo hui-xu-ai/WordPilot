@@ -20,7 +20,9 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 ENCODING = "utf-8-sig"
-NOTE_COLUMNS = ("note_id", "ref_key", "label", "text", "pinned", "created", "updated", "archived")
+#: 末尾六列是**文献信息快照**：总库因此能独立认出是哪篇文献（子库被删也不失忆）
+NOTE_COLUMNS = ("note_id", "ref_key", "label", "text", "pinned", "created", "updated", "archived",
+                "title", "authors", "year", "container", "doi", "cite_label")
 BACKUP_KEEP = 5
 
 #: 解析来源
@@ -41,6 +43,13 @@ class Note:
     created: str = ""
     updated: str = ""
     archived: bool = False
+    # 文献信息快照（发布/新建时从子库那篇文献带过来；旧文件没有这些列 → 空串）
+    title: str = ""
+    authors: str = ""
+    year: str = ""
+    container: str = ""
+    doi: str = ""
+    cite_label: str = ""
 
     def to_row(self) -> dict[str, str]:
         return {
@@ -48,6 +57,8 @@ class Note:
             "text": self.text, "pinned": "1" if self.pinned else "0",
             "created": self.created, "updated": self.updated,
             "archived": "1" if self.archived else "0",
+            "title": self.title, "authors": self.authors, "year": self.year,
+            "container": self.container, "doi": self.doi, "cite_label": self.cite_label,
         }
 
     @classmethod
@@ -61,7 +72,20 @@ class Note:
             created=(row.get("created") or "").strip(),
             updated=(row.get("updated") or "").strip(),
             archived=(row.get("archived") or "0").strip() in {"1", "true", "True"},
+            # 旧文件没有这几列 → row.get 返回空串，天然兼容
+            title=(row.get("title") or "").strip(),
+            authors=(row.get("authors") or "").strip(),
+            year=(row.get("year") or "").strip(),
+            container=(row.get("container") or "").strip(),
+            doi=(row.get("doi") or "").strip(),
+            cite_label=(row.get("cite_label") or "").strip(),
         )
+
+    def meta_line(self) -> str:
+        """一行文献标识：`标题（年份）· 作者`；没有元数据就退回 ref_key（一眼看出"失忆"的备注）。"""
+        title = self.title or self.ref_key
+        text = f"{title}（{self.year}）" if self.year else title
+        return f"{text} · {self.authors}" if self.authors else text
 
 
 def _now() -> str:
@@ -164,19 +188,48 @@ class NoteService:
             self._store.upsert(reference)
 
     def publish_to_master(self, ref_key: str, label: str = "") -> "Note | None":
-        """用户点击"保存到总库"：把当前子库备注发布成一条总库备注。"""
+        """用户点击"保存到总库"：把当前子库备注发布成一条总库备注（带文献信息快照）。"""
         text = self.child_note(ref_key).strip()
         if not text:
             return None
-        note = self._master.add(ref_key, text, label=label or "来自子库")
+        note = self._master.add(ref_key, text, label=label or "来自子库",
+                                meta=self._reference_meta(ref_key))
         reference = self._store.get(ref_key)
         if reference is not None:
             reference.inherit_note_id = note.note_id
             self._store.upsert(reference)
         return note
 
+    def _reference_meta(self, ref_key: str) -> dict[str, str]:
+        """从子库取这条文献的元数据快照（总库靠它独立认出是哪篇）。"""
+        reference = self._store.get(ref_key)
+        if reference is None:
+            return {}
+        return {key: str(getattr(reference, key, "") or "")
+                for key in ("title", "authors", "year", "container", "doi", "cite_label")}
+
+    def backfill_master_meta(self) -> int:
+        """给历史总库备注补文献信息（只填空值，幂等）。返回补了几条。"""
+        filled = 0
+        for note in self._master.notes_all():
+            if note.title or not note.ref_key:
+                continue
+            meta = self._reference_meta(note.ref_key)
+            if not meta.get("title"):
+                continue
+            note.title = meta["title"]
+            note.authors = meta.get("authors", "")
+            note.year = meta.get("year", "")
+            note.container = meta.get("container", "")
+            note.doi = meta.get("doi", "")
+            note.cite_label = meta.get("cite_label", "")
+            filled += 1
+        if filled:
+            self._master.flush_current()
+        return filled
+
     def create_master_note(self, ref_key: str, text: str, label: str = "") -> "Note":
-        return self._master.add(ref_key, text, label=label)
+        return self._master.add(ref_key, text, label=label, meta=self._reference_meta(ref_key))
 
     def publish_all_to_master(self, library_name: str = "") -> tuple[int, int, int]:
         """把当前子库**所有非空备注**一次性发布到总库（用户手动触发，不做自动同步）。
@@ -195,7 +248,8 @@ class NoteService:
             if any((note.text or "").strip() == text for note in active):
                 duplicate += 1
                 continue
-            note = self._master.add(reference.ref_key, text, label=label)
+            note = self._master.add(reference.ref_key, text, label=label,
+                                    meta=self._reference_meta(reference.ref_key))
             reference.inherit_note_id = note.note_id      # 记下来源，便于日后提示差异
             self._store.upsert(reference)
             published += 1
@@ -248,6 +302,10 @@ class NoteStore:
         except Exception as exc:                 # noqa: BLE001 - 坏文件不该拖垮插件
             logger.warning("读取总库备注失败：%s", exc)
 
+    def flush_current(self) -> None:
+        """把内存里的总库备注写回 CSV（补元数据后调用，保持与其它写路径一致）。"""
+        self._flush()
+
     def _flush(self) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".csv.tmp")
@@ -279,7 +337,8 @@ class NoteStore:
         return self._notes.get(note_id)
 
     # ---------------- 写入 ----------------
-    def add(self, ref_key: str, text: str, label: str = "", pinned: bool = False) -> Note:
+    def add(self, ref_key: str, text: str, label: str = "", pinned: bool = False,
+            meta: dict[str, str] | None = None) -> Note:
         self._counter += 1
         stamp = _now()
         note = Note(
@@ -287,6 +346,8 @@ class NoteStore:
             ref_key=ref_key, text=text,
             label=_slug(label, len(self.notes_for(ref_key)) + 1),
             pinned=pinned, created=stamp, updated=stamp,
+            **{key: str((meta or {}).get(key) or "") for key in
+               ("title", "authors", "year", "container", "doi", "cite_label") if key},
         )
         self._notes[note.note_id] = note
         self._flush()

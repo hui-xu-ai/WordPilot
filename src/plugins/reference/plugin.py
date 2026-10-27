@@ -166,6 +166,14 @@ class ReferencePlugin(PluginBase):
         self._notes = self._master_notes
         self._note_service = NoteService(self._store, self._master_notes)
         try:
+            # 方案 A 回填：给历史总库备注补上文献信息快照（只填空值；子库已删的补不了，
+            # 挑选面板会显示 ref_key 提醒这条"失了上下文"）。
+            filled = self._note_service.backfill_master_meta()
+            if filled:
+                ctx.logger.info("总库备注已补文献信息 %d 条", filled)
+        except Exception:                      # noqa: BLE001 - 回填失败不该挡住启动
+            logger.debug("回填总库文献信息失败", exc_info=True)
+        try:
             self._store.ensure_directory()
             self._index.ensure(self._store)
         except ReferenceStoreError as exc:      # 数据目录不可写也不要挡住启动
