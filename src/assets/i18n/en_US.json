@@ -201,5 +201,10 @@
   "image.error.no_image": "No image found in the working document",
   "image.error.no_selection": "No image selected. Click an image in Word first.",
   "library.error.empty_name": "Library name cannot be empty",
-  "library.error.keep_one": "At least one library must remain"
+  "library.error.keep_one": "At least one library must remain",
+  "settings.storage.group.logs": "Runtime logs",
+  "settings.storage.group.wal": "Database leftovers",
+  "settings.storage.group.trash": "Deleted-library backups (_trash)",
+  "settings.storage.group.cache": "Rebuildable caches",
+  "settings.storage.group.temp": "Temporary files"
 }

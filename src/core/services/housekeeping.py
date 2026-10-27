@@ -161,13 +161,13 @@ def inventory(root: Path | None = None, keep_days: int = 0) -> list[Group]:
     """盘点各类内容（不删除任何东西）。`keep_days=0`（默认）表示回收站也全算进来。"""
     root = Path(root) if root is not None else config_dir()
     groups = {
-        "logs": Group("logs", "运行日志", "safe", "app.log / errors.log / api_calls.log"),
-        "wal": Group("wal", "数据库残留", "safe", "SQLite 的 -wal / -shm 残留"),
-        "trash": Group("trash", "删除库的备份(_trash)", "careful",
+        "logs": Group("logs", "logs", "safe", "app.log / errors.log / api_calls.log"),
+        "wal": Group("wal", "wal", "safe", "SQLite 的 -wal / -shm 残留"),
+        "trash": Group("trash", "trash", "careful",
                        "清空回收站会删掉所有已删仓库的备份" if keep_days <= 0
                        else f"超过 {keep_days} 天的旧备份"),
-        "cache": Group("cache", "可重建缓存", "careful", "doc_scan / proof_cache / word_caption 缓存库"),
-        "temp": Group("temp", "临时文件", "safe", "Word 锁文件 ~$*.docx 等"),
+        "cache": Group("cache", "cache", "careful", "doc_scan / proof_cache / word_caption 缓存库"),
+        "temp": Group("temp", "temp", "safe", "Word 锁文件 ~$*.docx 等"),
     }
     cutoff = time.time() - keep_days * 86400
     trash_root = root / "references" / "libraries" / "_trash"

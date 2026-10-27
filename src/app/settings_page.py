@@ -465,7 +465,8 @@ class SettingsPage(QWidget):
 
             groups = housekeeping.inventory()
             self.storage_value.setText("\n".join(
-                self.tr("settings.storage.item", title=group.title,
+                self.tr("settings.storage.item",
+                        title=self.tr(f"settings.storage.group.{group.key}"),
                         size=f"{group.size / 1024:.0f}", count=group.count)
                 for group in groups))
         except Exception as exc:               # noqa: BLE001 - 统计失败不该挡住设置页
@@ -529,6 +530,8 @@ class SettingsPage(QWidget):
         self.about_author_label.setText(self.tr("settings.about.author"))
         self.about_env_label.setText(self.tr("settings.about.env"))
         self.about_paths_title.setText(self.tr("settings.about.paths"))
+        if hasattr(self, "monitor_panel"):
+            self.monitor_panel.retranslate()      # 表格表头/按钮也要跟着换语言
         self.storage_title.setText(self.tr("settings.storage.title"))
         self.storage_hint.setText(self.tr("settings.storage.hint"))
         self.storage_logs_btn.setText(self.tr("settings.storage.logs"))
