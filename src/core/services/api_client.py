@@ -191,8 +191,10 @@ class DeepSeekClient:
                   .replace("{language}", self.target_language(text))
                   .replace("{text}", text))
 
-        # 根据是否含有占位符，动态设置 system 消息，减少无占位符时的 token 消耗
-        if self._has_placeholders(text):
+        # system 消息也按场景分开：整段纠错与逐句校对的输出要求不同
+        if prompt_key == "correct_prompt":
+            system_content = self.prompt_tr("prompt.correct.system")
+        elif self._has_placeholders(text):
             system_content = self.prompt_tr("prompt.proof.placeholder_system")
         else:
             system_content = self.prompt_tr("prompt.proof.system")

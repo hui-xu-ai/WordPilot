@@ -291,12 +291,17 @@ def effective_text(key: str, config, prompt_tr=None) -> str:
 
 
 def ensure_default_version(key: str, prompt_tr=None, root: Path | None = None) -> str:
-    """保证「默认」版本存在（内容 = 系统自带文案）；不改变当前选中的版本。"""
+    """保证「默认」版本存在，且内容 = **当前**系统自带文案（软件更新后自动跟进）。
+
+    注意：只更新「默认」这一条，不改变当前选中的版本；用户自己的版本一律不动。
+    """
     text = default_text(key, prompt_tr)
     if not text:
         return ""
     names = [item["name"] for item in versions(key, root)]
     if DEFAULT_VERSION in names:
+        if (read(key, DEFAULT_VERSION, root) or "").strip() != text:
+            save_version(key, DEFAULT_VERSION, text, note="系统自带", root=root)
         return DEFAULT_VERSION
     save_version(key, DEFAULT_VERSION, text, note="系统自带", root=root, activate=not names)
     return DEFAULT_VERSION

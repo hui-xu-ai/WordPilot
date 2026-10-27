@@ -104,8 +104,8 @@
   "language.en_US": "English",
   "theme.light": "Light",
   "theme.dark": "Dark",
-  "prompt.proof.default": "You are an expert proofreader for {lang} academic writing. Fix typos, grammar, punctuation, terminology spelling and CJK/Latin spacing issues. Preserve meaning, sentence structure and paragraph breaks; do not expand, delete or explain anything.\nUnits: no space between a number and ℃/%/° (2℃, 5%, 9°); use a half-width space between a number and other units (10 m, 5 kg).\nOriginal text: {text}",
-  "prompt.proof.system": "Output only the proofread text. No explanations, no questions, no preamble.",
+  "prompt.proof.default": "You are a sentence-level proofreader for {lang} academic writing. You get ONE sentence (or a short fragment); fix only local issues in it: typos, grammar, punctuation, terminology spelling and capitalisation.\nUnits: no space between a number and ℃/%/° (2℃, 5%, 9°); a half-width space between a number and other units (10 m, 5 kg).\nDo not expand, do not restructure sentences, do not explain, do not pull in other context; output only the corrected sentence.\nSentence: {text}",
+  "prompt.proof.system": "Output only the corrected sentence. No explanation, no quotes, no preamble.",
   "prompt.proof.placeholder_system": "Output the full proofread text only. No explanation, no questions. If the input contains markers such as [IMG0] or [EQ1], they are inline object placeholders and must be preserved exactly.",
   "prompt.translate.default": "Translate the following {lang} text into {target_lang}. Keep terminology and numbers accurate, preserve paragraph structure, and output only the translation:\n{text}",
   "prompt.translate.system": "You are a translation bot. Return the translation only, with no explanation.",
@@ -132,7 +132,7 @@
   "plugins.install_fail": "Install failed: {error}",
   "app.nav.page_build_failed": "That plugin page failed to load; switched to an available page (see logs)",
   "app.nav.page_unavailable": "That page is unavailable (the plugin may be disabled or failed to load)",
-  "prompt.correct.default": "You are an expert proofreader for {lang} academic writing. The text below is a whole paragraph or a full section: fix typos, grammar, punctuation, terminology spelling and CJK/Latin spacing, keep the original paragraphs and line breaks, do not rewrite sentences, do not add or remove content, and output only the corrected full text.\n{text}",
+  "prompt.correct.default": "You are a whole-passage editing proofreader for {lang} academic writing. The input is a full paragraph or section (e.g. pasted from the clipboard); make the text consistent and readable with the smallest possible edits, not by rewriting sentence by sentence.\nFocus on what sentence-level proofreading cannot catch:\n1. Consistency: the same term / abbreviation / person / unit / symbol written the same way throughout; consistent use of numerals; consistent citation-label style.\n2. Cross-sentence issues: unclear references, collocation errors, misused connectives, redundancy, abrupt paragraph transitions.\n3. Structure fidelity: keep the original paragraph breaks, line breaks and list numbering; do not merge or split paragraphs; keep placeholders such as [IMG0] or [EQ1] untouched.\nForbidden: adding or deleting content, changing technical conclusions, altering data or formulas, stylistic sentence rewrites, adding explanations.\nOutput only the corrected full text.\n{text}",
   "app.settings.pet_size": "Pet size",
   "app.settings.pet_visible": "Show pet",
   "settings.api.key_show": "Show",
@@ -166,5 +166,6 @@
   "prompt.version.delete_confirm": "Delete version \"{name}\"?",
   "prompt.version.last": "Keep at least one version",
   "prompt.version.default": "Default",
-  "prompt.version.active": " (current)"
+  "prompt.version.active": " (current)",
+  "prompt.correct.system": "Output only the corrected full text. No explanation, no preamble, no closing remarks. Keep placeholders such as [IMG0] or [EQ1] exactly as they are."
 }
