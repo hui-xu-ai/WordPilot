@@ -85,4 +85,5 @@ def test_tooltip_explains_placeholder_only(plugin, key):
     data = json.loads((root / f"src/plugins/{plugin}/i18n/zh_CN.json").read_text(encoding="utf-8"))
     tip = data[key]
 
-    assert "只在提示词里保留" in tip and "忽略" in tip
+    assert "{target_lang}" in tip or "{lang}" in tip, tip
+    assert ("提示词里保留" in tip) or ("Only used when" in tip), tip

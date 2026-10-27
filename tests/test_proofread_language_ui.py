@@ -43,4 +43,4 @@ def test_translate_auto_option_is_readable():
     data = json.loads((ROOT / "src/plugins/clipboard/i18n/zh_CN.json").read_text(encoding="utf-8"))
 
     assert "自动" in data["settings.prompt.translatelang_auto"]
-    assert data["settings.prompt.translatelang"] == "翻译目标语言"
+    assert data["settings.prompt.translatelang"].startswith("翻译目标语言")

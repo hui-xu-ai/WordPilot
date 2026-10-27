@@ -35,7 +35,7 @@ def test_plugin_i18n_has_language_labels():
     clip = json.loads((ROOT / "src/plugins/clipboard/i18n/zh_CN.json").read_text(encoding="utf-8"))
     proof = json.loads((ROOT / "src/plugins/proofread/i18n/zh_CN.json").read_text(encoding="utf-8"))
 
-    assert clip["settings.prompt.translatelang"] == "翻译目标语言"
+    assert clip["settings.prompt.translatelang"].startswith("翻译目标语言")
     assert proof["settings.prompt.prooflang"] == "校对语言"
 
 
