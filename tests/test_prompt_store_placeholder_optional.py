@@ -86,4 +86,4 @@ def test_tooltip_explains_placeholder_only(plugin, key):
     tip = data[key]
 
     assert "{target_lang}" in tip or "{lang}" in tip, tip
-    assert ("提示词里保留" in tip) or ("Only used when" in tip), tip
+    assert "提示词" in tip, tip           # 必须说明"与提示词里占位符的关系"

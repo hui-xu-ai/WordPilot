@@ -1,12 +1,19 @@
 # tests/test_choice_combo.py
-"""真下拉（预设项 + 「自定义…」）：用户能看见能点开，不是伪装成输入框。
+"""预设选项下拉：只有预定义项，用户不能填自由文本（填错会直接送到接口）。
 
-用户反馈（2026-10-27）：「你怎么就设计一个输入框，用户怎么进行切换？」
-—— 原来是可编辑 QComboBox，外观就是个输入框，没有下拉箭头。
+用户要求（2026-10-27）：
+- 语言/强度只能预先定义，用户要自定义就直接改提示词；
+- 曾经的「自定义…」允许乱填，例如把 `clipboard.韩文` 这类脏值写进配置。
 """
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
+
 import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
@@ -16,86 +23,51 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
-def test_combo_is_not_editable_and_has_custom_option(app):
-    from core.widgets.choice_combo import CUSTOM_MARK, ChoiceCombo
+def test_combo_is_readonly_and_has_no_custom_item(app):
+    from core.widgets.choice_combo import ChoiceCombo
 
     combo = ChoiceCombo()
     combo.set_choices([("自动识别", "auto"), ("中文", "中文")])
 
-    assert combo.isEditable() is False, "必须是真下拉（有箭头），不能像输入框"
-    assert combo.count() == 3
-    assert combo.itemData(combo.count() - 1) == CUSTOM_MARK
-    assert combo.itemText(combo.count() - 1) == "自定义…"
+    assert combo.isEditable() is False
+    assert combo.count() == 2, "不该再有「自定义…」项"
+    assert all("自定义" not in combo.itemText(i) for i in range(combo.count()))
 
 
-def test_set_and_read_value(app):
+def test_set_get_value_and_dirty_value_falls_back(app):
     from core.widgets.choice_combo import ChoiceCombo
 
     combo = ChoiceCombo()
-    combo.set_choices([("自动识别", "auto"), ("中文", "中文"), ("English", "English")])
+    combo.set_choices([("自动识别", "auto"), ("中文", "中文")])
 
     combo.set_value("中文")
     assert combo.current_value() == "中文"
 
-    combo.set_value("Français")                  # 不在预设里 → 追加为自定义项
-    assert combo.current_value() == "Français"
-    assert combo.itemText(combo.count() - 1) == "自定义…", "自定义项必须仍在末尾"
+    combo.set_value("clipboard.韩文")           # 脏值不允许被选中
+    assert combo.current_value() == "auto", "未知值必须退回第一项"
 
 
-def test_rewrite_strength_expands_to_concrete_instruction():
-    """`{strength}` 不能只是「中」——要展开成模型能执行的具体要求。"""
-    import uuid
+def test_option_labels_come_from_i18n():
+    """下拉选项文案必须来自语言包 —— 曾经直接写 `("韩文", "韩文")`，tr 查不到就显示 key。"""
+    for plugin, source_name in (("clipboard", "plugin.py"),
+                                ("proofread", "dashboard_page.py")):
+        data = json.loads(
+            (ROOT / f"src/plugins/{plugin}/i18n/zh_CN.json").read_text(encoding="utf-8"))
+        source = (ROOT / f"src/plugins/{plugin}" / source_name).read_text(encoding="utf-8")
 
-    from core.services.api_client import DeepSeekClient
-
-    class _Config:
-        def __init__(self):
-            self.data = {"rewrite_prompt": "要求：{strength}\n{text}",
-                         "rewrite_strength": "中",
-                         "correct_language": "auto", "proof_language": "auto"}
-
-        def get(self, key, default=None):
-            return self.data.get(key, default)
-
-    class _I18n:
-        def prompt_tr(self, key, **kwargs):
-            return {
-                "prompt.rewrite.system": "SYS",
-                "prompt.rewrite.mode.light": "轻度：只替换用词与标点",
-                "prompt.rewrite.mode.medium": "中度：可拆分或合并句子",
-                "prompt.rewrite.mode.strong": "深度：可重构段落顺序",
-            }.get(key, key)
-
-    client = DeepSeekClient.__new__(DeepSeekClient)
-    client.config = _Config()
-    client.i18n = _I18n()
-    client.last_error = ""
-    client.model = "test"
-    client.last_usage = {"prompt": 0, "completion": 0, "total": 0}
-    client.last_latency_ms = 0
-    sent: list[str] = []
-
-    def _capture(messages):
-        sent.append(messages[1]["content"])
-        return "结果"
-
-    client._call_api = _capture                  # type: ignore[assignment]
-
-    client.rewrite(f"一段文字{uuid.uuid4().hex}")
-    assert "中度：可拆分或合并句子" in sent[-1], sent[-1]
-
-    client.rewrite(f"一段文字{uuid.uuid4().hex}", strength="strong")
-    assert "strong" in sent[-1] or "深度" in sent[-1]
-
-    client.rewrite(f"一段文字{uuid.uuid4().hex}", strength="把句子改短，别用排比")
-    assert "把句子改短，别用排比" in sent[-1], "自定义要求应原样注入"
+        for key in re.findall(r'\("(settings\.prompt\.[\w.]+)",\s*"', source):
+            assert key in data, f"{plugin} 缺少选项文案：{key}"
+        # 选项值必须是固定语言名，不能出现 key 形态或中文当 key
+        for label in re.findall(r'\(\("?(settings\.prompt\.[\w.]+|[\u4e00-\u9fff]+)"?,\s*"([^"]+)"\)', source):
+            assert not label[1].startswith("clipboard."), f"选项值不该是 i18n key：{label}"
 
 
-def test_pages_use_choice_combo():
-    from pathlib import Path
+def test_pages_explain_placeholders():
+    """每个页面都要有一段统一说明，讲清 {text}/{lang}/{target_lang}/{strength} 是什么。"""
+    clip = (ROOT / "src/plugins/clipboard/i18n/zh_CN.json").read_text(encoding="utf-8")
+    proof = (ROOT / "src/plugins/proofread/i18n/zh_CN.json").read_text(encoding="utf-8")
 
-    root = Path(__file__).resolve().parents[1]
-    for relative in ("src/plugins/clipboard/plugin.py", "src/plugins/proofread/dashboard_page.py"):
-        text = (root / relative).read_text(encoding="utf-8")
-        assert "ChoiceCombo" in text, f"{relative} 应使用真下拉"
-        assert "setEditable(True)" not in text, f"{relative} 不该再把下拉做成可编辑输入框"
+    for placeholder in ("{text}", "{target_lang}", "{lang}", "{strength}"):
+        assert placeholder in clip, f"翻译改写页说明缺 {placeholder}"
+    assert "{text}" in proof and "{lang}" in proof
+    assert "占位符" in clip and "占位符" in proof

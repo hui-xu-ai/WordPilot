@@ -53,11 +53,9 @@
   "settings.prompt.correclang_zh": "中文",
   "settings.prompt.correclang_en": "English",
   "settings.prompt.strength": "改写强度（{strength}）",
-  "settings.prompt.strength_tip": "改写提示词里的 {strength}：轻 = 只调词句标点；中 = 可重排句序；强 = 可重构段内顺序",
+  "settings.prompt.strength_tip": "改写提示词里的 {strength}；下拉项是固定档位，共 3 档",
   "settings.prompt.strength_light": "轻",
   "settings.prompt.strength_medium": "中",
   "settings.prompt.strength_strong": "强",
-  "choice.custom": "自定义…",
-  "choice.title": "自定义",
-  "choice.prompt": "请输入要使用的值："
+  "settings.prompt.placeholder_help": "本页占位符含义：{text} = 待处理正文（必须保留）；{target_lang} = 翻译目标语言（上方下拉）；{lang} = 纠错文本的语言（上方下拉，auto 自动识别）；{strength} = 改写强度（上方下拉）。想写死语言或规则，就把对应占位符删掉换成自己的话。"
 }

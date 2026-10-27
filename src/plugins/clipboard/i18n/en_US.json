@@ -53,11 +53,9 @@
   "settings.prompt.correclang_zh": "Chinese",
   "settings.prompt.correclang_en": "English",
   "settings.prompt.strength": "Rewrite strength ({strength})",
-  "settings.prompt.strength_tip": "{strength} of the rewrite prompt: light = wording only; medium = may reorder; strong = may restructure a paragraph",
+  "settings.prompt.strength_tip": "{strength} of the rewrite prompt; the dropdown offers three fixed levels",
   "settings.prompt.strength_light": "Light",
   "settings.prompt.strength_medium": "Medium",
   "settings.prompt.strength_strong": "Strong",
-  "choice.custom": "Custom…",
-  "choice.title": "Custom",
-  "choice.prompt": "Enter a value:"
+  "settings.prompt.placeholder_help": "Placeholders on this page: {text} = text to process (required); {target_lang} = translation target (dropdown above); {lang} = language of the text (dropdown above, auto = detect); {strength} = rewrite strength (dropdown above). To pin a language or rule, delete that placeholder and write your own wording."
 }

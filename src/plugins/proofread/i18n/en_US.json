@@ -82,11 +82,9 @@
   "prompt.version.protected": "The built-in Default version cannot be deleted",
   "prompt.version.saved": "Prompt saved and active",
   "settings.prompt.prooflang": "Proofreading language",
-  "settings.prompt.prooflang_tip": "Only used when the prompt keeps {lang}; if the prompt hardcodes a language this is ignored",
+  "settings.prompt.prooflang_tip": "{lang} of the prompt; three fixed options",
   "settings.prompt.prooflang_auto": "Auto detect",
   "settings.prompt.prooflang_zh": "Chinese",
   "settings.prompt.prooflang_en": "English",
-  "choice.custom": "Custom…",
-  "choice.title": "Custom",
-  "choice.prompt": "Enter a value:"
+  "settings.prompt.proof_placeholder_help": "Placeholders: {text} = the sentence to proofread (required); {lang} = proofreading language (dropdown below, auto = detect). Delete {lang} and write your own wording if you want a fixed language."
 }

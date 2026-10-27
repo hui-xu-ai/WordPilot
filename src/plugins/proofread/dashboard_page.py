@@ -197,6 +197,10 @@ class DashboardPage(QWidget):
         """校对提示词（{text} 为正文占位符）——只属于本插件，故从主设置页搬来。"""
         card, lay = self._card()
         self.prompt_card_title = self._card_title(lay)
+        self.placeholder_help = QLabel(self.tr("settings.prompt.proof_placeholder_help"))
+        self.placeholder_help.setObjectName("hintLabel")
+        self.placeholder_help.setWordWrap(True)
+        lay.addWidget(self.placeholder_help)
         self.prompt_hint = QLabel()
         self.prompt_hint.setObjectName("hintLabel")
         self.prompt_hint.setWordWrap(True)
@@ -205,8 +209,7 @@ class DashboardPage(QWidget):
         lang_row = QHBoxLayout()
         self.proof_language_label = QLabel()
         self.proof_language_label.setText(self.tr("settings.prompt.prooflang"))
-        self.proof_language_edit = ChoiceCombo(custom_label=self.tr("choice.custom"))
-        self.proof_language_edit.retranslate(self.tr, self.tr("choice.custom"))
+        self.proof_language_edit = ChoiceCombo()
         self.proof_language_edit.set_choices([
             (self.tr("settings.prompt.prooflang_auto"), "auto"),
             (self.tr("settings.prompt.prooflang_zh"), "中文"),

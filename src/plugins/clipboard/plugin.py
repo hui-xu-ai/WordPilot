@@ -292,12 +292,17 @@ class ClipboardPlugin(PluginBase):
             (("settings.prompt.translatelang_auto", "auto"),
              ("settings.prompt.translatelang_zh", "中文"),
              ("settings.prompt.translatelang_en", "英文"),
-             ("settings.prompt.translatelang_ja", "日文"),
-             ("韩文", "韩文"), ("法文", "法文"), ("德文", "德文")),
+             ("settings.prompt.translatelang_ja", "日文")),
             "settings.prompt.translatelang", "settings.prompt.translatelang_tip")
         self.translate_language_edit.setToolTip(self.tr("settings.prompt.translatelang_tip"))
         lang_lay.addWidget(self.translate_language_edit)
         lay.addWidget(lang_card)
+
+        # 统一说明占位符含义：用户据此改写提示词，也据此理解下面几个下拉
+        self.placeholder_help = QLabel(self.tr("settings.prompt.placeholder_help"))
+        self.placeholder_help.setObjectName("hintLabel")
+        self.placeholder_help.setWordWrap(True)
+        lay.addWidget(self.placeholder_help)
 
         self.correct_language_edit = self._language_combo(
             config, "correct_language",
@@ -354,8 +359,7 @@ class ClipboardPlugin(PluginBase):
     def _language_combo(self, config, config_key: str, options, title_key: str,
                         tip_key: str) -> ChoiceCombo:
         """按 `(文案 key, 配置值)` 生成**真下拉**（预设项 + 「自定义…」）。"""
-        combo = ChoiceCombo(custom_label=self.tr("choice.custom"))
-        combo.retranslate(self.tr, self.tr("choice.custom"))
+        combo = ChoiceCombo()
         combo.set_choices([(self.tr(display_key), value) for display_key, value in options])
         default = "中" if config_key == "rewrite_strength" else "auto"
         combo.set_value(str(config.get(config_key, default) or default))
