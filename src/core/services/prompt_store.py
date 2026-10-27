@@ -348,6 +348,70 @@ def migrate_stale_defaults(config, root: Path | None = None) -> int:
     return cleared
 
 
+def default_text_variants(key: str, prompt_tr=None) -> set[str]:
+    """收集该提示词在**所有语言包**里的默认文案（归一化后），用于识别空壳版本。"""
+    i18n_key = default_keys(key)
+    if not i18n_key:
+        return set()
+    variants: set[str] = set()
+    current = _normalised(default_text(key, prompt_tr))
+    if current:
+        variants.add(current)
+    try:
+        from infra.utils import resource_path
+
+        i18n_dir = Path(resource_path("assets/i18n"))
+        for pack in sorted(i18n_dir.glob("*.json")):
+            try:
+                data = json.loads(pack.read_text(encoding="utf-8"))
+            except Exception:                  # noqa: BLE001 - 单个语言包坏了不影响判定
+                continue
+            value = _normalised(str(data.get(i18n_key, "")))
+            if value and not _RAW_KEY.fullmatch(value):
+                variants.add(value)
+    except Exception:                          # noqa: BLE001
+        pass
+    return variants
+
+
+def drop_redundant_versions(key: str, prompt_tr=None, root: Path | None = None) -> int:
+    """删掉"内容与系统默认完全一样"的自定义版本（没有信息量，且是误建的）。
+
+    只删非「默认」、非自动备份的版本；删除后若当前版本被删，切回「默认」。
+    """
+    variants = default_text_variants(key, prompt_tr)
+    if not variants:
+        return 0
+    directory = _key_dir(key, root)
+    if not directory.exists():
+        return 0
+
+    data = _read_index(directory)
+    removed = 0
+    for item in list(data.get("versions", [])):
+        name = item.get("name", "")
+        if name == DEFAULT_VERSION or name.startswith("自动-"):
+            continue
+        try:
+            content = (directory / item.get("file", "")).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if _normalised(content) not in variants:
+            continue
+        try:
+            (directory / item.get("file", "")).unlink(missing_ok=True)
+        except OSError:
+            continue
+        data["versions"] = [x for x in data["versions"] if x["name"] != name]
+        if data.get("active") == name:
+            data["active"] = DEFAULT_VERSION if DEFAULT_VERSION in [x["name"] for x in data["versions"]] else ""
+        removed += 1
+    if removed:
+        _write_index(directory, data)
+        logger.info("已清理 %s 下 %d 个与默认内容相同的多余版本", key, removed)
+    return removed
+
+
 def ensure_default_version(key: str, prompt_tr=None, root: Path | None = None) -> str:
     """保证「默认」版本存在，且内容 = **当前**系统自带文案（软件更新后自动跟进）。
 

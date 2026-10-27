@@ -84,6 +84,8 @@ class PromptVersionBar(QWidget):
         """按仓库里的版本列表刷新下拉（不触发应用回调）。"""
         if callable(self._prompt_tr):
             prompt_store.ensure_default_version(self._key, self._prompt_tr)  # 系统默认版本常驻
+            # 误建的"内容＝默认"的版本没有信息量，顺手清掉（不动用户真正改过的版本）
+            prompt_store.drop_redundant_versions(self._key, self._prompt_tr)
             if not (self._config.get(self._key) or "").strip():
                 # config 为空时实际生效的是系统默认 → 当前版本也对齐成「默认」，
                 # 否则下拉会显示"自动-备份 · 当前"，与真正发给模型的提示词不一致。
@@ -163,6 +165,15 @@ class PromptVersionBar(QWidget):
         content = (text if text is not None else self._read_text() or "").strip()
         if not content:
             return False
+        default_text = (self._default_text() or "").strip()
+        if default_text and content == default_text:
+            # 内容仍是**系统默认**（常见于切换语言后自动刷新、或用户没改就触发保存）：
+            # 不新建版本、也不把默认文案固化进 config —— 否则以后软件更新默认提示词就不生效了。
+            if (self._config.get(self._key) or "").strip():
+                self._config.set(self._key, "")
+                self._save_config()
+            self.refresh()
+            return True
         self._config.set(self._key, content)
         self._save_config()
         active = prompt_store.active_name(self._key)
