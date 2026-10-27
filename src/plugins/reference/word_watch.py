@@ -285,6 +285,8 @@ class WordWatch(QThread):
         self._index = DocIndex()
         self._last_anchor = ""
         self._last_status = ""
+        self._document = None
+        self._selection = None
         self._healed: set[tuple] = set()              # BUG-2 自愈：同一篇文档只重扫一次
 
     def stop(self) -> None:
@@ -349,6 +351,11 @@ class WordWatch(QThread):
             except Exception:                  # noqa: BLE001 - 窗口匹配失败就用 ActiveDocument
                 logger.debug("按前台窗口定位文档失败，退回 ActiveDocument", exc_info=True)
             doc_name = document.Name
+            self._document = document            # 本轮统一的文档对象
+            try:
+                self._selection = word.Selection  # 后续 payload/坐标都用它
+            except Exception:                  # noqa: BLE001
+                self._selection = None
         except Exception:                  # noqa: BLE001 - Word 未开/关闭中
             self._emit_status("watch.no_word")
             self._handle_miss()
@@ -370,7 +377,7 @@ class WordWatch(QThread):
             signature = None
         needs = self._index.needs_rescan(doc_identity, signature)
         if needs:
-            doc_path, fp = self._document_fingerprint(word)
+            doc_path, fp = self._document_fingerprint(word, document)
             cached = None
             if self._cache is not None:
                 cached = self._cache.load_anchors(doc_path, fp)
@@ -425,11 +432,14 @@ class WordWatch(QThread):
             self._last_anchor = anchors[0].anchor_key if anchors else ""
             self._cleared = False
             self._last_hit_at = time.perf_counter()
-            self.citationFound.emit(self._anchor_payload(word, anchors, doc_name, position))
+            self.citationFound.emit(self._anchor_payload(
+                word, anchors, doc_name, position,
+                document=self._document, selection=self._selection))
             return
 
-        payload = (self._footnote_payload(word, doc_name)
-                   or self._label_fallback_payload(word, doc_name))
+        payload = (self._footnote_payload(word, doc_name, selection=self._selection)
+                   or self._label_fallback_payload(word, doc_name,
+                                                   selection=self._selection))
         if payload is not None:
             self._cleared = False
             self._last_hit_at = time.perf_counter()
@@ -459,12 +469,17 @@ class WordWatch(QThread):
         return True
 
     @staticmethod
-    def _document_fingerprint(word) -> tuple[str, tuple[int, int] | None]:
-        """取文档路径与文件指纹；失败返回 ("", None)（此时不做缓存）。"""
+    def _document_fingerprint(word, document=None) -> tuple[str, tuple[int, int] | None]:
+        """取文档路径与文件指纹；失败返回 ("", None)（此时不做缓存）。
+
+        `document` 由调用方传入**前台窗口那份文档**——不能再用 `word.ActiveDocument`：
+        两个文档同时打开时它会停在旧窗口，缓存就会按错误的路径存取。
+        """
         try:
             from plugins.reference.scan_cache import fingerprint
 
-            path = word.ActiveDocument.FullName or ""
+            document = document if document is not None else word.ActiveDocument
+            path = document.FullName or ""
             return path, fingerprint(path)
         except Exception:                  # noqa: BLE001
             return "", None
@@ -485,14 +500,16 @@ class WordWatch(QThread):
             self._cleared = True
             self.citationCleared.emit()
 
-    def _anchor_payload(self, word, anchors, doc_name: str, position: int = -1) -> dict:
+    def _anchor_payload(self, word, anchors, doc_name: str, position: int = -1,
+                        document=None, selection=None) -> dict:
         doc_path = ""
         try:
-            doc_path = word.ActiveDocument.FullName or ""
+            document = document if document is not None else word.ActiveDocument
+            doc_path = document.FullName or ""
         except Exception:                  # noqa: BLE001
             doc_path = ""
         try:
-            point = screen_point(word, word.Selection)
+            point = screen_point(word, selection if selection is not None else word.Selection)
         except Exception:                  # noqa: BLE001
             point = (200, 200)
 
@@ -519,13 +536,13 @@ class WordWatch(QThread):
                                      int(item["label"]) if item["label"].isdigit() else 0))
         return {"doc_name": doc_name, "doc_path": doc_path, "point": point, "items": items}
 
-    def _label_fallback_payload(self, word, doc_name: str) -> dict | None:
+    def _label_fallback_payload(self, word, doc_name: str, selection=None) -> dict | None:
         """域索引没命中时，看光标旁边是不是 `[12]` 这类编号（EndNote 常把引用显示成文本）。
 
         只有插件能在库里解析到该编号时才真的弹窗（见 `plugin._entry_for_item`）。
         """
         try:
-            selection = word.Selection
+            selection = selection if selection is not None else word.Selection
             text = (selection.Text or "").strip()
             if not text:
                 # 折叠光标：取前后各 3 个字符看看
@@ -549,10 +566,10 @@ class WordWatch(QThread):
                       for label in labels],
         }
 
-    def _footnote_payload(self, word, doc_name: str) -> dict | None:
+    def _footnote_payload(self, word, doc_name: str, selection=None) -> dict | None:
         """光标在脚注/尾注里时（不在域索引覆盖范围内）单独处理。"""
         try:
-            selection = word.Selection
+            selection = selection if selection is not None else word.Selection
             notes = selection.Footnotes
             if notes is not None and notes.Count >= 1:
                 text = notes(1).Range.Text or ""
