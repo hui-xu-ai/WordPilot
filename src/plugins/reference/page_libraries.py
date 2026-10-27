@@ -2,6 +2,8 @@
 """页面里的「仓库下拉 + 切换重绑」（从 library_page 拆出，保持单文件在阈值内）。"""
 from __future__ import annotations
 
+from core.services.i18n import message
+
 from PySide6.QtWidgets import QComboBox
 
 
@@ -62,7 +64,8 @@ class LibraryMixin:
         combo = QComboBox()
         combo.setObjectName("libraryCombo")
         combo.setMinimumWidth(120)
-        combo.addItems(self._libraries or [getattr(self, "_active_library", "") or "默认库"])
+        fallback = getattr(self, "_active_library", "") or message("library.default_name")
+        combo.addItems(self._libraries or [fallback])
         if getattr(self, "_active_library", ""):
             combo.setCurrentText(self._active_library)
         combo.currentTextChanged.connect(self._on_library_changed)

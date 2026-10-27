@@ -17,7 +17,9 @@ def _registry(tmp_path: Path):
 def test_recovery_backs_up_existing_file_instead_of_deleting(tmp_path):
     """S6：默认库已有 references.csv，根目录又有遗留 CSV —— 两份都要保留。"""
     root = tmp_path / "references"
-    default = root / "libraries" / "默认库"          # 与 LibraryRegistry.libraries_dir 保持一致
+    from plugins.reference.libraries import default_library_name
+
+    default = root / "libraries" / default_library_name()   # 与 LibraryRegistry 保持一致
     default.mkdir(parents=True)
     (default / "references.csv").write_text("旧的库内容\n", encoding="utf-8")
     root.mkdir(parents=True, exist_ok=True)

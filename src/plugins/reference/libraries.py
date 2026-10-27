@@ -27,7 +27,15 @@ logger = logging.getLogger(__name__)
 
 ROOT_FILES = ("references.csv", "anchors.csv", "notes.csv", "index.db",
               "index.db-wal", "index.db-shm", "doc_scan.db")
-DEFAULT_NAME = "默认库"
+DEFAULT_NAME = "默认库"          # 磁盘上的兜底名（历史数据都叫这个，保持兼容）
+
+
+def default_library_name() -> str:
+    """新建默认库时用的名字：跟随界面语言；语言包没就绪时退回 `DEFAULT_NAME`。"""
+    from core.services.i18n import message
+
+    name = message("library.default_name")
+    return name if name and not name.startswith("library.") else DEFAULT_NAME
 
 
 @dataclass
@@ -128,7 +136,7 @@ class LibraryRegistry:
         if data.get("libraries"):
             return data.get("active") or next(iter(data["libraries"]))
 
-        name = DEFAULT_NAME
+        name = default_library_name()
         target = self.libraries_dir / name
         target.mkdir(parents=True, exist_ok=True)
         for filename in ROOT_FILES:

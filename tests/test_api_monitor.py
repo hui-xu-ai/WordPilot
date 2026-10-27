@@ -48,7 +48,7 @@ def test_tokens_keep_cache_hit(log_file):
                             True, latency_ms=123)
 
     entry = json.loads(log_file.read_text(encoding="utf-8").strip())
-    assert entry["plugin"] == "proofread" and entry["task"] == "逐句校对"
+    assert entry["plugin"] == "proofread" and entry["task"] == "task.proof"
     assert entry["tokens"]["cache_hit"] == 60
     assert entry["tokens"]["total"] == 120
 
@@ -62,9 +62,9 @@ def test_task_summary_groups_by_plugin_and_task(log_file):
 
     rows = {row["task"]: row for row in api_logger.task_summary()}
 
-    assert rows["逐句校对"]["total"] == 15
-    assert rows["翻译"]["plugin"] == "clipboard"
-    assert rows["翻译"]["count"] == 1
+    assert rows["task.proof"]["total"] == 15
+    assert rows["task.translate"]["plugin"] == "clipboard"
+    assert rows["task.translate"]["count"] == 1
 
 
 def test_day_and_month_summary(log_file):

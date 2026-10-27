@@ -67,7 +67,9 @@ def _key_dir(key: str, root: Path | None = None) -> Path:
 
 
 def _slug(name: str) -> str:
-    return _SLUG.sub("_", (name or "").strip()) or "未命名"
+    from core.services.i18n import message
+
+    return _SLUG.sub("_", (name or "").strip()) or message("prompt.version.untitled")
 
 
 def _now() -> str:

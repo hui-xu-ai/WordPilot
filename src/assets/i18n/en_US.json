@@ -206,5 +206,20 @@
   "settings.storage.group.wal": "Database leftovers",
   "settings.storage.group.trash": "Deleted-library backups (_trash)",
   "settings.storage.group.cache": "Rebuildable caches",
-  "settings.storage.group.temp": "Temporary files"
+  "settings.storage.group.temp": "Temporary files",
+  "library.default_name": "Default library",
+  "document.unnamed": "Untitled document",
+  "prompt.version.untitled": "Untitled version",
+  "task.proof": "Sentence proofreading",
+  "task.correct": "Whole-passage correction",
+  "task.translate": "Translation",
+  "task.rewrite": "Rewrite",
+  "skin.chestnut_corgi": "Chestnut corgi",
+  "skin.dusk_owl": "Dusk owl",
+  "skin.ink_cat": "Ink cat",
+  "skin.maple_fox": "Maple fox",
+  "skin.mint_dragon": "Mint dragon",
+  "skin.mochi_bunny": "Mochi bunny",
+  "skin.page_spirit": "Page spirit",
+  "skin.sky_whale": "Sky whale"
 }

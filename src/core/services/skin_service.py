@@ -92,9 +92,18 @@ class SkinService:
         return DEFAULT_SKIN_ID if DEFAULT_SKIN_ID in self._manifests else (
             sorted(self._manifests)[0] if self._manifests else "")
 
+    def _display_name(self, skin_id: str, fallback: str) -> str:
+        """皮肤显示名：i18n `skin.<id>` 优先，取不到用清单里的 name。"""
+        service = getattr(self, "_i18n", None)
+        if service is None:
+            return fallback
+        translated = service.tr(f"skin.{skin_id}")
+        return translated if translated and translated != f"skin.{skin_id}" else fallback
+
     def available(self) -> list[dict]:
         """[{id, name}]，按 id 排序，供切换菜单使用。"""
-        return [{"id": sid, "name": m.get("name", sid)}
+        # 名称优先取语言包 `skin.<id>`（皮肤清单里的 name 是作者语言，可能只有中文）
+        return [{"id": sid, "name": self._display_name(sid, m.get("name", sid))}
                 for sid, m in sorted(self._manifests.items())]
 
     def set_skin(self, skin_id: str) -> str:

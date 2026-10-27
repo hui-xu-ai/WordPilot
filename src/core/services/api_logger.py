@@ -17,13 +17,16 @@ LOG_FILE = CONFIG_DIR / "api_calls.log"
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 _write_lock = threading.Lock()
 
-#: action → (插件 id, 任务名)，给老日志补字段用
+#: action → (插件 id, 任务 key)。任务名只存 key，界面按语言包翻译后显示。
 ACTION_OWNER = {
-    "proof": ("proofread", "逐句校对"),
-    "correct": ("clipboard", "整段纠错"),
-    "translate": ("clipboard", "翻译"),
-    "rewrite": ("clipboard", "改写"),
+    "proof": ("proofread", "task.proof"),
+    "correct": ("clipboard", "task.correct"),
+    "translate": ("clipboard", "task.translate"),
+    "rewrite": ("clipboard", "task.rewrite"),
 }
+#: 旧日志里存过中文任务名，读取时映射回 key（保证历史数据也能翻译）
+_LEGACY_TASKS = {"逐句校对": "task.proof", "整段纠错": "task.correct",
+                 "翻译": "task.translate", "改写": "task.rewrite"}
 
 
 def _normalize_tokens(tokens):
@@ -76,6 +79,7 @@ def _normalise_entry(entry: dict) -> dict:
     owner_plugin, owner_task = ACTION_OWNER.get(action, ("", action))
     entry.setdefault("plugin", owner_plugin)
     entry.setdefault("task", owner_task)
+    entry["task"] = _LEGACY_TASKS.get(str(entry.get("task")), entry.get("task"))
     entry["tokens"] = _normalize_tokens(entry.get("tokens"))
     entry["day"] = (entry.get("time") or "")[:10]
     entry["month"] = entry["day"][:7]

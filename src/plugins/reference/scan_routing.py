@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+from core.services.i18n import message
+
 import logging
 import re
 from pathlib import Path
@@ -19,8 +21,8 @@ _BAD_CHARS = re.compile(r'[\\/:*?"<>|]+')
 
 def suggest_library_name(existing: list[str], doc_name: str) -> str:
     """用文档名当新仓库名（去扩展名与非法字符，重名自动加序号）。"""
-    stem = Path(doc_name).stem if doc_name else "未命名文档"
-    stem = _BAD_CHARS.sub("_", stem).strip() or "未命名文档"
+    stem = Path(doc_name).stem if doc_name else message("document.unnamed")
+    stem = _BAD_CHARS.sub("_", stem).strip() or message("document.unnamed")
     name = stem
     index = 2
     while name in existing:

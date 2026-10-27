@@ -227,7 +227,9 @@ class DeepSeekClient:
         tokens = self.last_usage or {"prompt": 0, "completion": 0, "total": 0}
         action = "correct" if prompt_key == "correct_prompt" else "proof"
         log_api_call(action, text, result or "", tokens, bool(result),
-                     latency_ms=self.last_latency_ms)
+                     latency_ms=self.last_latency_ms,
+                     plugin="proofread" if action == "proof" else "clipboard",
+                     task=f"task.{action}")
         if result is None:
             return None
         result = result.strip()
@@ -259,7 +261,8 @@ class DeepSeekClient:
         ]
         result = self._call_api(messages)
         tokens = self.last_usage or {"prompt": 0, "completion": 0, "total": 0}
-        log_api_call("translate", text, result or "", tokens, bool(result), latency_ms=self.last_latency_ms)
+        log_api_call("translate", text, result or "", tokens, bool(result),
+                     latency_ms=self.last_latency_ms, plugin="clipboard", task="task.translate")
         return None if result is None else result.strip()
 
     def _rewrite_mode(self, value: str) -> str:
@@ -295,7 +298,8 @@ class DeepSeekClient:
         ]
         result = self._call_api(messages)
         tokens = self.last_usage or {"prompt": 0, "completion": 0, "total": 0}
-        log_api_call("rewrite", text, result or "", tokens, bool(result), latency_ms=self.last_latency_ms)
+        log_api_call("rewrite", text, result or "", tokens, bool(result),
+                     latency_ms=self.last_latency_ms, plugin="clipboard", task="task.rewrite")
         return None if result is None else result.strip()
 
     def clipboard_proof(self, text: str) -> str | None:

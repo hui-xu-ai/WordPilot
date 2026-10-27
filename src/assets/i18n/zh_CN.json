@@ -206,5 +206,20 @@
   "settings.storage.group.wal": "数据库残留",
   "settings.storage.group.trash": "删除库的备份(_trash)",
   "settings.storage.group.cache": "可重建缓存",
-  "settings.storage.group.temp": "临时文件"
+  "settings.storage.group.temp": "临时文件",
+  "library.default_name": "默认库",
+  "document.unnamed": "未命名文档",
+  "prompt.version.untitled": "未命名版本",
+  "task.proof": "逐句校对",
+  "task.correct": "整段纠错",
+  "task.translate": "翻译",
+  "task.rewrite": "改写",
+  "skin.chestnut_corgi": "栗子柯基",
+  "skin.dusk_owl": "暮色小鸮",
+  "skin.ink_cat": "墨墨猫",
+  "skin.maple_fox": "枫叶狐",
+  "skin.mint_dragon": "薄荷龙",
+  "skin.mochi_bunny": "麻薯兔",
+  "skin.page_spirit": "书页精灵",
+  "skin.sky_whale": "晴空鲸"
 }

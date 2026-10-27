@@ -94,6 +94,21 @@ class ApiMonitorPanel(QWidget):
         else:
             self._fill_period_table(logs, "month", "api.monitor.col_month")
 
+    #: 旧日志里存过中文任务名，显示时也翻译
+    _LEGACY_TASKS = {"逐句校对": "task.proof", "整段纠错": "task.correct",
+                     "翻译": "task.translate", "改写": "task.rewrite"}
+
+    def _task_label(self, value: str) -> str:
+        """任务 key（task.translate 等）翻译成当前语言；旧中文名同样翻译；其它原样显示。"""
+        if isinstance(value, str) and value in self._LEGACY_TASKS:
+            value = self._LEGACY_TASKS[value]
+            translated = self._tr(value)
+            return translated if translated != value else value
+        if isinstance(value, str) and value.startswith("task."):
+            translated = self._tr(value)
+            return translated if translated != value else value
+        return value
+
     @staticmethod
     def _hit_rate(row: dict) -> str:
         """命中率 = 命中缓存 / 输入 tokens；输入为 0 时显示 "-"。"""
@@ -123,7 +138,8 @@ class ApiMonitorPanel(QWidget):
                            self._tr("api.monitor.col_total")])
         self.table.setRowCount(len(rows))
         for r, row in enumerate(rows):
-            for c, value in enumerate((row["plugin"], row["task"], row["count"],
+            for c, value in enumerate((row["plugin"], self._task_label(row["task"]),
+                                       row["count"],
                                        row["prompt"], row["cache_hit"], self._hit_rate(row),
                                        row["completion"], row["total"])):
                 self.table.setItem(r, c, QTableWidgetItem(str(value)))
@@ -137,7 +153,8 @@ class ApiMonitorPanel(QWidget):
         self.table.setRowCount(len(recent))
         for r, entry in enumerate(recent):
             tokens = entry["tokens"]
-            label = f"{entry.get('plugin') or '-'} / {entry.get('task') or entry.get('action')}"
+            task = self._task_label(str(entry.get("task") or entry.get("action") or ""))
+            label = f"{entry.get('plugin') or '-'} / {task}"
             values = (entry.get("time", ""), label, tokens["prompt"], tokens["cache_hit"],
                       tokens["completion"], tokens["total"],
                       entry.get("latency_ms", ""))
