@@ -60,7 +60,14 @@ Compress-Archive -Path dist\WordPilot\* -DestinationPath WordPilot-v3.1.0-win64.
 - 数据全部留在本机 `config/`，只有待处理文本外发；详见 `docs/PRIVACY.md`；
 - 未做代码签名，SmartScreen 可能提示「仍要运行」。
 
-## 5. 后续可选
+'## 4.1 打包后修复（c1a3bee，需重新打包）
+
+| 问题 | 修法 |
+| --- | --- |
+| 图片工具箱报 `找不到必要文件：config/Image.docx` | 工作文档改为**首次使用时自动用 Word 创建**（`Documents.Add()` + `SaveAs2`，关闭不保存）；不再要求用户预置文件，也不随包分发（避免带上用户图片） |
+| API 设置硬编码 DeepSeek | 新增「接口地址」输入（默认 DeepSeek，可填任何 OpenAI 兼容端点），模型自由输入；文案去掉品牌名；「测试连接」使用配置的端点 |
+
+## 5. 后续可选'
 
 - [ ] 安装包（Inno Setup / MSIX）与代码签名；
 - [ ] 首启向导（引导填写 API Key，减少“打开发现没反应”）；
