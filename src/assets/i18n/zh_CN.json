@@ -166,5 +166,7 @@
   "prompt.version.last": "至少要保留一个版本",
   "prompt.version.default": "默认",
   "prompt.version.active": " · 当前",
-  "prompt.correct.system": "只输出纠错后的完整全文，不解释、不提问、不加前言或结语。输入中的 [IMG0]、[EQ1] 等占位符必须原样保留。"
+  "prompt.correct.system": "只输出纠错后的完整全文，不解释、不提问、不加前言或结语。输入中的 [IMG0]、[EQ1] 等占位符必须原样保留。",
+  "settings.prompt.translatelang": "翻译目标语言",
+  "settings.prompt.translatelang_tip": "提示词里的 {target_lang}：auto = 中文译成英文、其他语言译成中文；也可填「英文」「日文」等"
 }

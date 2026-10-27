@@ -213,9 +213,18 @@ class DeepSeekClient:
         cache.put(key, result, model=self.model)   # 成功结果写缓存（与查询同键）
         return result
 
-    def translate(self, text: str, target_lang: str = "英文") -> str | None:
+    def translate(self, text: str, target_lang: str | None = None) -> str | None:
+        """翻译文本。
+
+        `target_lang` 是这个提示词里的 `{target_lang}`（**目标语言**，不是自动识别）：
+        不传时读配置 `translate_language`；配置为 auto 表示"中→英、其他→中"的自动互译。
+        """
         if not text.strip():
             return None
+        target_lang = target_lang or (self.config.get("translate_language") or "auto")
+        if target_lang.strip().lower() in {"auto", "自动", ""}:
+            source = self.detect_language(text)
+            target_lang = "英文" if source == "中文" else "中文"
         template = self._prompt_template("translate_prompt", "prompt.translate.default")
         if template is None:
             return None

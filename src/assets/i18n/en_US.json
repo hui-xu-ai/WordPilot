@@ -166,5 +166,7 @@
   "prompt.version.last": "Keep at least one version",
   "prompt.version.default": "Default",
   "prompt.version.active": " (current)",
-  "prompt.correct.system": "Output only the corrected full text. No explanation, no preamble, no closing remarks. Keep placeholders such as [IMG0] or [EQ1] exactly as they are."
+  "prompt.correct.system": "Output only the corrected full text. No explanation, no preamble, no closing remarks. Keep placeholders such as [IMG0] or [EQ1] exactly as they are.",
+  "settings.prompt.translatelang": "Translate into",
+  "settings.prompt.translatelang_tip": "{target_lang} in the prompt: auto = Chinese→English, others→Chinese; or set e.g. English / Japanese"
 }

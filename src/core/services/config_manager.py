@@ -103,6 +103,8 @@ class ConfigManager:
         config.setdefault("prompt_language", "zh_CN")   # 提示词本身用哪种语言写，独立控制
         # 校对/纠错的**文本语言**（与提示词语言解耦）：auto = 按待校文本自动判断
         config.setdefault("proof_language", "auto")
+        # 翻译目标语言：auto = 中文→英文、其他语言→中文；也可填「英文」「日文」等
+        config.setdefault("translate_language", "auto")
         config.setdefault("rewrite_strength", "中")
         config.setdefault("font_family", "Microsoft YaHei")
         config.setdefault("font_size", 12)
