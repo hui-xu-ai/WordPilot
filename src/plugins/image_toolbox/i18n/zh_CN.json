@@ -1,5 +1,5 @@
 {
-  "plugin.name": "图片工具箱",
+  "plugin.name": "图片工具",
   "plugin.description": "按页面版心批量裁剪并居中 Word 中的图片",
   "tool_label": "图片工具箱",
   "tray_label": "图片工具箱",

@@ -5,7 +5,10 @@
   "description": "把 Word 里的引用（Zotero/EndNote 域、脚注尾注、REF 交叉引用）与本地 CSV 文献库绑定，显示并编辑备注；CSV 可由用户自行维护",
   "author": "Xu Hui",
   "entry": "plugin:ReferencePlugin",
-  "requires": ["config", "word_bridge"],
+  "requires": [
+    "config",
+    "word_bridge"
+  ],
   "deps": [],
   "enabled_by_default": true
 }

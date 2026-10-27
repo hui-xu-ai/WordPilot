@@ -1,11 +1,15 @@
 {
   "id": "navigator",
-  "name": "Word 导航助手",
+  "name": "导航助手",
   "version": "1.0.0",
   "description": "扫描文档中的标题、图表题注与公式，生成可搜索、可跳转的导航面板",
   "author": "Xu Hui",
   "entry": "plugin:NavigatorPlugin",
-  "requires": ["config", "caption_cache", "word_bridge"],
+  "requires": [
+    "config",
+    "caption_cache",
+    "word_bridge"
+  ],
   "deps": [],
   "enabled_by_default": true
 }

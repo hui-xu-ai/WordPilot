@@ -1,5 +1,5 @@
 {
-  "plugin.name": "Smart Proofreading",
+  "plugin.name": "Proofreading",
   "plugin.description": "Watch the sentence at the cursor and proofread it automatically when finished",
   "nav.page": "Smart Proofreading",
   "nav.monitor": "API Monitor",

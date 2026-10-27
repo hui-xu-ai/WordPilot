@@ -1,5 +1,5 @@
 {
-  "plugin.name": "Image Toolbox",
+  "plugin.name": "Image tools",
   "plugin.description": "Batch crop and center images in Word according to the page text area",
   "tool_label": "Image Toolbox",
   "tray_label": "Image Toolbox",

@@ -142,11 +142,22 @@ class PluginManagerPage(QWidget):
                 card = self._make_card(record, icons.get(record.manifest.id))
                 row, col = divmod(index, 2)
                 self.grid.addWidget(card, row, col)
-                self._cards.append((card, record.manifest.name or record.manifest.id,
+                self._cards.append((card, self._display_name(record),
                                     record.manifest.description))
             self._apply_filter()
         finally:
             self._building = False
+
+    def _display_name(self, record) -> str:
+        """插件显示名：插件语言包的 `plugin.name` 优先，manifest.name 兜底。
+
+        单一来源——导航轨、托盘、插件列表都用这套名字，避免同一个插件两种叫法。
+        """
+        key = f"{record.manifest.id}.plugin.name"
+        translated = self.i18n.tr(key) if self.i18n is not None else key
+        if translated and translated != key:
+            return translated
+        return record.manifest.name or record.manifest.id
 
     def _make_card(self, record, icon_name: str | None) -> QWidget:
         manifest = record.manifest
@@ -170,7 +181,7 @@ class PluginManagerPage(QWidget):
 
         name_col = QVBoxLayout()
         name_col.setSpacing(2)
-        name = QLabel(manifest.name or manifest.id)
+        name = QLabel(self._display_name(record))
         name.setObjectName("pluginCardName")
         name_col.addWidget(name)
         meta = QLabel(f"v{manifest.version} · {manifest.author}")

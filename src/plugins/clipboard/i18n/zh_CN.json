@@ -1,5 +1,5 @@
 {
-  "plugin.name": "翻译改写工具",
+  "plugin.name": "翻译改写",
   "page_label": "翻译改写",
   "input_label": "原文",
   "load": "读取剪贴板",

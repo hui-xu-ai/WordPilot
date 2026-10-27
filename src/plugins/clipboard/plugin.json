@@ -1,6 +1,6 @@
 {
   "id": "clipboard",
-  "name": "翻译改写工具",
+  "name": "翻译改写",
   "version": "1.0.0",
   "description": "读取剪贴板文本，一键翻译 / 改写 / 纠错，结果可复制",
   "author": "Xu Hui",
