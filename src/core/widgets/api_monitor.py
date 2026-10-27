@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtWidgets import (QComboBox, QGridLayout, QHBoxLayout, QLabel, QPushButton,
+from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QHeaderView, QLabel, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from core.services import api_logger
@@ -102,11 +102,17 @@ class ApiMonitorPanel(QWidget):
             return "-"
         return f"{(row.get('cache_hit') or 0) / prompt:.0%}"
 
-    def _set_headers(self, headers: list[str]) -> None:
+    def _set_headers(self, headers: list[str], stretch_all: bool = True) -> None:
         self.table.clear()
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
         self.table.setRowCount(0)
+        header = self.table.horizontalHeader()
+        if stretch_all:
+            header.setSectionResizeMode(QHeaderView.Stretch)      # 列宽均分，铺满面板
+        else:
+            header.setSectionResizeMode(QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(len(headers) - 1, QHeaderView.Stretch)
 
     def _fill_task_table(self, logs) -> None:
         rows = api_logger.task_summary(logs)
@@ -121,7 +127,6 @@ class ApiMonitorPanel(QWidget):
                                        row["prompt"], row["cache_hit"], self._hit_rate(row),
                                        row["completion"], row["total"])):
                 self.table.setItem(r, c, QTableWidgetItem(str(value)))
-        self.table.resizeColumnsToContents()
 
     def _fill_call_table(self, logs) -> None:
         recent = list(reversed(logs))[:300]
@@ -138,7 +143,6 @@ class ApiMonitorPanel(QWidget):
                       entry.get("latency_ms", ""))
             for c, value in enumerate(values):
                 self.table.setItem(r, c, QTableWidgetItem(str(value)))
-        self.table.resizeColumnsToContents()
 
     def _fill_period_table(self, logs, key: str, header_key: str) -> None:
         rows = api_logger.period_summary(key, logs)
@@ -152,7 +156,6 @@ class ApiMonitorPanel(QWidget):
                                        row["cache_hit"], self._hit_rate(row),
                                        row["completion"], row["total"])):
                 self.table.setItem(r, c, QTableWidgetItem(str(value)))
-        self.table.resizeColumnsToContents()
 
     def _clear(self) -> None:
         from PySide6.QtWidgets import QMessageBox

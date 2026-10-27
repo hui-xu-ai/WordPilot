@@ -188,5 +188,7 @@
   "api.monitor.col_latency": "Latency(ms)",
   "api.monitor.col_day": "Date",
   "api.monitor.col_month": "Month",
-  "api.monitor.col_rate": "Hit rate"
+  "api.monitor.col_rate": "Hit rate",
+  "settings.tab.prompts": "Prompts",
+  "settings.prompt.language_hint": "The language the prompts are written in (not the UI language, and not the proofreading/translation target). Per-plugin prompts are edited on the plugin pages."
 }

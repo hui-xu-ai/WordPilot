@@ -188,5 +188,7 @@
   "api.monitor.col_latency": "耗时(ms)",
   "api.monitor.col_day": "日期",
   "api.monitor.col_month": "月份",
-  "api.monitor.col_rate": "命中率"
+  "api.monitor.col_rate": "命中率",
+  "settings.tab.prompts": "提示词",
+  "settings.prompt.language_hint": "提示词本身用哪种语言书写（不等于界面语言，也不等于校对/翻译的目标语言）。各插件的提示词内容与版本在对应插件页里编辑。"
 }
