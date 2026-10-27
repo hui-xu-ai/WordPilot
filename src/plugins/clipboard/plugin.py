@@ -302,6 +302,24 @@ class ClipboardPlugin(PluginBase):
         lang_lay.addWidget(self.translate_language_edit)
         lay.addWidget(lang_card)
 
+        self.correct_language_edit = self._language_combo(
+            config, "correct_language",
+            (("settings.prompt.correclang_auto", "auto"),
+             ("settings.prompt.correclang_zh", "中文"),
+             ("settings.prompt.correclang_en", "English")),
+            "settings.prompt.correclang", "settings.prompt.correclang_tip")
+        lay.addWidget(self._language_card("settings.prompt.correclang",
+                                          self.correct_language_edit))
+
+        self.rewrite_strength_edit = self._language_combo(
+            config, "rewrite_strength",
+            (("settings.prompt.strength_light", "轻"),
+             ("settings.prompt.strength_medium", "中"),
+             ("settings.prompt.strength_strong", "强")),
+            "settings.prompt.strength", "settings.prompt.strength_tip")
+        lay.addWidget(self._language_card("settings.prompt.strength",
+                                          self.rewrite_strength_edit))
+
         self.translate_prompt_edit = _card("settings.prompt.translate",
                                            "settings.prompt.translate_hint",
                                            "translate_prompt")
@@ -323,6 +341,33 @@ class ClipboardPlugin(PluginBase):
         self._side_panel = panel
         return panel
 
+    def _language_card(self, title_key: str, combo) -> QWidget:
+        """一张「标题 + 下拉」的小卡片（语言/强度这类单选项统一用它）。"""
+        card = QWidget()
+        card.setObjectName("card")
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(14, 12, 14, 12)
+        lay.setSpacing(8)
+        title = QLabel(self.tr(title_key))
+        title.setObjectName("cardTitle")
+        lay.addWidget(title)
+        lay.addWidget(combo)
+        return card
+
+    def _language_combo(self, config, config_key: str, options, title_key: str,
+                        tip_key: str) -> QComboBox:
+        """按 `(文案 key, 配置值)` 生成下拉，并把当前配置值显示成可读文案。"""
+        combo = QComboBox()
+        combo.setEditable(True)
+        for display_key, value in options:
+            combo.addItem(self.tr(display_key), value)
+        combo.setCurrentText(_display_language(
+            combo, str(config.get(config_key, "auto") or "auto")
+            if config_key != "rewrite_strength"
+            else str(config.get(config_key, "中") or "中")))
+        combo.setToolTip(self.tr(tip_key))
+        return combo
+
     def save_plugin_settings(self) -> None:
         """一次写盘并广播 `settings.saved`（内核据此重建 AI 客户端）。"""
         config = self.ctx.get_service("config")
@@ -331,6 +376,8 @@ class ClipboardPlugin(PluginBase):
             "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
             "correct_prompt": self.correct_prompt_edit.toPlainText(),
             "translate_language": _language_value(self.translate_language_edit),
+            "correct_language": _language_value(self.correct_language_edit),
+            "rewrite_strength": _language_value(self.rewrite_strength_edit),
         }
         if config.update(payload):
             for bar in getattr(self, "_prompt_bars", []):

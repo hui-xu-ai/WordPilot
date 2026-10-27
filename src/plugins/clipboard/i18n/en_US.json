@@ -22,7 +22,7 @@
   "settings.prompt.translate": "Translate prompt ({text} = source, {target_lang} = target language)",
   "settings.prompt.translate_hint": "Placeholders: {text} = text to translate (required); {target_lang} = the setting above; {lang} = source language (auto detected)",
   "settings.prompt.rewrite": "Rewrite prompt ({text} = source, {style} = style)",
-  "settings.prompt.rewrite_hint": "Keep the placeholders: {text} is replaced with the text to rewrite.",
+  "settings.prompt.rewrite_hint": "Placeholders: {text} = source text (required); {strength} = the strength above",
   "settings.save": "Save",
   "settings.saved": "Saved",
   "settings.save_failed": "Save failed",
@@ -46,5 +46,15 @@
   "settings.prompt.translatelang_auto": "Auto (zh<->en)",
   "settings.prompt.translatelang_zh": "Chinese",
   "settings.prompt.translatelang_en": "English",
-  "settings.prompt.translatelang_ja": "Japanese"
+  "settings.prompt.translatelang_ja": "Japanese",
+  "settings.prompt.correclang": "Correction language ({lang})",
+  "settings.prompt.correclang_tip": "{lang} of the correction prompt; auto = detect from text. Independent of the proofreading plugin's setting",
+  "settings.prompt.correclang_auto": "Auto detect",
+  "settings.prompt.correclang_zh": "Chinese",
+  "settings.prompt.correclang_en": "English",
+  "settings.prompt.strength": "Rewrite strength ({strength})",
+  "settings.prompt.strength_tip": "{strength} of the rewrite prompt: light = wording only; medium = may reorder; strong = may restructure a paragraph",
+  "settings.prompt.strength_light": "Light",
+  "settings.prompt.strength_medium": "Medium",
+  "settings.prompt.strength_strong": "Strong"
 }

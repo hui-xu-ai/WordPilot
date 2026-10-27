@@ -122,9 +122,15 @@ class DeepSeekClient:
         cjk = sum(1 for ch in sample if "\u4e00" <= ch <= "\u9fff")
         return "中文" if cjk / max(1, len(sample)) >= 0.15 else "English"
 
-    def target_language(self, text: str) -> str:
-        """校对/纠错的文本语言：设置项 `proof_language` 为 auto 时按文本识别。"""
-        configured = (self.config.get("proof_language") or "auto").strip()
+    def target_language(self, text: str, prompt_key: str = "proof_prompt") -> str:
+        """{lang} 的值：文本语言。
+
+        逐句校对用 `proof_language`（智能纠错插件的设置）；
+        整段纠错用 `correct_language`（翻译改写插件的设置）—— 两者独立，互不影响。
+        值为 auto 时按待处理文本自动识别。
+        """
+        key = "correct_language" if prompt_key == "correct_prompt" else "proof_language"
+        configured = (self.config.get(key) or "auto").strip()
         if configured and configured.lower() != "auto":
             return configured
         return self.detect_language(text)
@@ -187,8 +193,9 @@ class DeepSeekClient:
             template = self.prompt_tr(default_key)
         if "{text}" not in template:
             template += "\n{text}"
-        prompt = (template.replace("{lang}", self.target_language(text))
-                  .replace("{language}", self.target_language(text))
+        language = self.target_language(text, prompt_key)
+        prompt = (template.replace("{lang}", language)
+                  .replace("{language}", language)
                   .replace("{text}", text))
 
         # system 消息也按场景分开：整段纠错与逐句校对的输出要求不同
@@ -241,13 +248,14 @@ class DeepSeekClient:
         log_api_call("translate", text, result or "", tokens, bool(result), latency_ms=self.last_latency_ms)
         return None if result is None else result.strip()
 
-    def rewrite(self, text: str, style: str = "中", strength: str | None = None) -> str | None:
+    def rewrite(self, text: str, style: str | None = None,
+                strength: str | None = None) -> str | None:
         if not text.strip():
             return None
         template = self._prompt_template("rewrite_prompt", "prompt.rewrite.default")
         if template is None:
             return None
-        level = strength or style or "中"
+        level = (strength or style or self.config.get("rewrite_strength") or "中").strip()
         prompt = (template.replace("{strength}", level).replace("{style}", level)
                   .replace("{text}", text))
         messages = [

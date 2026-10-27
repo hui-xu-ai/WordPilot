@@ -22,7 +22,7 @@
   "settings.prompt.translate": "翻译提示词（{text} 原文，{target_lang} 目标语言）",
   "settings.prompt.translate_hint": "占位符：{text} = 待翻译正文（必须保留）；{target_lang} = 上面的目标语言；{lang} = 源文本语言（自动识别）",
   "settings.prompt.rewrite": "改写提示词（{text} 原文，{style} 风格）",
-  "settings.prompt.rewrite_hint": "占位符必须保留：{text} 会被替换成待改写正文。",
+  "settings.prompt.rewrite_hint": "占位符：{text} = 原文（必须保留）；{strength} = 上面的改写强度",
   "settings.save": "保存",
   "settings.saved": "已保存",
   "settings.save_failed": "保存失败",
@@ -46,5 +46,15 @@
   "settings.prompt.translatelang_auto": "自动互译（中↔英）",
   "settings.prompt.translatelang_zh": "中文",
   "settings.prompt.translatelang_en": "英文",
-  "settings.prompt.translatelang_ja": "日文"
+  "settings.prompt.translatelang_ja": "日文",
+  "settings.prompt.correclang": "纠错语言（{lang}）",
+  "settings.prompt.correclang_tip": "纠错提示词里的 {lang}；auto = 按待纠错文本识别。与智能纠错插件的校对语言互不影响",
+  "settings.prompt.correclang_auto": "自动识别",
+  "settings.prompt.correclang_zh": "中文",
+  "settings.prompt.correclang_en": "English",
+  "settings.prompt.strength": "改写强度（{strength}）",
+  "settings.prompt.strength_tip": "改写提示词里的 {strength}：轻 = 只调词句标点；中 = 可重排句序；强 = 可重构段内顺序",
+  "settings.prompt.strength_light": "轻",
+  "settings.prompt.strength_medium": "中",
+  "settings.prompt.strength_strong": "强"
 }

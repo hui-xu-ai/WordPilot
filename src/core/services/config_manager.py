@@ -105,7 +105,9 @@ class ConfigManager:
         config.setdefault("proof_language", "auto")
         # 翻译目标语言：auto = 中文→英文、其他语言→中文；也可填「英文」「日文」等
         config.setdefault("translate_language", "auto")
-        config.setdefault("rewrite_strength", "中")
+        config.setdefault("rewrite_strength", "中")   # 改写强度：轻 / 中 / 强
+        # 整段纠错的语言（{lang}）：与智能纠错插件的校对语言分开配置
+        config.setdefault("correct_language", "auto")
         config.setdefault("font_family", "Microsoft YaHei")
         config.setdefault("font_size", 12)
         config.setdefault("exclude_patterns", ["参考文献", "致谢", "注释"])
