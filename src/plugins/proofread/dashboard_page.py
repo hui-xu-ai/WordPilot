@@ -335,7 +335,7 @@ class DashboardPage(QWidget):
     def _build_monitor_card(self) -> QWidget:
         card, lay = self._card()
         self.monitor_card_title = self._card_title(lay)
-        self.monitor_widget = MonitorPanel(i18n=self._i18n)
+        self.monitor_widget = MonitorPanel(i18n=self._i18n, actions=("proof",))
         lay.addWidget(self.monitor_widget, 1)
         return card
 

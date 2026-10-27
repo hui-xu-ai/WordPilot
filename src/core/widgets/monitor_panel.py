@@ -18,9 +18,11 @@ from core.services.api_logger import get_all_logs, get_last_log
 class MonitorPanel(QWidget):
     """最近一次调用 + 全部历史 + 手动刷新。"""
 
-    def __init__(self, parent=None, i18n=None):
+    def __init__(self, parent=None, i18n=None, actions=None):
         super().__init__(parent)
         self.i18n = i18n
+        # 只看本插件的任务（智能纠错只看 proof，不再混入翻译/改写的调用与 token）
+        self._actions = tuple(actions) if actions else None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -85,7 +87,8 @@ class MonitorPanel(QWidget):
     def refresh(self):
         """更新最近一次调用记录（不影响历史区域）"""
         info = self.tr("monitor.header") + "\n" + "=" * 40 + "\n"
-        last = get_last_log()
+        last = next((entry for entry in reversed(get_all_logs())
+                        if self._actions is None or entry.get("action") in self._actions), None)
         if last:
             info += self.tr("monitor.time", value=last.get('time', self.tr("monitor.unknown"))) + "\n"
             info += self.tr("monitor.action", value=last.get('action', self.tr("monitor.unknown"))) + "\n"
@@ -104,7 +107,8 @@ class MonitorPanel(QWidget):
 
     def show_history(self):
         """加载全部历史记录到专用区域（不被定时刷新覆盖）"""
-        logs = get_all_logs()
+        logs = [entry for entry in get_all_logs()
+                if self._actions is None or entry.get("action") in self._actions]
         if not logs:
             self.history_edit.setPlainText(self.tr("monitor.history_none"))
             return

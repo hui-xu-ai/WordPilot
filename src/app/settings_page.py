@@ -31,7 +31,8 @@ PROMPT_LANGUAGE_NAMES = {
     "en_US": "English",
 }
 
-_NAV_KEYS = ("settings.tab.api", "settings.tab.appearance", "settings.tab.storage",
+_NAV_KEYS = ("settings.tab.api", "settings.tab.appearance", "settings.tab.monitor",
+             "settings.tab.storage",
              "settings.tab.about")
 
 
@@ -121,6 +122,7 @@ class SettingsPage(QWidget):
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_api_section())
         self.stack.addWidget(self._build_appearance_section())
+        self.stack.addWidget(self._build_monitor_section())
         self.stack.addWidget(self._build_storage_section())
         self.stack.addWidget(self._build_about_section())
         scroll = QScrollArea()
@@ -351,6 +353,18 @@ class SettingsPage(QWidget):
         return page
 
     # ---------------- 关于 ----------------
+    def _build_monitor_section(self) -> QWidget:
+        """API 监控：任务 token 清单 + 单次明细 + 每日/每月消耗（与插件页面解耦）。"""
+        from core.widgets.api_monitor import ApiMonitorPanel
+
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(10)
+        self.monitor_panel = ApiMonitorPanel(i18n=self.i18n, parent=page)
+        layout.addWidget(self.monitor_panel, 1)
+        return page
+
     def _build_storage_section(self) -> QWidget:
         """存储管理：区分用户资产与运行垃圾（用户要求：不能误删资产；独立 Tab，不塞在关于里）。"""
         page = QWidget()

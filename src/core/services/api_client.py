@@ -86,14 +86,20 @@ class DeepSeekClient:
         return raw.rstrip("/") + "/v1/chat/completions"
 
     def _cache_policy_tag(self, prompt_key: str) -> str:
-        """B05：缓存键带上模型 + 该场景的提示词指纹，换策略后不复用旧结果。"""
+        """B05：缓存键带上模型 + 该场景的**生效**提示词指纹，换策略后不复用旧结果。
+
+        注意：必须用真正发出去的模板（config 为空时是语言包默认），否则改了默认提示词或
+        切换提示词语言，老缓存仍会被命中 —— 那等于用旧提示词的结论冒充新提示词的结果。
+        """
         import hashlib
 
         try:
-            template = (self.config.get(prompt_key) or "").strip()
+            template = self._prompt_template(
+                prompt_key, f"prompt.{prompt_key.removesuffix('_prompt')}.default") or ""
         except Exception:                      # noqa: BLE001
             template = ""
-        digest = hashlib.sha1(f"{self.model}|{prompt_key}|{template}".encode("utf-8"))
+        digest = hashlib.sha1(
+            f"{self.model}|{prompt_key}|{template.strip()}".encode("utf-8"))
         return f"{self.model or 'unknown'}#{digest.hexdigest()[:10]}"
 
     def _warm_up_connection(self) -> None:
@@ -216,7 +222,9 @@ class DeepSeekClient:
 
         result = self._call_api(messages)
         tokens = self.last_usage or {"prompt": 0, "completion": 0, "total": 0}
-        log_api_call("proof", text, result or "", tokens, bool(result), latency_ms=self.last_latency_ms)
+        action = "correct" if prompt_key == "correct_prompt" else "proof"
+        log_api_call(action, text, result or "", tokens, bool(result),
+                     latency_ms=self.last_latency_ms)
         if result is None:
             return None
         result = result.strip()
