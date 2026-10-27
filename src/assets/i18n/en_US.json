@@ -151,5 +151,7 @@
   "settings.storage.done": "Removed {count} files, freed {size} KB",
   "settings.storage.failed": "Cleanup failed: {error}",
   "settings.tab.storage": "Storage",
-  "settings.storage.hint": "Only runtime junk is removed; user assets (libraries, master notes, Image.docx, configs) are never deleted."
+  "settings.storage.hint": "Only runtime junk is removed; user assets (libraries, master notes, Image.docx, configs) are never deleted.",
+  "settings.storage.done_skipped": "Cleaned {count} files, freed {size} KB; {skipped} in use — scheduled for next start",
+  "settings.storage.temp": "Clean temp files"
 }

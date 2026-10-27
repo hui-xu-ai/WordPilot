@@ -460,17 +460,25 @@ class SettingsPage(QWidget):
         except Exception as exc:               # noqa: BLE001 - 统计失败不该挡住设置页
             self.storage_value.setText(str(exc))
 
-    def _clean_storage(self, keys: list[str], keep_days: int = 7) -> None:
-        """清理指定类别；用户资产一律不动（白名单在 housekeeping 里）。"""
+    def _clean_storage(self, keys: list[str], keep_days: int = 0) -> None:
+        """清理指定类别；用户资产一律不动（白名单在 housekeeping 里）。
+
+        被本进程占用的文件（缓存库/-wal）删不掉时排队到下次启动再清 —— 否则用户点了没反应。
+        """
         from core.services import housekeeping
 
         try:
             housekeeping.checkpoint_wal()
             result = housekeeping.clean(keys, keep_days=keep_days)
-            removed = sum(count for count, _ in result.values())
-            freed = sum(size for _, size in result.values())
-            self.storage_result.setText(self.tr("settings.storage.done",
-                                                count=removed, size=f"{freed / 1024:.0f}"))
+            removed = sum(count for count, _, _ in result.values())
+            freed = sum(size for _, size, _ in result.values())
+            skipped = sum(skip for _, _, skip in result.values())
+            if skipped:
+                housekeeping.mark_pending(
+                    [key for key, (_, _, skip) in result.items() if skip])
+            self.storage_result.setText(self.tr(
+                "settings.storage.done_skipped" if skipped else "settings.storage.done",
+                count=removed, size=f"{freed / 1024:.0f}", skipped=skipped))
         except Exception as exc:               # noqa: BLE001 - 清理失败要能看见
             self.storage_result.setText(self.tr("settings.storage.failed", error=exc))
         self._refresh_storage()

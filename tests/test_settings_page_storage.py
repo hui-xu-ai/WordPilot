@@ -32,7 +32,7 @@ def test_storage_card_reports_groups(tmp_path, monkeypatch, page):
 
     # 测试环境没有装翻译器，`tr()` 原样返回 key —— 断言按 key 计行数即可
     text = page.storage_value.text()
-    assert text.count("settings.storage.item") == 4, text
+    assert text.count("settings.storage.item") == len(housekeeping.inventory()), text
 
 
 def test_clean_storage_removes_logs_and_keeps_assets(tmp_path, monkeypatch, page):

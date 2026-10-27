@@ -104,8 +104,21 @@ def _gui_dispatcher():
 _GUI_BRIDGES: list[_GuiBridge] = []
 
 
+def _run_pending_cleanup() -> None:
+    """执行上次排队的清理（必须在任何数据库被打开之前，否则缓存库/-wal 删不掉）。"""
+    try:
+        from core.services import housekeeping
+
+        result = housekeeping.run_pending()
+        if result:
+            logging.getLogger(__name__).info("启动清理完成：%s", result)
+    except Exception:                      # noqa: BLE001 - 清理失败不阻断启动
+        logging.getLogger(__name__).exception("启动清理失败")
+
+
 def main():
     _install_failure_hooks()
+    _run_pending_cleanup()
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)

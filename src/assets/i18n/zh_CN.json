@@ -151,5 +151,7 @@
   "settings.storage.done": "已清理 {count} 个文件，释放 {size} KB",
   "settings.storage.failed": "清理失败：{error}",
   "settings.tab.storage": "存储",
-  "settings.storage.hint": "只清理运行垃圾；用户资产（文献库/总库备注/Image.docx/配置）永不删除。"
+  "settings.storage.hint": "只清理运行垃圾；用户资产（文献库/总库备注/Image.docx/配置）永不删除。",
+  "settings.storage.done_skipped": "已处理 {count} 个文件，释放 {size} KB；{skipped} 个正被程序占用，已安排下次启动清理",
+  "settings.storage.temp": "清理临时文件"
 }

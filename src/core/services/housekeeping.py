@@ -146,15 +146,17 @@ def _iter_files(root: Path):
             yield Path(dirpath) / name
 
 
-def inventory(root: Path | None = None, keep_days: int = TRASH_KEEP_DAYS) -> list[Group]:
-    """盘点各类内容（不删除任何东西）。"""
+def inventory(root: Path | None = None, keep_days: int = 0) -> list[Group]:
+    """盘点各类内容（不删除任何东西）。`keep_days=0`（默认）表示回收站也全算进来。"""
     root = Path(root) if root is not None else config_dir()
     groups = {
         "logs": Group("logs", "运行日志", "safe", "app.log / errors.log / api_calls.log"),
         "wal": Group("wal", "数据库残留", "safe", "SQLite 的 -wal / -shm 残留"),
         "trash": Group("trash", "删除库的备份(_trash)", "careful",
-                       f"超过 {keep_days} 天的旧备份"),
+                       "清空回收站会删掉所有已删仓库的备份" if keep_days <= 0
+                       else f"超过 {keep_days} 天的旧备份"),
         "cache": Group("cache", "可重建缓存", "careful", "doc_scan / proof_cache / word_caption 缓存库"),
+        "temp": Group("temp", "临时文件", "safe", "Word 锁文件 ~$*.docx 等"),
     }
     cutoff = time.time() - keep_days * 86400
     trash_root = root / "references" / "libraries" / "_trash"
@@ -166,9 +168,15 @@ def inventory(root: Path | None = None, keep_days: int = TRASH_KEEP_DAYS) -> lis
         if suffix == ".log":
             groups["logs"].files.append(path)
         elif suffix in {".db-wal", ".db-shm"}:
-            groups["wal"].files.append(path)
+            # **只收孤儿**：属于在用数据库的 -wal/-shm 删掉会破坏正在使用它的连接，
+            # 那部分空间靠 `checkpoint_wal()` 截断释放。
+            base = path.with_name(path.name.rsplit("-", 1)[0])
+            if not base.exists():
+                groups["wal"].files.append(path)
         elif name in CACHE_DB_NAMES:
             groups["cache"].files.append(path)
+        elif name.startswith("~$"):
+            groups["temp"].files.append(path)          # Word 打开文档时留的锁文件
         elif trash_root in path.parents:
             try:
                 # keep_days <= 0 表示"连新的备份也清"（界面上是"清空回收站"）
@@ -210,31 +218,67 @@ def checkpoint_wal(root: Path | None = None) -> tuple[int, int]:
     return handled, freed
 
 
-def clean(keys: list[str], root: Path | None = None,
-          keep_days: int = TRASH_KEEP_DAYS) -> dict[str, tuple[int, int]]:
-    """按组清理；返回 {组: (删除文件数, 释放字节)}。资产与保护名单一律跳过。"""
+def _remove(path: Path, truncate_ok: bool) -> tuple[bool, int]:
+    """删一个文件：能删就删；删不掉但允许截断（日志）就清空内容。返回 (是否处理, 释放字节)。"""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return False, 0
+    try:
+        path.unlink()
+        return True, size
+    except OSError as exc:                           # 被占用的文件（WinError 32）
+        if not truncate_ok:
+            logger.debug("跳过被占用的文件 %s：%s", path, exc)
+            return False, 0
+    try:
+        with path.open("w", encoding="utf-8"):
+            pass                                     # 截断：持有它的日志处理器会继续往空文件写
+    except OSError as exc:
+        logger.debug("截断失败 %s：%s", path, exc)
+        return False, 0
+    return True, size
+
+
+#: 允许"截断代替删除"的组（日志被 logging 处理器占着时删不掉，但能清空）
+TRUNCATABLE = {"logs"}
+
+
+def clean(keys: list[str], root: Path | None = None, keep_days: int = 0,
+          allow_truncate: bool = True) -> dict[str, tuple[int, int, int]]:
+    """按组清理；返回 {组: (处理文件数, 释放字节, 被占用跳过数)}。资产与保护名单一律跳过。"""
     root = Path(root) if root is not None else config_dir()
     wanted = {key for key in keys}
-    result: dict[str, tuple[int, int]] = {}
+    result: dict[str, tuple[int, int, int]] = {}
+    skipped_all: dict[str, int] = {}
     for group in inventory(root, keep_days):
         if group.key not in wanted:
             continue
-        removed = freed = 0
+        removed = freed = skipped = 0
+        trash_cutoff = None
+        if group.key == "trash" and keep_days > 0:
+            trash_cutoff = time.time() - keep_days * 86400
         for path in group.files:
             if _is_protected(path, root):
                 continue
-            try:
-                size = path.stat().st_size
-                path.unlink()
-            except OSError as exc:                   # 文件被占用等：跳过，不报错中断
-                logger.debug("跳过无法删除的文件 %s：%s", path, exc)
-                continue
-            removed += 1
-            freed += size
-        result[group.key] = (removed, freed)
+            if trash_cutoff is not None:
+                try:
+                    if path.stat().st_mtime >= trash_cutoff:
+                        continue                     # 还新的备份先留着（可回滚）
+                except OSError:
+                    continue
+            ok, size = _remove(path, truncate_ok=allow_truncate and group.key in TRUNCATABLE)
+            if ok:
+                removed += 1
+                freed += size
+            else:
+                skipped += 1
+        result[group.key] = (removed, freed, skipped)
+        if skipped:
+            skipped_all[group.key] = skipped
         if removed:
-            logger.info("存储清理：%s 删除 %d 个文件，释放 %.1f KB",
-                        group.title, removed, freed / 1024)
+            logger.info("存储清理：%s 处理 %d 个文件，释放 %.1f KB（跳过 %d）",
+                        group.title, removed, freed / 1024, skipped)
     # 回收站目录清空后顺手删掉空目录（保留 _trash 本身）
     trash_root = root / "references" / "libraries" / "_trash"
     if trash_root.exists() and "trash" in wanted:
@@ -250,7 +294,53 @@ def clean(keys: list[str], root: Path | None = None,
     return result
 
 
-def summary(root: Path | None = None, keep_days: int = TRASH_KEEP_DAYS) -> str:
+#: 待清理标记：被本进程占用、只能下次启动（DB 尚未打开时）再清的分组
+PENDING_FILE = ".cleanup_pending.json"
+
+
+def mark_pending(keys: list[str], root: Path | None = None) -> None:
+    """把"这次删不掉"的分组记下来，下次启动时再清。"""
+    import json
+
+    root = Path(root) if root is not None else config_dir()
+    path = root / PENDING_FILE
+    pending: set[str] = set()
+    try:
+        if path.exists():
+            pending = set(json.loads(path.read_text(encoding="utf-8")).get("groups") or [])
+    except Exception:                    # noqa: BLE001 - 坏文件忽略
+        pending = set()
+    pending.update(keys)
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"groups": sorted(pending)}, ensure_ascii=False),
+                        encoding="utf-8")
+        logger.info("已安排下次启动清理：%s", ", ".join(sorted(pending)))
+    except OSError as exc:
+        logger.warning("写入清理标记失败：%s", exc)
+
+
+def run_pending(root: Path | None = None) -> dict[str, tuple[int, int, int]]:
+    """启动时执行上次排队的清理（此时数据库还没打开，能真正删掉缓存库/-wal）。"""
+    import json
+
+    root = Path(root) if root is not None else config_dir()
+    path = root / PENDING_FILE
+    if not path.exists():
+        return {}
+    try:
+        keys = list(json.loads(path.read_text(encoding="utf-8")).get("groups") or [])
+    except Exception:                    # noqa: BLE001
+        keys = []
+    result = clean(keys, root=root, keep_days=0) if keys else {}
+    try:
+        path.unlink()
+    except OSError:
+        pass
+    return result
+
+
+def summary(root: Path | None = None, keep_days: int = 0) -> str:
     """一行可读摘要（供界面显示）。"""
     groups = inventory(root, keep_days)
     parts = [f"{group.title} {group.size / 1024:.0f}KB/{group.count}个" for group in groups]
