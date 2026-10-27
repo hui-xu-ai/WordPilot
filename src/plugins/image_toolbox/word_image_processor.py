@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 import shutil
@@ -9,6 +10,8 @@ import numpy as np
 import piexif
 import win32clipboard
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 from core.services.word_bridge import attach_word_app, WordNotRunningError
 from core.services.word_constants import wdConst  # Word 常量字典
@@ -22,11 +25,12 @@ class WordImageProcessor:
 
         self.config_dir = config_dir
         self.temp_docx_path = os.path.join(config_dir, "Image.docx")
-        if not os.path.exists(self.temp_docx_path):
-            raise FileNotFoundError(f"请在config文件夹下建立可以无损保存图片的Image.docx文件: {self.temp_docx_path}")
         self.word_app = None
         self.work_doc = None
         self._open_word_app()
+        # 工作文档是**运行时产物**，不该要求用户或安装包预先提供：
+        # 首次使用 / 用户在「存储」里清理过 / 打包环境没带模板时，这里自动建一个空的。
+        self._ensure_workspace_file()
 
         # ★ 保存用户当前的活动文档（用于稍后激活遮挡）
         try:
@@ -37,6 +41,26 @@ class WordImageProcessor:
         self._open_workspace()
 
 
+
+    def _ensure_workspace_file(self) -> None:
+        """确保 `config/Image.docx` 存在（缺失时用 Word 建一个空白工作文档）。"""
+        if os.path.exists(self.temp_docx_path):
+            return
+        os.makedirs(self.config_dir, exist_ok=True)
+        doc = None
+        try:
+            doc = self.word_app.Documents.Add()
+            doc.SaveAs2(self.temp_docx_path)
+        except Exception:
+            logger.warning("创建 Image.docx 工作文档失败", exc_info=True)
+            raise
+        finally:
+            if doc is not None:
+                try:
+                    doc.Close(SaveChanges=0)      # wdDoNotSaveChanges
+                except Exception:                 # noqa: BLE001 - 关闭失败不影响主流程
+                    pass
+        logger.info("已创建图片工作文档：%s", self.temp_docx_path)
 
     def _open_word_app(self):
         try:

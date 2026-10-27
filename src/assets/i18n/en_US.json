@@ -46,9 +46,9 @@
   "settings.about.env": "Runtime:",
   "settings.about.paths": "Config & log location",
   "settings.api.key": "API Key:",
-  "settings.api.key_placeholder": "Enter your DeepSeek API Key",
+  "settings.api.key_placeholder": "Enter your provider API key",
   "settings.api.model": "Model:",
-  "settings.api.model_placeholder": "e.g. deepseek-v4-flash",
+  "settings.api.model_placeholder": "Model name, e.g. deepseek-v4-flash",
   "settings.api.temperature": "Temperature:",
   "settings.api.max_tokens": "Max Tokens:",
   "settings.api.test": "🔗 Test Connection",
@@ -168,7 +168,7 @@
   "prompt.rewrite.mode.medium": "medium: may split or merge sentences and reorder words inside a sentence; paragraph order stays",
   "prompt.rewrite.mode.strong": "strong: may restructure sentence order and narrative viewpoint inside a paragraph, without changing content or conclusions",
   "settings.tab.monitor": "API monitor",
-  "api.monitor.overview": "Today: {day_calls} calls, input {day_in} / cached {day_hit} ({day_rate}) / output {day_out} tokens; This month: {month_calls} calls, input {month_in} / cached {month_hit} ({month_rate}) / output {month_out} tokens (hits come from DeepSeek's automatic prefix cache)",
+  "api.monitor.overview": "Today: {day_calls} calls, input {day_in} / cached {day_hit} ({day_rate}) / output {day_out} tokens; This month: {month_calls} calls, input {month_in} / cached {month_hit} ({month_rate}) / output {month_out} tokens (hits come from the server-side prefix cache)",
   "api.monitor.task_view": "By task",
   "api.monitor.call_view": "Call detail (latest 300)",
   "api.monitor.day_view": "Daily usage",
@@ -188,5 +188,7 @@
   "api.monitor.col_day": "Date",
   "api.monitor.col_month": "Month",
   "api.monitor.col_rate": "Hit rate",
-  "app.tray.plugins": "Plugins"
+  "app.tray.plugins": "Plugins",
+  "settings.api.endpoint": "Endpoint",
+  "settings.api.endpoint_placeholder": "OpenAI-compatible endpoint, e.g. https://api.deepseek.com"
 }

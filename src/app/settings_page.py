@@ -55,16 +55,18 @@ class _ConnectionTester(QThread):
 
     done = Signal(bool, str)      # (是否成功, 失败原因)
 
-    def __init__(self, api_key: str, model: str, parent=None) -> None:
+    def __init__(self, api_key: str, model: str, endpoint: str = "", parent=None) -> None:
         # U03：不要以 SettingsPage 为父对象。页面销毁会让父对象连带析构运行中的
         # QThread，进程直接 0xC0000409 崩溃（审查用 2 秒延迟连接复现）。
         super().__init__(None)
         self._api_key = api_key
         self._model = model
+        self._endpoint = endpoint or "https://api.deepseek.com"
 
     def run(self) -> None:        # noqa: D401 - QThread 入口
         try:
-            client = DeepSeekClient({"api_key": self._api_key, "model": self._model})
+            client = DeepSeekClient({"api_key": self._api_key, "model": self._model,
+                                     "api_endpoint": self._endpoint})
             ok = bool(client.test_connection())
             reason = "" if ok else (getattr(client, "last_error", "") or "")
         except Exception as exc:  # noqa: BLE001  后台线程里任何异常都必须回传，不能吞
@@ -233,6 +235,14 @@ class SettingsPage(QWidget):
         key_layout.setContentsMargins(0, 0, 0, 0)
         key_layout.addWidget(self.api_key_edit, 1)
         key_layout.addWidget(self.api_key_toggle)
+        # 接口地址：默认 DeepSeek，但任何 OpenAI 兼容端点都可填（换服务商不用改代码）
+        self.endpoint_edit = QLineEdit()
+        self.label_endpoint = QLabel()
+        endpoint_row = QHBoxLayout()
+        endpoint_row.addWidget(self.label_endpoint)
+        endpoint_row.addWidget(self.endpoint_edit, 1)
+        form_host.addLayout(endpoint_row)
+
         self.model_edit = QLineEdit()
         self.label_api_key = QLabel()
         self.label_model = QLabel()
@@ -504,6 +514,8 @@ class SettingsPage(QWidget):
 
         self.label_api_key.setText(self.tr("settings.api.key"))
         self.label_model.setText(self.tr("settings.api.model"))
+        self.label_endpoint.setText(self.tr("settings.api.endpoint"))
+        self.endpoint_edit.setPlaceholderText(self.tr("settings.api.endpoint_placeholder"))
         self.label_temperature.setText(self.tr("settings.api.temperature"))
         self.label_max_tokens.setText(self.tr("settings.api.max_tokens"))
         self.api_key_edit.setPlaceholderText(self.tr("settings.api.key_placeholder"))
@@ -559,6 +571,8 @@ class SettingsPage(QWidget):
     def load_settings(self):
         self.api_key_edit.setText(self.config.get_api_key())
         self.model_edit.setText(self.config.get("model", "deepseek-v4-flash"))
+        self.endpoint_edit.setText(
+            str(self.config.get("api_endpoint", "https://api.deepseek.com") or ""))
         self.temp_edit.setValue(self.config.get("temperature", 0.4))
         self.max_tokens_edit.setValue(self.config.get("max_tokens", 2000))
         if self.theme is not None:
@@ -582,6 +596,7 @@ class SettingsPage(QWidget):
         """
         payload = {
             "model": self.model_edit.text(),
+            "api_endpoint": self.endpoint_edit.text().strip() or "https://api.deepseek.com",
             "temperature": self.temp_edit.value(),
             "max_tokens": self.max_tokens_edit.value(),
             # 动态窗口样式（配色改由主题令牌统一控制）
@@ -634,7 +649,8 @@ class SettingsPage(QWidget):
 
         self.test_btn.setEnabled(False)
         self.test_status.setText(self.tr("settings.api.testing"))
-        self._tester = _ConnectionTester(key, model)          # 无父对象：生命周期自管
+        endpoint = self.endpoint_edit.text().strip() or "https://api.deepseek.com"
+        self._tester = _ConnectionTester(key, model, endpoint)  # 无父对象：生命周期自管
         self._tester.done.connect(self._on_test_done)
         self._tester.finished.connect(self._tester.deleteLater)
         self._tester.start()

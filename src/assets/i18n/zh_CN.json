@@ -46,9 +46,9 @@
   "settings.about.env": "运行环境：",
   "settings.about.paths": "配置与日志位置",
   "settings.api.key": "API Key:",
-  "settings.api.key_placeholder": "输入 DeepSeek API Key",
+  "settings.api.key_placeholder": "输入服务商 API Key",
   "settings.api.model": "模型:",
-  "settings.api.model_placeholder": "如 deepseek-v4-flash",
+  "settings.api.model_placeholder": "模型名，如 deepseek-v4-flash",
   "settings.api.temperature": "温度:",
   "settings.api.max_tokens": "最大Token:",
   "settings.api.test": "🔗 测试连接",
@@ -168,7 +168,7 @@
   "prompt.rewrite.mode.medium": "中度：可拆分或合并句子、调整句内语序，段落顺序不动",
   "prompt.rewrite.mode.strong": "深度：可重构段落内部的句子顺序与叙述视角，技术内容与结论不变",
   "settings.tab.monitor": "API 监控",
-  "api.monitor.overview": "今日：{day_calls} 次调用，输入 {day_in} / 命中缓存 {day_hit}（{day_rate}）/ 输出 {day_out} tokens；本月：{month_calls} 次，输入 {month_in} / 命中缓存 {month_hit}（{month_rate}）/ 输出 {month_out} tokens（命中来自 DeepSeek 自动前缀缓存，见文档）",
+  "api.monitor.overview": "今日：{day_calls} 次调用，输入 {day_in} / 命中缓存 {day_hit}（{day_rate}）/ 输出 {day_out} tokens；本月：{month_calls} 次，输入 {month_in} / 命中缓存 {month_hit}（{month_rate}）/ 输出 {month_out} tokens（命中来自服务端的自动前缀缓存）",
   "api.monitor.task_view": "按任务统计",
   "api.monitor.call_view": "按次明细（最近 300 条）",
   "api.monitor.day_view": "按天消耗",
@@ -188,5 +188,7 @@
   "api.monitor.col_day": "日期",
   "api.monitor.col_month": "月份",
   "api.monitor.col_rate": "命中率",
-  "app.tray.plugins": "插件管理"
+  "app.tray.plugins": "插件管理",
+  "settings.api.endpoint": "接口地址",
+  "settings.api.endpoint_placeholder": "OpenAI 兼容端点，如 https://api.deepseek.com"
 }
