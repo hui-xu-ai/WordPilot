@@ -31,8 +31,7 @@ PROMPT_LANGUAGE_NAMES = {
     "en_US": "English",
 }
 
-_NAV_KEYS = ("settings.tab.api", "settings.tab.prompts", "settings.tab.appearance",
-             "settings.tab.monitor",
+_NAV_KEYS = ("settings.tab.api", "settings.tab.appearance", "settings.tab.monitor",
              "settings.tab.storage",
              "settings.tab.about")
 
@@ -122,7 +121,6 @@ class SettingsPage(QWidget):
         # 右侧内容（可滚动，小窗口也不挤爆）
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_api_section())
-        self.stack.addWidget(self._build_prompts_section())
         self.stack.addWidget(self._build_appearance_section())
         self.stack.addWidget(self._build_monitor_section())
         self.stack.addWidget(self._build_storage_section())
@@ -262,33 +260,6 @@ class SettingsPage(QWidget):
         test_row.addWidget(self.test_status, 1)
         form_host.addLayout(test_row)
         
-        layout.addWidget(card)
-        layout.addStretch(1)
-        return page
-
-    def _build_prompts_section(self) -> QWidget:
-        """提示词（全局）：提示词用哪种语言书写；各插件的提示词在插件页里管理。"""
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(10)
-        card = QWidget()
-        card.setObjectName("card")
-        form_host = QVBoxLayout(card)
-        form_host.setContentsMargins(14, 12, 14, 12)
-        form_host.setSpacing(8)
-        lang_row = QHBoxLayout()
-        self.label_prompt_language = QLabel()
-        self.prompt_language_combo = QComboBox()
-        for code, name in PROMPT_LANGUAGE_NAMES.items():
-            self.prompt_language_combo.addItem(name, code)
-        lang_row.addWidget(self.label_prompt_language)
-        lang_row.addWidget(self.prompt_language_combo, 1)
-        form_host.addLayout(lang_row)
-        self.prompt_language_hint = QLabel()
-        self.prompt_language_hint.setObjectName("hintLabel")
-        self.prompt_language_hint.setWordWrap(True)
-        form_host.addWidget(self.prompt_language_hint)
         layout.addWidget(card)
         layout.addStretch(1)
         return page
@@ -555,8 +526,6 @@ class SettingsPage(QWidget):
         self.storage_logs_btn.setText(self.tr("settings.storage.logs"))
         self.storage_cache_btn.setText(self.tr("settings.storage.cache"))
         self.storage_trash_btn.setText(self.tr("settings.storage.trash"))
-        self.label_prompt_language.setText(self.tr("settings.prompt.language"))
-        self.prompt_language_hint.setText(self.tr("settings.prompt.language_hint"))
 
         self.theme_group_title.setText(self.tr("settings.appearance.theme_group"))
         self.label_theme.setText(self.tr("settings.appearance.theme"))
@@ -596,7 +565,6 @@ class SettingsPage(QWidget):
             self._select_data(self.theme_combo, self.theme.current)
         self._select_data(self.ui_language_combo,
                           self.i18n.current if self.i18n is not None else "zh_CN")
-        self._select_data(self.prompt_language_combo, self.config.get("prompt_language", "zh_CN"))
         self._select_data(self.skin_combo,
                           self.skins.current_id if self.skins is not None else DEFAULT_SKIN_ID)
 
@@ -618,7 +586,6 @@ class SettingsPage(QWidget):
             "max_tokens": self.max_tokens_edit.value(),
             # 动态窗口样式（配色改由主题令牌统一控制）
             # 提示词语言（与界面语言解耦，由调用方决定是否重建客户端）
-            "prompt_language": self.prompt_language_combo.currentData(),
             # 界面语言：保存后由主窗口拉起全局重翻译
             "ui_language": self.ui_language_combo.currentData(),
         }

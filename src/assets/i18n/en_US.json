@@ -57,7 +57,6 @@
   "settings.api.test_ok": "✅ Connection succeeded",
   "settings.api.test_fail": "❌ Connection failed",
   "settings.prompt.warning": "⚠️ Do not ask the prompt to modify placeholders such as [IMG0] or [EQ1] — they stand for equations/images and are preserved automatically.",
-  "settings.prompt.language": "Prompt language:",
   "settings.prompt.proof": "Proofreading prompt. {text} is the source text placeholder — do not modify it",
   "settings.prompt.translate": "Translation prompt. {text} is the source placeholder, {target_lang} is the target language placeholder — do not modify them",
   "settings.prompt.rewrite": "Rewrite prompt. {text} is the source placeholder, {style} is the style placeholder — do not modify them",
@@ -188,7 +187,5 @@
   "api.monitor.col_latency": "Latency(ms)",
   "api.monitor.col_day": "Date",
   "api.monitor.col_month": "Month",
-  "api.monitor.col_rate": "Hit rate",
-  "settings.tab.prompts": "Prompts",
-  "settings.prompt.language_hint": "The language the prompts are written in (not the UI language, and not the proofreading/translation target). Per-plugin prompts are edited on the plugin pages."
+  "api.monitor.col_rate": "Hit rate"
 }

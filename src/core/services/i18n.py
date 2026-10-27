@@ -45,8 +45,17 @@ class I18nService:
 
     @property
     def prompt_language(self) -> str:
-        """提示词语言：决定发给 AI 的指令用哪种语言，与界面语言解耦。"""
-        return self.config.get("prompt_language", BASE_LANGUAGE) if self.config else BASE_LANGUAGE
+        """提示词语言：决定**内置默认提示词**用哪种语言书写。
+
+        `auto`（默认）跟随界面语言；需要英文提示词而界面仍是中文的高级用户，
+        可以把配置里的 `prompt_language` 手动改成 `en_US` —— 界面上不再提供这个开关。
+        """
+        if not self.config:
+            return BASE_LANGUAGE
+        value = str(self.config.get("prompt_language", "auto") or "auto").strip()
+        if value.lower() in {"auto", ""}:
+            return self.current
+        return value
 
     def _active_langs(self) -> tuple[str, ...]:
         """需要常驻内存的语言：界面语言 + 提示词语言 + 基准语言（去重保序）。"""
