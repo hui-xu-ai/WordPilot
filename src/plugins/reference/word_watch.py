@@ -258,13 +258,13 @@ def screen_point(word, selection) -> tuple[int, int]:
 
 
 def _active_window(word):
-    """前台 Word 窗口（失败返回 None）。延迟导入，避免无 pywin32 环境导入失败。"""
+    """前台 Word 窗口 + 匹配方式（失败返回 (None, "无")）。延迟导入，避免无 pywin32 时崩。"""
     try:
-        from core.services.word_bridge import active_window
+        from core.services.word_bridge import active_window_with_source
 
-        return active_window(word)
+        return active_window_with_source(word=word)
     except Exception:                      # noqa: BLE001
-        return None
+        return None, "无"
 
 
 class WordWatch(QThread):
@@ -343,11 +343,16 @@ class WordWatch(QThread):
             # —— 此时该窗口本来就是前台窗口，不会抢焦点，但 Selection/域位置才读得准。
             document = word.ActiveDocument
             try:
-                window = _active_window(word)
+                window, source = _active_window(word)
                 if window is not None and getattr(window, "Document", None) is not None:
                     document = window.Document
                     if str(getattr(word.ActiveDocument, "Name", "")) != str(document.Name):
                         document.Activate()
+                    # 只在文档或匹配方式变化时记一行：切文档后到底认的是哪篇、凭哪条线索认的
+                    key = (str(document.Name), source)
+                    if key != getattr(self, "_last_window_log", None):
+                        self._last_window_log = key
+                        logger.info("当前文档窗口：%s（匹配方式=%s）", document.Name, source)
             except Exception:                  # noqa: BLE001 - 窗口匹配失败就用 ActiveDocument
                 logger.debug("按前台窗口定位文档失败，退回 ActiveDocument", exc_info=True)
             doc_name = document.Name

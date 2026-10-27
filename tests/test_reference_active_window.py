@@ -72,7 +72,7 @@ def test_watch_tick_activates_foreground_document(monkeypatch, qapp_unused=None)
     seen: list[str] = []
     watch = word_watch.WordWatch()
     watch.documentChanged.connect(seen.append)
-    monkeypatch.setattr(word_watch, "_active_window", lambda _word: windows[1])
+    monkeypatch.setattr(word_watch, "_active_window", lambda _word: (windows[1], "前台窗口"))
 
     watch._tick(lambda: word)
 
