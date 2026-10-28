@@ -155,6 +155,9 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
 
     def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
         self.search_edit.setPlaceholderText(self.tr("search.placeholder"))
+        if getattr(self, "library_combo", None) is not None:
+            self.rebuild_library_combo()      # 库名显示文案随语言切换
+
         self.filter_btn.setText(self.tr("filter.menu"))
         for name, key in _FILTERS:
             self.filter_actions[name].setText(self.tr(key))

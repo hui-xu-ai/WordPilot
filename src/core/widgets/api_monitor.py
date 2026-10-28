@@ -94,20 +94,11 @@ class ApiMonitorPanel(QWidget):
         else:
             self._fill_period_table(logs, "month", "api.monitor.col_month")
 
-    #: 旧日志里存过中文任务名，显示时也翻译
-    _LEGACY_TASKS = {"逐句校对": "task.proof", "整段纠错": "task.correct",
-                     "翻译": "task.translate", "改写": "task.rewrite"}
-
     def _task_label(self, value: str) -> str:
-        """任务 key（task.translate 等）翻译成当前语言；旧中文名同样翻译；其它原样显示。"""
-        if isinstance(value, str) and value in self._LEGACY_TASKS:
-            value = self._LEGACY_TASKS[value]
-            translated = self._tr(value)
-            return translated if translated != value else value
-        if isinstance(value, str) and value.startswith("task."):
-            translated = self._tr(value)
-            return translated if translated != value else value
-        return value
+        """任务名显示：映射集中在 core.services.ui_labels（接受 key 与旧中文名）。"""
+        from core.services.ui_labels import task_label
+
+        return task_label(value, self._tr)
 
     @staticmethod
     def _hit_rate(row: dict) -> str:

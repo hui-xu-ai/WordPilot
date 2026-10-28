@@ -139,22 +139,10 @@ class PromptVersionBar(QWidget):
         return text
 
     def _display_version_name(self, name: str) -> str:
-        """版本名 → 当前语言的可读文案。
+        """版本名 → 当前语言的可读文案（映射集中在 core.services.ui_labels）。"""
+        from core.services.ui_labels import version_label
 
-        存储只放语言无关 id（`mine-1` / `auto-20261027-172806`），
-        历史数据里的中文名（我的版本 1 / 自动-…）也在这里映射，切语言后一样会变。
-        """
-        if not name:
-            return ""
-        if name == prompt_store.DEFAULT_VERSION:
-            return self._tr("prompt.version.default")
-        match = re.match(r"^(?:mine|我的版本)\s*[- ]?\s*(\d+)$", name)
-        if match:
-            return self._tr("prompt.version.mine", index=match.group(1))
-        match = re.match(r"^(?:auto|自动)-(.+)$", name)
-        if match:
-            return self._tr("prompt.version.auto", stamp=match.group(1))
-        return name
+        return version_label(name, self._tr, default_name=prompt_store.DEFAULT_VERSION)
 
     def _default_key(self) -> str:
         return prompt_store.default_keys(self._key)

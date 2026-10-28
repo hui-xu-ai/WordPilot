@@ -2,6 +2,8 @@
 """页面里的「仓库下拉 + 切换重绑」（从 library_page 拆出，保持单文件在阈值内）。"""
 from __future__ import annotations
 
+from core.services.ui_labels import library_label
+
 from core.services.i18n import message
 
 from PySide6.QtWidgets import QComboBox
@@ -65,9 +67,16 @@ class LibraryMixin:
         combo.setObjectName("libraryCombo")
         combo.setMinimumWidth(120)
         fallback = getattr(self, "_active_library", "") or message("library.default_name")
-        combo.addItems(self._libraries or [fallback])
-        if getattr(self, "_active_library", ""):
-            combo.setCurrentText(self._active_library)
+        names = self._libraries or [fallback]
+        tr = getattr(self, "tr", None)
+        for name in names:
+            # 显示用翻译后的名字；itemData 保留**后端原值**，切换时不改动数据
+            combo.addItem(library_label(name, tr), name)
+        active = getattr(self, "_active_library", "")
+        if active:
+            index = combo.findData(active)
+            if index >= 0:
+                combo.setCurrentIndex(index)
         combo.currentTextChanged.connect(self._on_library_changed)
         self.library_combo = combo
         toolbar.addWidget(combo)
@@ -95,12 +104,16 @@ class LibraryMixin:
         plugin = getattr(self, "_plugin", None)
         active = (active or getattr(plugin, "_active_name", "")
                   or getattr(self, "_active_library", "") or combo.currentText())
+        tr = getattr(self, "tr", None)
         blocked = combo.blockSignals(True)
         try:
             combo.clear()
-            combo.addItems(names)
-            if active in names:
-                combo.setCurrentText(active)
+            for name in names:
+                # 显示走语言包，itemData 永远是后端原值
+                combo.addItem(library_label(name, tr), name)
+            index = combo.findData(active)
+            if index >= 0:
+                combo.setCurrentIndex(index)
         finally:
             combo.blockSignals(blocked)
 
@@ -242,6 +255,10 @@ class LibraryMixin:
                 pass
 
     def _on_library_changed(self, name: str) -> None:
+        # `name` 是显示文案，真正的库名在 itemData 里（显示与后端解耦）
+        combo = getattr(self, "library_combo", None)
+        backend = combo.currentData() if combo is not None else None
+        name = str(backend or name or "")
         if not name or name == self._active_library or self._on_switch_library is None:
             return
         self._finish_editing()          # R4：先收尾，避免把旧库草稿带进新库
