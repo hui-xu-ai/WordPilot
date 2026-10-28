@@ -12,10 +12,17 @@
 
 > 当前版本 **v3.2.0**　作者 Xu Hui　许可证 MIT
 
-![WordPilot 主界面](docs/images/main-window.png)
+![智能纠错（论文校对 + 悬浮修改卡）](docs/images/proofread.png)
 
-> 截图占位：首次发布时把 `docs/images/main-window.png`、`proofread.png`、
-> `translate.png`、`navigator.png`、`reference.png` 放进来即可（建议 1280×800 PNG）。
+## 界面一览
+
+| | |
+| --- | --- |
+| ![智能纠错](docs/images/proofread.png)<br>**智能纠错**：光标所在句子自动送校对，悬浮卡一键应用 | ![翻译改写](docs/images/translate.png)<br>**翻译改写**：翻译 / 改写 / 整段纠错，提示词可按插件独立管理 |
+| ![题注导航](docs/images/navigator.png)<br>**题注导航**：扫描 Word 域生成图/表清单，双击跳转 | ![参考文献助手](docs/images/reference.png)<br>**参考文献助手**：引用与本地 CSV 文献库绑定 |
+| ![图片工具箱](docs/images/image-toolbox.png)<br>**图片工具箱**：借隐藏 Word 文档无损裁剪居中 | ![插件清单](docs/images/plugins.png)<br>**插件管理**：安装 / 启停 / 排序，托盘只列已启用插件 |
+| ![桌宠皮肤 1](docs/images/pet-skin-1.png)<br>**桌宠皮肤**（栗子柯基） | ![桌宠皮肤 2](docs/images/pet-skin-2.png)<br>**桌宠皮肤**（奶团兔） |
+
 
 ## 目录
 
