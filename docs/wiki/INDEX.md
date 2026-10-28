@@ -1,18 +1,19 @@
 # Wiki 索引
 
-> 由 `proj wiki index` 生成（内容确定性，可重复跑）｜条目：23
+> 由 `proj wiki index` 生成（内容确定性，可重复跑）｜条目：24
 
 ## .
 - [WordPilot 工作区（pydev 预设）](AGENTS.md) — 2603 B
 - [Changelog](CHANGELOG.md) — 3741 B
 - [贡献指南（Contributing）](CONTRIBUTING.md) — 3387 B
-- [WordPilot](README.md) — 9686 B
+- [WordPilot](README.md) — 10101 B
 - [安全策略（Security Policy）](SECURITY.md) — 2031 B
 
 ## docs
 - [架构说明 · ARCHITECTURE](docs/ARCHITECTURE.md) — 14655 B
 - [打包与运行 · BUILD](docs/BUILD.md) — 3077 B
 - [开发与更新规范 · DEVELOPMENT](docs/DEVELOPMENT.md) — 5739 B
+- [交接文档 · HANDOVER](docs/HANDOVER.md) — 9251 B
 - [桌宠皮肤与状态](docs/PET_SKINS.md) — 2111 B
 - [插件开发指南 · PLUGIN GUIDE](docs/PLUGIN_GUIDE.md) — 11615 B
 - [隐私与数据安全 · PRIVACY](docs/PRIVACY.md) — 4119 B

@@ -34,6 +34,7 @@
 - [隐私与数据边界](#隐私与数据边界)
 - [从源码构建](#从源码构建)
 - [插件化架构](#插件化架构)
+- [交接文档](#交接文档)
 - [开发与贡献](#开发与贡献)
 - [版本与发布](#版本与发布)
 - [已知限制](#已知限制)
@@ -160,7 +161,12 @@ pwsh -NoProfile -File tools\quality-gate.ps1                 # 隐私/体积/行
 .venv\Scripts\python.exe tools\version.py --check            # 版本号与 CHANGELOG 一致
 ```
 
-提交规范、界面文案做法、隐私红线见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+提交规范、界面文案做法、隐私红线见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+接手项目（或转给他人维护）先读 [docs/HANDOVER.md](docs/HANDOVER.md) —— 现状快照、五个必知设计决定、已知的坑、日常操作一张表。
+
+### 交接文档
+
+最新状态（版本、CI、发布产物哈希、待办）都以 [docs/HANDOVER.md](docs/HANDOVER.md) 为准。
 路线图见 [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## 版本与发布
