@@ -31,11 +31,10 @@ ALLOW_PATHS = {
 
 
 def _iter_source_files():
+    """只扫代码：文案的**唯一合法来源**是语言包，所以 json 不参与"副本"判定。"""
     for path in SRC.rglob("*.py"):
         if "__pycache__" in path.parts:
             continue
-        yield path
-    for path in (SRC / "assets").rglob("*.json"):
         yield path
 
 

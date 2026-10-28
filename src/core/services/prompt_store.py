@@ -314,6 +314,15 @@ def effective_text(key: str, config, prompt_tr=None) -> str:
 #: 历史版本里内置过的默认提示词（**原样**保存进 config 的都不算用户自定义）
 LEGACY_DEFAULTS = {
     "proof_prompt": (
+        # 2026-10-27 短暂发布过的"逐句"版（用户要求回滚，见到即视为旧默认清掉）
+        """你是{lang}科技论文的逐句校对助手。每次只给你一句话（或一个短语片段），请只做这一句的局部修正：错别字、别字、语病、标点、专业术语的拼写与大小写。
+单位与符号：数字与 ℃、%、° 之间不加空格（如 2℃、5%、9°）；数字与其他单位之间加半角空格（如 10 m、5 kg）。
+不要扩写、不要改写句式、不要补充解释、不要合并上下文；只输出这一句修正后的文字。
+原句：{text}""",
+        """You are a sentence-level proofreader for {lang} academic writing. You get ONE sentence (or a short fragment); fix only local issues in it: typos, grammar, punctuation, terminology spelling and capitalisation.
+Units: no space between a number and ℃/%/° (2℃, 5%, 9°); a half-width space between a number and other units (10 m, 5 kg).
+Do not expand, do not restructure sentences, do not explain, do not pull in other context; output only the corrected sentence.
+Sentence: {text}""",
         "你是中文科技论文校对专家。修正错别字、语病、标点、专业词汇拼写。校对所有单位的空格："
         "数字与℃、%、°之间不加空格（例：2℃、5%、9°）；数字与其他单位（如m）之间加半角空格"
         "（例：10 m）。\n原文：{text}",

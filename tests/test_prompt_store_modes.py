@@ -25,11 +25,13 @@ def test_proof_and_correct_prompts_are_different(locale):
 
     assert proof != correct
     assert proof.split("\n")[0] != correct.split("\n")[0], "首句不该一样（看起来就是复制）"
-    # 逐句校对强调单句；整段纠错强调全文一致性与跨句
-    assert ("一句" in proof or "one sentence" in proof.lower())
+    # 校对（智能纠错，按句子定位）与整段纠错（保持全文结构）职责必须不同：
+    # 整段版明确要求保持段落/换行结构与跨句一致性；校对版不提这些约束。
     assert ("整段" in correct or "whole-passage" in correct.lower()
             or "full paragraph" in correct.lower())
     assert ("一致性" in correct or "consistency" in correct.lower())
+    assert "段落" not in proof and "paragraph structure" not in proof.lower()
+    assert "{text}" in proof and "{text}" in correct
 
 
 @pytest.mark.parametrize("locale", ["zh_CN", "en_US"])

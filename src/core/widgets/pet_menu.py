@@ -23,10 +23,12 @@ class PetMenuMixin:
 
         skins_menu = menu.addMenu(self.tr("pet.menu.skin"))
         current_skin = self._skins.current_id if self._skins else ""
+        from core.services.i18n import message
         from core.services.ui_labels import skin_label
 
         for item in (self._skins.available() if self._skins else []):
-            label = skin_label(item["id"], item["name"], self.tr)
+            # 皮肤名是应用级文案（skin.<id>）：用 message()，别用插件命名空间的 tr
+            label = skin_label(item["id"], item["name"], message)
             action = skins_menu.addAction(label,
                                           lambda sid=item["id"]: self._switch_skin(sid))
             action.setCheckable(True)
