@@ -41,3 +41,22 @@ def test_gitattributes_enforces_lf_for_source():
     text = (ROOT / ".gitattributes").read_text(encoding="utf-8")
     assert "* text=auto" in text
     assert "*.py" in text and "eol=lf" in text
+
+
+def test_version_tool_survives_non_utf8_console():
+    """`tools/version.py --check` 在 cp1252 控制台下也必须能跑。
+
+    2026-10-28 现场：GitHub Actions 的 stdout 是 cp1252，
+    打印「[OK] 版本 …：CHANGELOG 一致」时抛 UnicodeEncodeError 导致 CI 红。
+    """
+    import os
+    import subprocess
+    import sys
+
+    env = dict(os.environ)
+    env.update({"PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"})
+    result = subprocess.run([sys.executable, str(ROOT / "tools/version.py"), "--check"],
+                            cwd=ROOT, env=env, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace", timeout=120)
+
+    assert result.returncode == 0, result.stderr[-800:]

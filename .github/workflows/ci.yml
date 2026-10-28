@@ -11,6 +11,9 @@ jobs:
   test:
     # WordPilot 依赖 Windows + pywin32（COM），CI 只跑离线单测（不需要 Word）
     runs-on: windows-latest
+    # 统一 UTF-8：runner 的 stdout 默认是 cp1252，打印中文会抛 UnicodeEncodeError（2026-10-28 实测）
+    env:
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v5
 

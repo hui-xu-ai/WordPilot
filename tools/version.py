@@ -49,7 +49,21 @@ def latest_tag() -> str:
     return tags[0] if tags else ""
 
 
+def _ensure_utf8_output() -> None:
+    """控制台编码兜底：CI 的 stdout 是 cp1252，直接 print 中文会抛 UnicodeEncodeError。
+
+    2026-10-28 实测：GitHub Actions windows-latest 上 `python tools/version.py --check`
+    在打印「[OK] 版本 …：CHANGELOG 一致」时崩在 cp1252 编码上。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        except Exception:                      # noqa: BLE001 - 老环境/重定向流不支持就算了
+            pass
+
+
 def main(argv: list[str]) -> int:
+    _ensure_utf8_output()
     version = read_version()
     if "--check" not in argv:
         print(f"{version}")
