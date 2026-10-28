@@ -63,17 +63,34 @@ git tag -a v3.2.0 -m "WordPilot v3.2.0"
 
 ```powershell
 # 在 GitHub 建空仓库（不要勾选 README/LICENSE，避免与本地历史冲突）
-git remote add origin https://github.com/<你的账号>/WordPilot.git
+git remote add origin https://github.com/hui-xu-ai/WordPilot.git
 git push -u origin main
 git push origin --tags
 ```
 
-README 里的徽章与链接占位 `OWNER` 需替换为真实账号/组织名：
+README 里的徽章与链接已指向 `hui-xu-ai/WordPilot`；换账号时全仓替换 `hui-xu-ai` 即可。
 
-```powershell
-(Get-Content README.md -Raw -Encoding utf8) -replace 'OWNER', '<你的账号>' |
-  Set-Content README.md -Encoding utf8 -NoNewline
-```
+## 3.1 分发环境注意（2026-10-28 实测排查）
+
+**结论：未签名 exe 被拦，与程序行为无关；换目录 / 换 UPX / 换代码都无效，属于“安全软件的目录级判定”。**
+
+排查对照（每次只改一个变量）：
+
+| 变量 | 结果 | 推论 |
+|---|---|---|
+| 同一份程序放在 `D:\Python\Project\SmartProof\dist\` | 双击报警 | 该目录树被安全软件标记 |
+| 同一份程序复制到 `D:\Python\Project\` | 不报警 | 判定随**目录**走，不随文件走 |
+| 最小对照程序（2 MB、无网络/无 COM）复制进 `dist\` | 同样报警 | **不是本程序代码触发** |
+| 关掉 UPX 重新打包 | 同样报警 | 与加壳无关（exe 本身未 UPX 压缩，仅包内 68 个 DLL/PYD 被压缩） |
+| 复制到桌面 | 同样报警 | 与工作目录无关，是安全产品策略 |
+| 本机安全产品 | **腾讯电脑管家（QQPCRTP 实时防护）**，Windows Defender 已停用 | 拦截方是第三方安全软件，不是 SmartScreen 签名链 |
+
+因此发版约定：
+
+1. **打包输出放到仓库树之外**（当前用 `D:\Python\Project\WordPilot-release\`），并把它加入安全软件的**信任区**；
+2. 不要把 `dist/` 当成长期分发目录 —— 反复打包会产生大量未签名新 exe，容易被安全软件标记整棵目录；
+3. 未签名程序首次运行若出现「Windows 已保护你的电脑 / 无法识别的应用」，点「更多信息 → 仍要运行」；发布页附带 SHA256 供校验；
+4. 长期方案：代码签名（Authenticode / 微软 Trusted Signing），签完双击不再提示。
 
 ## 4. 发布 Release
 
@@ -86,8 +103,9 @@ README 里的徽章与链接占位 `OWNER` 需替换为真实账号/组织名：
 - 面向中文毕业论文/科技论文的 Word 辅助工具，Windows + 本机 Microsoft Word；
 - 需要自己的 API Key（设置 → API，支持任何 OpenAI 兼容端点，默认 DeepSeek）；
 - 数据全部留在本机 `config/`，只有待处理文本外发；详见 `docs/PRIVACY.md`；
-- 未做代码签名，SmartScreen 可能提示「仍要运行」；
-- 解压到可写目录运行（软件要在同级目录写 `config/`），不要放 `C:\Program Files`。
+- 未做代码签名，首次运行 SmartScreen 可能提示「更多信息 → 仍要运行」；
+- 解压到可写目录运行（软件要在同级目录写 `config/`），不要放 `C:\Program Files`；
+- 若装了第三方安全软件，建议把程序所在目录加入其信任区（实测未签名 exe 易被目录级拦截）。
 
 ## 5. 回滚
 

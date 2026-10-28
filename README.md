@@ -1,6 +1,6 @@
 # WordPilot
 
-[![CI](https://github.com/OWNER/WordPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/WordPilot/actions/workflows/ci.yml)
+[![CI](https://github.com/hui-xu-ai/WordPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/hui-xu-ai/WordPilot/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![PySide6](https://img.shields.io/badge/PySide6-6.11-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows&logoColor=white)](#系统要求)
@@ -67,7 +67,7 @@
 
 ### 方式一：下载发布包（推荐）
 
-1. 到 [Releases](https://github.com/OWNER/WordPilot/releases) 下载最新 `WordPilot-vX.Y.Z-win64.zip`；
+1. 到 [Releases](https://github.com/hui-xu-ai/WordPilot/releases) 下载最新 `WordPilot-vX.Y.Z-win64.zip`；
 2. 解压到**任意可写目录**（不要放在 `C:\Program Files` 下，软件需要在该目录写 `config/`）；
 3. 双击 `WordPilot.exe`，首次运行会在同级目录生成 `config/`；
 4. 打开设置 → API，填入你的 API Key。
@@ -75,7 +75,7 @@
 ### 方式二：从源码运行
 
 ```powershell
-git clone https://github.com/OWNER/WordPilot.git
+git clone https://github.com/hui-xu-ai/WordPilot.git
 cd WordPilot
 python -m venv .venv
 .venv\Scripts\activate
