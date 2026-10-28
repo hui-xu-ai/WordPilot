@@ -1,0 +1,74 @@
+name: Bug 报告
+description: 功能异常、界面文案、崩溃或性能问题
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！提交前请先确认：
+        1. 已升级到最新 Release；
+        2. 已**完全退出**旧进程（托盘右键 → 退出）后重新启动；
+        3. 这不是「提示词内容都是中文」之类**用户自定义**导致的预期行为。
+
+        ⚠️ 请**不要**粘贴 API Key、`config/MWindow_config.json` 或 `api_calls.log` 原文。
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 设置 → 关于 里显示的版本，或 exe 的文件修改时间
+      placeholder: v3.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: 界面语言
+      options: [简体中文, English, 中英来回切换后出错]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 出问题的功能
+      options:
+        - 智能纠错（逐句校对 / 桌宠 / 建议窗）
+        - 翻译改写（翻译 / 改写 / 整段纠错）
+        - 题录导航
+        - 图片工具
+        - 参考文献助手
+        - 设置页 / 插件管理 / API 监控
+        - 打包或启动失败
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 …
+        2. 切到英文界面
+        3. 再切回中文
+        4. 看到 …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果 vs 实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志（可选，注意脱敏）
+      description: 只贴报错行，不要整份文件；删除正文片段与路径中的用户名
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 自查
+      options:
+        - label: 我已完全退出旧进程并重启最新版本
+          required: true
+        - label: 我没有粘贴 API Key / 用户配置文件原文
+          required: true

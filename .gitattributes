@@ -1,0 +1,27 @@
+# 统一换行：仓库里源码用 LF，Windows 脚本保留 CRLF，二进制不参与转换
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+*.spec  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.toml  text eol=lf
+*.ini   text eol=lf
+*.txt   text eol=lf
+*.qss   text eol=lf
+*.svg   text eol=lf
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+*.png   binary
+*.ico   binary
+*.docx  binary
+*.db     binary
+*.zip   binary
+
+# 打包/构建产物与本地运行数据一律按二进制处理（不应入库）
+dist/**          binary
+build/**         binary

@@ -1,0 +1,42 @@
+name: 功能建议
+description: 新功能、交互改进或多语言/插件相关建议
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到的场景/痛点
+      description: 先说问题，再说方案（方案可以多个）
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望的做法
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 类型
+      options:
+        - 新插件
+        - 现有功能改进
+        - 界面/交互
+        - 多语言
+        - 打包/发布
+        - 文档
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 当前版本
+      placeholder: v3.2.0
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认
+      options:
+        - label: 我看过 README 的「功能特性」与 docs/ROADMAP.md，这不是已有功能或已列出的计划
+          required: true

@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -32,3 +33,18 @@ jobs:
       - name: Quality gate (privacy + size + tests)
         shell: pwsh
         run: pwsh -NoProfile -File tools/quality-gate.ps1
+
+      - name: Version metadata check
+        run: python tools/version.py --check
+
+      - name: Version matches tag (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = (python tools/version.py).Trim()
+          if ("v$version" -ne $tag) {
+            Write-Error "tag $tag 与 src/__version__.py ($version) 不一致"
+            exit 1
+          }
+          Write-Host "tag 与版本号一致：$tag"
