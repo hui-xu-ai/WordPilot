@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 
 import pytest
@@ -28,13 +27,21 @@ def app():
 
 @pytest.fixture
 def config_dir(tmp_path, monkeypatch):
-    """把配置与密钥文件都指到临时目录，避免碰真实配置。"""
+    """把配置与密钥文件都指到临时目录，避免碰真实配置。
+
+    `.key` 在仓库里是被 gitignore 的（CI 上没有），所以这里**临时生成**一把 Fernet 密钥，
+    不能依赖本机文件。
+    """
+    from cryptography.fernet import Fernet
+
     from core.services import config_manager as cm
 
-    shutil.copyfile(ROOT / "src/config/.key", tmp_path / ".key")
+    key_file = tmp_path / ".key"
+    if not key_file.exists():
+        key_file.write_bytes(Fernet.generate_key())
     monkeypatch.setattr(cm, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(cm, "CONFIG_FILE", tmp_path / "MWindow_config.json")
-    monkeypatch.setattr(cm, "KEY_FILE", tmp_path / ".key")
+    monkeypatch.setattr(cm, "KEY_FILE", key_file)
     return tmp_path
 
 
