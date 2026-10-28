@@ -24,6 +24,26 @@ if TYPE_CHECKING:
 CONFIG_FILE = CONFIG_DIR / "Image.docx"
 
 
+class _MissingNotice(QWidget):
+    """工作文档缺失时的占位页（实现 retranslateUi，切语言时一起刷新）。"""
+
+    def __init__(self, tr) -> None:
+        super().__init__()
+        from PySide6.QtWidgets import QLabel, QVBoxLayout
+
+        self._tr = tr
+        layout = QVBoxLayout(self)
+        self.label = QLabel()
+        self.label.setObjectName("hintLabel")
+        self.label.setAlignment(Qt.AlignCenter)
+        self.label.setWordWrap(True)
+        layout.addWidget(self.label)
+        self.retranslateUi()
+
+    def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
+        self.label.setText(self._tr("error.config_missing_body", path=CONFIG_FILE))
+
+
 class ImageToolboxPlugin(PluginBase):
     def assets(self):
         """图片工具箱的用户资产：可以无损保存图片的 `Image.docx` 工作文档。"""
@@ -48,12 +68,13 @@ class ImageToolboxPlugin(PluginBase):
         super().deactivate()
 
     def _build_page(self) -> QWidget:
+        # 先确保工作文档存在（安装包自带模板 → 直接复制，不需要 Word），
+        # 只有真的没法创建时才提示用户；否则会"先报错，创建代码永远不执行"。
+        from plugins.image_toolbox.word_image_processor import ensure_workspace_file
+
+        ensure_workspace_file(CONFIG_FILE)
         if not CONFIG_FILE.exists():
-            missing = QLabel(self.tr("error.config_missing_body", path=CONFIG_FILE))
-            missing.setObjectName("hintLabel")
-            missing.setAlignment(Qt.AlignCenter)
-            missing.setWordWrap(True)
-            return missing
+            return _MissingNotice(self.tr)
         self._widget = ImageReshaperWidget(config_dir=str(CONFIG_DIR),
                                            theme=self.ctx.theme,
                                            i18n=self.ctx.get_service("i18n"))

@@ -66,6 +66,17 @@ class _ActionWorker(QThread):
             self.failed.emit(self._fail_text)
 
 
+class _SidePanel(QWidget):
+    """抽屉容器：重译委派给**构建它的插件**（控件都在插件对象上）。"""
+
+    def __init__(self, owner, parent=None) -> None:
+        super().__init__(parent)
+        self._owner = owner
+
+    def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
+        self._owner.retranslate_ui()
+
+
 class ClipboardWidget(QWidget):
     """翻译改写页：上方输入与结果，底部一排操作按钮。
 
@@ -250,7 +261,7 @@ class ClipboardPlugin(PluginBase):
             return self._side_panel
         config = self.ctx.get_service("config")
         i18n = self.ctx.get_service("i18n") if getattr(self, "ctx", None) else None
-        panel = QWidget()
+        panel = _SidePanel(self)
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(14)
@@ -357,6 +368,28 @@ class ClipboardPlugin(PluginBase):
         lay.addStretch(1)
         self._side_panel = panel
         return panel
+
+    def retranslate_ui(self) -> None:
+        """抽屉内所有文案按当前界面语言重译（含提示词正文与版本条）。"""
+        for label, key in getattr(self, "_card_labels", []):
+            label.setText(self.tr(key))
+        for attr in ("placeholder_help", "translate_language_title", "save_prompt_btn"):
+            widget = getattr(self, attr, None)
+            if widget is None:
+                continue
+            if attr == "placeholder_help":
+                widget.setText(self.tr("settings.prompt.placeholder_help"))
+            elif attr == "save_prompt_btn":
+                widget.setText(self.tr("settings.save"))
+            else:
+                widget.setText(self.tr("settings.prompt.translatelang"))
+        for name in ("translate_language_edit", "correct_language_edit",
+                     "rewrite_strength_edit"):
+            combo = getattr(self, name, None)
+            if combo is not None:
+                combo.retranslate_options(self.tr)
+        for bar in getattr(self, "_prompt_bars", []):
+            bar.refresh_language()
 
     def _language_card(self, title_key: str, combo) -> QWidget:
         """一张「标题 + 下拉」的小卡片（语言/强度这类单选项统一用它）。"""

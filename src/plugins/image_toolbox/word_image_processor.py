@@ -22,6 +22,26 @@ from core.services.word_constants import wdConst  # Word 常量字典
 import ctypes
 
 
+def ensure_workspace_file(target: Path) -> bool:
+    """确保工作文档存在：已存在 → 直接用；缺模板返回 False（不在这里起 Word）。
+
+    页面构建阶段就能调用它，避免"先报错、后创建"的顺序问题。
+    """
+    if target.exists():
+        return True
+    template = WordImageProcessor._template_path()
+    if template is None or not template.exists():
+        return False
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(template, target)
+    except OSError:
+        logger.warning("复制 Image.docx 模板失败", exc_info=True)
+        return False
+    logger.info("已从模板创建图片工作文档：%s", target)
+    return True
+
+
 class WordImageProcessor:
     def __init__(self, config_dir):
         self.user32 = ctypes.windll.user32  # 新增

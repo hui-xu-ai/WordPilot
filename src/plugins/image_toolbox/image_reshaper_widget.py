@@ -66,6 +66,8 @@ class ImageReshaperWidget(QWidget):
         super().__init__(parent)
         self._theme = theme
         self._i18n = i18n
+        # 日志历史存「词条 key + 参数」，切语言时整段重画（成品文本无法反查原文）
+        self._log_history: list[tuple[str, dict, bool]] = []
         self.config_dir = config_dir or os.path.join(os.path.dirname(__file__), "config")
         os.makedirs(self.config_dir, exist_ok=True)
         self.processor = None
@@ -82,6 +84,7 @@ class ImageReshaperWidget(QWidget):
         return self._i18n.tr(f"{PLUGIN_ID}.{key}", **params)
 
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
+        self._render_logs()            # 历史日志按新语言重画（成品文本原样保留）
         self.width_group.setTitle(self.tr("group.width"))
         self.height_group.setTitle(self.tr("group.height"))
         self.bg_group.setTitle(self.tr("group.background"))
@@ -281,6 +284,16 @@ class ImageReshaperWidget(QWidget):
         self.height_pct_spin.setEnabled(enabled)
 
     def log(self, msg, error=False):
+        """记录一条**成品文本**日志（无法重译；能取到键时请用 `log_key`）。"""
+        self._append_log_html(msg, error)
+        self._log_history.append(("", {"text": msg}, error))
+
+    def log_key(self, key: str, error: bool = False, **params) -> None:
+        """记录一条**词条**日志：切语言时按当前语言重画。"""
+        self._append_log_html(self.tr(key, **params), error)
+        self._log_history.append((key, dict(params), error))
+
+    def _append_log_html(self, msg: str, error: bool) -> None:
         # HTML 富文本不受 QSS 管辖，颜色取自主题令牌（无主题服务时用兜底色）
         theme = getattr(self, "_theme", None)
         token = "color.state.error" if error else "color.state.ok"
@@ -288,9 +301,19 @@ class ImageReshaperWidget(QWidget):
         color = theme.token(token, fallback) if theme is not None else fallback
         self.info_text.append(f'<span style="color:{color};">{msg}</span>')
 
+    def _render_logs(self) -> None:
+        """按当前语言重画日志区（历史日志逐条重译，成品文本原样保留）。"""
+        entries = list(getattr(self, "_log_history", []))
+        if not entries:
+            return
+        self.info_text.clear()
+        for key, params, error in entries:
+            text = self.tr(key, **params) if key else params.get("text", "")
+            self._append_log_html(text, error)
+
     def on_apply(self):
         if not self.processor:
-            self.log(self.tr("error.not_initialized"), error=True)
+            self.log_key("error.not_initialized", error=True)
             return
 
         width_mode = self.width_mode_combo.currentData()
@@ -323,7 +346,7 @@ class ImageReshaperWidget(QWidget):
 
         self.apply_btn.setEnabled(False)
         self.info_text.clear()
-        self.log(self.tr("status.processing"))
+        self.log_key("status.processing")
         self.repaint()
 
         try:
@@ -333,13 +356,13 @@ class ImageReshaperWidget(QWidget):
                 margin_w_unit, margin_h_unit)
             if success:
                 self.log(msg)
-                self.log(self.tr("status.orig_size", size=_format_bytes(orig_bytes)))
-                self.log(self.tr("status.new_size", size=_format_bytes(new_bytes)))
+                self.log_key("status.orig_size", size=_format_bytes(orig_bytes))
+                self.log_key("status.new_size", size=_format_bytes(new_bytes))
             else:
                 self.log(msg, error=True)
                 if orig_bytes is not None:
-                    self.log(self.tr("status.extracted_size", size=_format_bytes(orig_bytes)))
+                    self.log_key("status.extracted_size", size=_format_bytes(orig_bytes))
         except Exception as e:
-            self.log(self.tr("error.unexpected", error=e), error=True)
+            self.log_key("error.unexpected", error=True, message=e)
         finally:
             self.apply_btn.setEnabled(True)

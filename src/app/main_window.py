@@ -296,6 +296,8 @@ class MainWindow(PagesMixin, QMainWindow):
             if page_id.startswith("plugin:") and hasattr(widget, "retranslateUi"):
                 widget.retranslateUi()
 
+        if hasattr(self, "retranslate_side_panels"):
+            self.retranslate_side_panels()      # 抽屉内容与标题同样要跟着换语言
         self.tray_icon.setToolTip(self.tr("app.tray.tooltip"))
         self.statusbar.showMessage(self._ready_message())
         self.build_extension_menus()   # 插件入口文案同样需要重翻译

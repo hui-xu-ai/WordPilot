@@ -29,6 +29,6 @@
   "status.orig_size": "原始图片大小：{size}",
   "status.new_size": "处理后大小：{size}",
   "status.extracted_size": "提取图片大小：{size}",
-  "error.unexpected": "意外错误: {error}",
+  "error.unexpected": "意外错误: {message}",
   "page_label": "图片工具"
 }

@@ -189,6 +189,20 @@ class PagesMixin:
     def _plugin_id_of(page_id: str) -> str | None:
         return page_id.split(":", 1)[1] if page_id.startswith("plugin:") else None
 
+    def retranslate_side_panels(self) -> None:
+        """切语言后重译抽屉内容与标题（抽屉不在 `_page_widgets` 循环里）。"""
+        for plugin_id, widget in list(self._side_panel_widgets.items()):
+            hook = getattr(widget, "retranslateUi", None)
+            if callable(hook):
+                try:
+                    hook()
+                except Exception:              # noqa: BLE001 - 单个抽屉失败不影响其它
+                    logger.exception("抽屉重译失败: %s", plugin_id)
+        current_id = getattr(self, "_explicit_page", "") or ""
+        entry = self.ui.side_panel_for(self._plugin_id_of(current_id))
+        if entry is not None and hasattr(self.side_panel, "set_title"):
+            self.side_panel.set_title(entry[0])
+
     def _sync_side_panel(self, page_id: str) -> None:
         """按当前页切换抽屉内容；该页没有注册次要界面时整块隐藏。"""
         plugin_id = self._plugin_id_of(page_id)

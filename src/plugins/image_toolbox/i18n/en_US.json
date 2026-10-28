@@ -29,6 +29,6 @@
   "status.orig_size": "Original image size: {size}",
   "status.new_size": "Resulting size: {size}",
   "status.extracted_size": "Extracted image size: {size}",
-  "error.unexpected": "Unexpected error: {error}",
+  "error.unexpected": "Unexpected error: {message}",
   "page_label": "Images"
 }

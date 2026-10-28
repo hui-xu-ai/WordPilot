@@ -82,6 +82,10 @@ class SidePanelHost(QWidget):
         self.setVisible(False)
 
     # ---------------- 内容 ----------------
+    def set_title(self, title: str) -> None:
+        """抽屉标题（由外壳在切语言时重设）。"""
+        self.title_label.setText(title)
+
     def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
         """切语言后刷新自身文案（tooltip）。"""
         self.toggle_btn.setToolTip(self.tr(self._toggle_tip_key))
