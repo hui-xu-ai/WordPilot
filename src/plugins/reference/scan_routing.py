@@ -70,6 +70,10 @@ def route_before_import(plugin, doc_path: str, doc_name: str,
         plugin._libraries.bind_document(doc_path, plan.library)
         stats["switch_text"] = plugin.tr("switch.auto", library=plan.library,
                                          percent=int(plan.score * 100))
+        # 再给结构化的一份：页面状态栏存 key 才能在切语言后重画（switch_text 是成品文本）
+        stats["switch_status"] = ("switch.auto",
+                                  {"library": plan.library,
+                                   "percent": int(plan.score * 100)})
         return True
 
     if plan.action == NEW and _is_blank_library(plugin):
@@ -78,6 +82,8 @@ def route_before_import(plugin, doc_path: str, doc_name: str,
         plugin._libraries.bind_document(doc_path, plugin._libraries.active_name())
         stats["switch_text"] = plugin.tr("switch.into_blank",
                                          name=plugin._libraries.active_name())
+        stats["switch_status"] = ("switch.into_blank",
+                                  {"name": plugin._libraries.active_name()})
         return True
 
     if plan.action in (NEW, PROMPT):

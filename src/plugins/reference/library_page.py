@@ -84,6 +84,9 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         self._mode = "refs"                      # refs | orphans
         self._orphan: Anchor | None = None
         self._read_note_is_hint = False          # 右栏备注区当前显示的是「（还没有备注）」占位
+        # 底部状态栏历史：只存 (key, 参数)，渲染走 ScanMixin._render_status()——
+        # 存渲染好的文本的话，切语言后旧语言的句子永远留着（用户现场截图）。
+        self._status_history: list[tuple[str | None, dict]] = []
         self._build_ui()
         self.reload()
         self.start_auto_refresh()
@@ -205,12 +208,15 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
             self.read_note.setText(self.tr("panel.no_note"))
         if self._orphan is not None:
             self.read_note_title.setText(self.tr("panel.orphan_hint"))
+        # 底部状态栏：历史里存的是 key + 参数，这里按**当前语言**逐条重画
+        # （机制在 ScanMixin，见 page_scan.append_status / _render_status）
+        self._render_status()
 
     # ---------------- 数据 ----------------
     def reload_now(self) -> None:
         """手动刷新（工具栏按钮）：重读 CSV 并重建索引。"""
         self.reload()
-        self.append_status(self.tr("status.reloaded"))
+        self.append_status("status.reloaded")
 
     def start_auto_refresh(self) -> None:
         """页面可见时定时同步：CSV 被外部改动、悬浮窗写完备注都能及时反映。"""
@@ -399,7 +405,7 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         # 被赋值的死字段，读它会导致"明明选了行却说没选"（用户现场）。
         key = self._current_key or self._selected_key
         if not key:
-            self.append_status(self.tr("master.need_selection"))
+            self.append_status("master.need_selection")
             return
         from plugins.reference.note_editor import NoteEditor
         from plugins.reference.note_picker import NotePicker
@@ -528,10 +534,10 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         try:
             self._store.set_note(key, note=text)
         except Exception as exc:                   # noqa: BLE001 - 失败要能看见
-            self.append_status(self.tr("status.save_failed", error=str(exc)))
+            self.append_status("status.save_failed", error=str(exc))
             return
         self._refresh_notes_ui(key)
-        self.append_status(self.tr("status.saved"))
+        self.append_status("status.saved")
 
     def save_current(self) -> None:
         reference = self._collect()

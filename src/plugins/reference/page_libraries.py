@@ -135,13 +135,13 @@ class LibraryMixin:
         # 表格选中项记在 `_current_key`；`_selected_key` 是死字段（从未赋值），别读它
         key = (getattr(self, "_current_key", "") or getattr(self, "_selected_key", "") or "")
         if handler is None or not key:
-            self.append_status(self.tr("master.need_selection"))
+            self.append_status("master.need_selection")
             return
         note = handler(key)
         if note is None:
-            self.append_status(self.tr("master.note_empty"))
+            self.append_status("master.note_empty")
             return
-        self.append_status(self.tr("master.publish_note_done"))
+        self.append_status("master.publish_note_done")
 
     def confirm_publish_all_master(self) -> None:
         """整库更新到总库：二次确认后把当前子库所有非空备注推上去（不自动同步）。"""
@@ -157,8 +157,8 @@ class LibraryMixin:
         if answer != QMessageBox.Yes:
             return
         published, duplicate, empty = handler()
-        self.append_status(self.tr("master.publish_all_done", published=published,
-                                   duplicate=duplicate, empty=empty))
+        self.append_status("master.publish_all_done", published=published,
+                           duplicate=duplicate, empty=empty)
         self.reload()
 
     def confirm_dedupe(self) -> None:
@@ -172,7 +172,7 @@ class LibraryMixin:
         if answer != QMessageBox.Yes:
             return
         merged, kept = handler()
-        self.append_status(self.tr("dedupe.done", merged=merged, kept=kept))
+        self.append_status("dedupe.done", merged=merged, kept=kept)
         self.reload()
 
     def confirm_delete_library(self) -> None:
@@ -214,7 +214,7 @@ class LibraryMixin:
         if answer != QMessageBox.Yes:
             return
         if handler():
-            self.append_status(self.tr("master.cleared"))
+            self.append_status("master.cleared")
         else:
             QMessageBox.warning(self, self.tr("master.clear_title"),
                                 self.tr("master.clear_failed"))
@@ -283,7 +283,7 @@ class LibraryMixin:
         try:
             self._on_switch_library(name)
         except Exception as exc:               # noqa: BLE001 - 切换失败要能看见
-            self.append_status(self.tr("status.scan_failed", error=str(exc)))
+            self.append_status("status.scan_failed", error=str(exc))
 
     def rebind(self, store, index, note_service, active_name: str = "") -> None:
         """切换到另一个仓库后就地重绑数据层（不重建页面）。"""
@@ -305,8 +305,7 @@ class LibraryMixin:
                 self.library_combo.blockSignals(False)
         self._selected_key = ""
         self.reload()
-        hint = self.tr("status.library", name=active_name).replace("{name}", active_name)
-        self.append_status(hint)
+        self.append_status("status.library", name=active_name)
 
 
 def group_separator():

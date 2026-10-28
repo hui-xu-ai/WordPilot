@@ -202,7 +202,7 @@ def test_panel_width_is_400(page):
 def test_status_bar_keeps_last_three_lines(page):
     widget, _store, _index = page
     for index in range(5):
-        widget.append_status(f"事件 {index}")
+        widget.append_status_text(f"事件 {index}")
     lines = widget.footer_label.text().splitlines()
     assert len(lines) == 3
     assert lines[-1] == "事件 4"
@@ -227,7 +227,7 @@ def test_refresh_button_exists(page):
     """刷新按钮按用户要求放回明面（与库切换/新建/删除同一行）。"""
     widget, _store, _index = page
     assert widget.refresh_btn.text() != ""
-    widget.append_status("x")
+    widget.append_status_text("x")
     widget.reload_now()
     assert widget.footer_label.text().endswith("已刷新")
 

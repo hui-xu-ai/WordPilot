@@ -159,3 +159,31 @@ def test_language_switch_event_retranslates_overlay():
 
     assert 'subscribe("i18n.language_changed"' in source
     assert "def retranslateUi" in (PLUGIN_DIR / "overlay.py").read_text(encoding="utf-8")
+
+
+def test_footer_status_lines_follow_language(page):
+    """状态栏历史存 key + 参数：切语言后逐条重画，条数/顺序不变。
+
+    现场（用户截图）：以前存的是渲染好的成品文本 → 切英文再切回中文，
+    旧英文句子永远留在底部状态栏里。
+    """
+    i18n, widget, _store, _app = page
+
+    widget.append_status("status.reloaded")
+    widget.append_status("status.library", name="LibA")
+    widget.append_status("status.diff", added=2, removed=1)
+    zh_lines = widget.footer_label.text().splitlines()
+    assert len(zh_lines) == 3, "状态栏保留最近 3 条"
+
+    i18n.set_language("en_US")
+    widget.retranslateUi()
+    en_lines = widget.footer_label.text().splitlines()
+    assert len(en_lines) == 3, "重画不能丢行"
+    assert not any(HAN.search(line) for line in en_lines), en_lines
+    assert en_lines[0] == "Reloaded"
+    assert en_lines[1] == "Library: LibA"
+    assert "2" in en_lines[2] and "1" in en_lines[2]
+
+    i18n.set_language("zh_CN")
+    widget.retranslateUi()
+    assert widget.footer_label.text().splitlines() == zh_lines, "切回中文必须与最初逐字一致"

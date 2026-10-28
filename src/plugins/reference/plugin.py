@@ -428,10 +428,11 @@ class ReferencePlugin(PluginBase):
 
     def _on_watch_status(self, code: str) -> None:
         """监听线程的连接/扫描状态 → 页面底部状态栏（用户要求"看得见"）。"""
-        text = self._watch_status_text(code)
+        key, params = self._watch_status_key(code)
+        text = self.tr(key, **params)
         if self._page is not None:
             try:
-                self._page.append_status(text)
+                self._page.append_status(key, **params)   # 存 key，切语言可重画
             except Exception:              # noqa: BLE001 - 页面可能还没建好
                 pass
         try:
@@ -439,18 +440,19 @@ class ReferencePlugin(PluginBase):
         except Exception:                  # noqa: BLE001
             pass
 
-    def _watch_status_text(self, code: str) -> str:
+    def _watch_status_key(self, code: str) -> tuple[str, dict]:
+        """状态码 → (语言包 key, 参数)：页面状态栏存结构化的一份，才跟得上语言切换。"""
         for prefix in ("watch.scanned:", "watch.cached:"):
             if code.startswith(prefix):
                 # 之前只处理了 scanned:，`cached:18` 会原样落到 `tr()` 里 → 缺少翻译 →
                 # 界面直接显示 `reference.watch.cached:18`（用户看到的就是这行"报错"）。
-                return self.tr(prefix[:-1], count=code.split(":", 1)[1])
+                return prefix[:-1], {"count": code.split(":", 1)[1]}
         mapping = {
             "watch.starting": "watch.starting",
             "watch.no_word": "watch.no_word",
             "watch.scanning": "watch.scanning",
         }
-        return self.tr(mapping.get(code, code))
+        return mapping.get(code, code), {}
 
     def _on_citation_cleared(self) -> None:
         if self._overlay is not None:
@@ -702,6 +704,10 @@ class ReferencePlugin(PluginBase):
             self._libraries.bind_document(doc_path, plan.library)
             stats["switch_text"] = self.tr("switch.auto", library=plan.library,
                                            percent=int(plan.score * 100))
+            # 状态栏存 key（成品文本切语言不会重画），见 page_scan.append_status
+            stats["switch_status"] = ("switch.auto",
+                                      {"library": plan.library,
+                                       "percent": int(plan.score * 100)})
         elif plan.action in (PROMPT, NEW):
             # 弹框必须回到 GUI 线程：把决策放进 stats，由页面在扫描完成回调里处理
             stats["plan"] = plan
@@ -822,7 +828,8 @@ class ReferencePlugin(PluginBase):
     def _notify_status(self, text: str) -> None:
         if self._page is not None:
             try:
-                self._page.append_status(text)
+                # 成品文本：没有 key 可存，切语言时**不重画**（保留旧行为）
+                self._page.append_status_text(text)
             except Exception:                      # noqa: BLE001
                 pass
         try:

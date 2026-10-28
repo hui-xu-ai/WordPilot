@@ -24,11 +24,13 @@ def hint_missing_reference(plugin, items: list[dict]) -> None:
         label = str(item.get("label") or item.get("anchor_key") or "")
         if label:
             break
-    text = plugin.tr("overlay.no_match", label=label or "?")
+    status_key = "overlay.no_match"
+    status_params = {"label": label or "?"}
+    text = plugin.tr(status_key, **status_params)
     page = getattr(plugin, "_page", None)
     if page is not None:
         try:
-            page.append_status(text)
+            page.append_status(status_key, **status_params)   # 存 key，切语言可重画
         except Exception:                  # noqa: BLE001
             pass
     try:
