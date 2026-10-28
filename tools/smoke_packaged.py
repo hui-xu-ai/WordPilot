@@ -16,12 +16,23 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DIST = ROOT / "dist/WordPilot"
-EXE = DIST / "WordPilot.exe"
-CONFIG = DIST / "config"
 
 
-def main() -> int:
+def _resolve_exe(argv: list[str]) -> Path:
+    """产物路径：命令行 --exe 优先，其次 dist，最后 dist_new（旧 dist 被占用时的备用输出）。"""
+    if "--exe" in argv:
+        return Path(argv[argv.index("--exe") + 1]).resolve()
+    for candidate in (ROOT / "dist/WordPilot/WordPilot.exe",
+                      ROOT / "dist_new/WordPilot/WordPilot.exe"):
+        if candidate.exists():
+            return candidate
+    return ROOT / "dist/WordPilot/WordPilot.exe"
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(argv if argv is not None else sys.argv[1:])
+    EXE = _resolve_exe(argv)          # noqa: N806 - 局部解析产物路径
+    CONFIG = EXE.parent / "config"    # noqa: N806
     if not EXE.exists():
         print(f"[FAIL] 找不到 {EXE}，先跑 PyInstaller")
         return 1
@@ -52,6 +63,8 @@ def main() -> int:
     if CONFIG.exists():
         shutil.rmtree(CONFIG, ignore_errors=True)
     if backup is not None:
+        if CONFIG.exists():
+            shutil.rmtree(CONFIG, ignore_errors=True)
         shutil.copytree(backup, CONFIG)
         print(f"[OK] 已还原用户配置（含 API Key）← {backup}")
     return 0 if alive else 1
