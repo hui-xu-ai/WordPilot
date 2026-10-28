@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 
 from core.services.com_thread import com_init, com_uninit
+from core.services.i18n import message
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QWidget
 
@@ -131,7 +132,11 @@ class ScanMixin:
                                        percent=int(getattr(plan, "score", 0.0) * 100)))
             self._rescan_after_choice()
         elif dialog.choice == "new" and dialog.new_name and self._on_create_library:
-            self._on_create_library(dialog.new_name)
+            created = self._on_create_library(dialog.new_name)
+            if created is False:            # 名字不合法：必须提示，不能静默
+                self.append_status(message("library.error.invalid_name",
+                                           name=dialog.new_name))
+                return
             if bundle:
                 plugin.bind_document(doc_path, dialog.new_name)
             self.append_status(self.tr("switch.created", name=dialog.new_name))

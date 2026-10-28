@@ -198,6 +198,7 @@ class ReferencePlugin(PluginBase):
 
         ctx.ui.add_page("page_label", self._build_page, order=20,
                         icon="book", plugin_id="reference")
+        self.subscribe("i18n.language_changed", self._on_language_changed)
         self._start_watch()
         self._connect_doc_signal()
         ctx.logger.info(self.tr("log.activated"))
@@ -209,6 +210,15 @@ class ReferencePlugin(PluginBase):
     def _connect_doc_signal(self) -> None:
         """把监听线程的信号经 QObject 中转（实现见 watch_bridge）。"""
         connect_watch(self, getattr(self, "_watch", None))
+
+    def _on_language_changed(self, _event=None, _lang=None) -> None:
+        """界面语言切换：页面文案由主窗口统一调 `retranslateUi`，悬浮窗要自己重译。"""
+        overlay = getattr(self, "_overlay", None)
+        if overlay is not None:
+            try:
+                overlay.retranslateUi()
+            except Exception:                  # noqa: BLE001 - 重译失败不该影响切换语言
+                logger.debug("悬浮窗重译失败", exc_info=True)
 
     def _on_document_changed(self, name: str) -> None:
         """换文档：更新显示并清掉旧上下文（实现见 watch_bridge）。"""
@@ -557,7 +567,7 @@ class ReferencePlugin(PluginBase):
                 logger.warning("绑定失败：%s", exc)
                 self.ctx.ui.status(str(exc), 4000)
                 return
-            self.ctx.ui.status(self.tr("status.bound", key=picker.selected_key), 3000)
+            self.ctx.ui.status(self.tr("status.bound", ref=picker.selected_key), 3000)
             self._reshow(anchor_key, doc_name, label)
 
     def _on_create_requested(self, anchor_key: str, doc_name: str) -> None:
@@ -763,14 +773,15 @@ class ReferencePlugin(PluginBase):
                 pass
         return result
 
-    def create_library(self, name: str) -> None:
-        """新建仓库并切过去（扫描后的确认框会用到）。"""
+    def create_library(self, name: str) -> bool:
+        """新建仓库并切过去；名字不合法时返回 False（调用方据此提示用户）。"""
         try:
             self._libraries.create(name)
         except ValueError as exc:
             logger.warning("新建仓库失败：%s", exc)
-            return
+            return False
         self.switch_library(name)
+        return True
 
     def _ensure_scan_library(self, doc_path: str) -> None:
         """扫描前把库切到该文档绑定的仓库（没有绑定则保持现状）。"""

@@ -201,6 +201,7 @@
   "image.error.no_image": "工作文档中未找到图片",
   "image.error.no_selection": "未选中图片，请点击 Word 中的图片",
   "library.error.empty_name": "仓库名不能为空",
+  "library.error.invalid_name": "仓库名不合法：{name}（不能含 / \\ 或 ..）",
   "library.error.keep_one": "至少保留一个仓库",
   "settings.storage.group.logs": "运行日志",
   "settings.storage.group.wal": "数据库残留",

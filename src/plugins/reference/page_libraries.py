@@ -232,9 +232,14 @@ class LibraryMixin:
         if create is None:
             return
         try:
-            create(name)
-        except ValueError as exc:
+            created = create(name)
+        except ValueError as exc:                # 兼容旧实现（直接抛 ValueError）
             QMessageBox.warning(self, self.tr("library.new_title"), str(exc))
+            return
+        if created is False:
+            # 名字不合法（含 / \ 或 ..）：必须给出提示，否则用户以为点了没反应
+            QMessageBox.warning(self, self.tr("library.new_title"),
+                                message("library.error.invalid_name", name=name))
             return
         rebuild = getattr(self, "rebuild_library_combo", None)
         if callable(rebuild):

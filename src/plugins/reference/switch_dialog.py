@@ -47,9 +47,9 @@ class SwitchDialog(QDialog):
             self.diff_list = QListWidget()
             self.diff_list.setFixedHeight(120)
             for key in added[:MAX_ITEMS]:
-                self.diff_list.addItem(self._tr("switch.diff_added", key=key))
+                self.diff_list.addItem(self._tr("switch.diff_added", ref=key))
             for key in removed[:MAX_ITEMS]:
-                self.diff_list.addItem(self._tr("switch.diff_removed", key=key))
+                self.diff_list.addItem(self._tr("switch.diff_removed", ref=key))
             layout.addWidget(self.diff_list)
 
         self.name_edit = QLineEdit()

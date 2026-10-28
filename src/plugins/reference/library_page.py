@@ -83,6 +83,7 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         self._current_key = ""
         self._mode = "refs"                      # refs | orphans
         self._orphan: Anchor | None = None
+        self._read_note_is_hint = False          # 右栏备注区当前显示的是「（还没有备注）」占位
         self._build_ui()
         self.reload()
         self.start_auto_refresh()
@@ -190,8 +191,20 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         from plugins.reference.page_panel import retranslate_panel
 
         retranslate_panel(self)
-        self.table.setHorizontalHeaderLabels([self.tr(f"col.{name}") for name in _TABLE_COLUMNS])
+        # 表头按**当前模式**重译（孤立锚点模式列不一样，不能套文献表的列）
+        columns = _ORPHAN_COLUMNS if self._mode == "orphans" else _TABLE_COLUMNS
+        self.table.setHorizontalHeaderLabels([self.tr(f"col.{name}") for name in columns])
         self._refresh_panel_title()
+        # 以下三项原来漏在 retranslateUi 之外：切语言后它们停在旧语言（用户现场：
+        # 英文界面里统计行还是中文；切回中文后「Hide details」还在）
+        self._update_panel_toggle()               # 「隐藏详情 / 显示详情」+ tooltip
+        self._update_status()                     # 统计行按同一份数据重新渲染计数
+        if self._current_key:
+            self._refresh_notes_ui(self._current_key)
+        if self._read_note_is_hint:
+            self.read_note.setText(self.tr("panel.no_note"))
+        if self._orphan is not None:
+            self.read_note_title.setText(self.tr("panel.orphan_hint"))
 
     # ---------------- 数据 ----------------
     def reload_now(self) -> None:
@@ -440,6 +453,7 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         for key, label in self.read_labels.items():
             label.setText("")
         self.read_note.setText("")
+        self._read_note_is_hint = False
         self.key_label.setText("")
         self._refresh_panel_title()
         has_selection = bool(self._current_key or self._orphan)
@@ -461,6 +475,7 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
             if self._orphan is not None:
                 self.read_note_title.setText(self.tr("panel.orphan_hint"))
                 self.read_note.setText(f"{self._orphan.doc_name} · {self._orphan.anchor_key}")
+                self._read_note_is_hint = False
                 self.panel_title.setText(self.tr("panel.orphan_title"))
             return
 
@@ -476,6 +491,7 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         for key, label in self.read_labels.items():
             label.setText(str(getattr(ref, key, "") or "—"))
         self.read_note.setText(ref.note or self.tr("panel.no_note"))
+        self._read_note_is_hint = not ref.note.strip()
         self.key_label.setText(ref.ref_key)
         self.label_edit.setText(ref.cite_label)
         self.title_edit.setText(ref.title)
@@ -565,7 +581,7 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         except ReferenceStoreError as exc:
             self.status_label.setText(str(exc))
             return
-        self.status_label.setText(self.tr("orphan.bound", key=selected_key))
+        self.status_label.setText(self.tr("orphan.bound", ref=selected_key))
         self.reload()
 
     # ---------------- 导入导出 ----------------

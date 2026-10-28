@@ -447,6 +447,15 @@ class ReferenceOverlay(QWidget):
             except Exception:              # noqa: BLE001 - 单卡异常不影响其它卡
                 continue
 
+    def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
+        """切换界面语言后就地重译（卡片整块重建；没在显示就只记着，下次弹出自然是新语言）。"""
+        self.close_btn.setToolTip(self._tr("overlay.close_tip"))
+        if not self.isVisible() or not self._cards:
+            return
+        self._rebuild([card.entry for card in self._cards])   # 内部会先 flush 未保存草稿
+        self._fit_height()
+        self.adjustSize()
+
     def _rebuild(self, entries: list[OverlayEntry]) -> None:
         # R5：卡片即将被销毁 —— 先把 800ms 自动保存里的草稿落盘，
         # 否则"输入后立刻点下一个引用"会把刚敲的文字连同定时器一起丢掉。

@@ -92,13 +92,18 @@ class I18nService:
         """按提示词语言查词（发给 AI 的指令文案专用）。"""
         return self._translate(self.prompt_language, key, **params)
 
-    def _translate(self, lang: str, key: str, **params) -> str:
-        text = self._lookup(lang, key)
+    def _translate(self, lang: str, message_key: str, **params) -> str:
+        """查词并填充占位符。
+
+        形参名不叫 `key`：语言包里存在 `{key}` 这类占位符，
+        同名会与 `**params` 撞成 `TypeError: got multiple values for argument`。
+        """
+        text = self._lookup(lang, message_key)
         if params:
             try:
                 return text.format(**params)
             except Exception:
-                logger.debug("语言包占位符格式化失败: %s", key, exc_info=True)
+                logger.debug("语言包占位符格式化失败: %s", message_key, exc_info=True)
         return text
 
     def _lookup(self, lang: str, key: str) -> str:

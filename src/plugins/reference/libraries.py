@@ -203,7 +203,7 @@ class LibraryRegistry:
             raise ValueError(message("library.error.empty_name"))
         # S7：库名会成为目录名，必须挡掉能跳出库根的输入
         if name in (".", "..") or any(sep in name for sep in ("/", "\\")) or ".." in name:
-            raise ValueError(f"仓库名不合法：{name}")
+            raise ValueError(message("library.error.invalid_name", name=name))
         data = self._read()
         libraries = data.setdefault("libraries", {})
         if name in libraries:
