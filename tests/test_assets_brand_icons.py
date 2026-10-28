@@ -43,8 +43,15 @@ def test_brand_assets_are_packaged():
 
 
 def test_design_source_still_available():
-    """设计稿原件保留在 work/design 下（不入包），方便日后换肤/改稿。"""
+    """设计稿原件保留在 work/design 下（不入包），方便日后换肤/改稿。
+
+    `work/` 是本地开发目录（已 gitignore），CI 检出里没有它 —— 所以缺失即**跳过**，
+    不能让「本地有设计稿」变成 CI 的硬依赖（2026-10-28 CI 失败的原因）。
+    """
     design = ROOT / "work/design/2026-10-27-logo-free"
+
+    if not design.is_dir():
+        pytest.skip("设计稿不在（work/ 属本地目录，CI 无此项）")
 
     assert (design / "03-jade.png").is_file()
     assert (design / "03-jade.ico").is_file()

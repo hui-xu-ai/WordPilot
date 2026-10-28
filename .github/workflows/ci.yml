@@ -28,7 +28,9 @@ jobs:
       - name: Run offline unit tests
         env:
           PYTHONUTF8: "1"
-        run: python -m pytest -q -p no:cacheprovider
+          # 无交互桌面的 runner 上也让 Qt 控件能构造
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q -p no:cacheprovider -rf --tb=short
 
       - name: Quality gate (privacy + size + tests)
         shell: pwsh
@@ -48,3 +50,17 @@ jobs:
             exit 1
           }
           Write-Host "tag 与版本号一致：$tag"
+
+      # 失败时把「失败的用例清单」写进 Job Summary：
+      # run 页面不用展开日志就能看到哪几条例挂（此前排查 CI 失败全靠猜）
+      - name: Failure summary
+        if: failure()
+        shell: pwsh
+        run: |
+          "## CI 失败：离线单测" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "``````" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          python -m pytest -q -p no:cacheprovider -rf --tb=line --no-header 2>&1 |
+            Select-String -Pattern '^(FAILED|ERROR)' |
+            ForEach-Object { $_.Line } |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "``````" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
