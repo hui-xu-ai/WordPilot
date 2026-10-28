@@ -28,8 +28,6 @@ jobs:
       - name: Run offline unit tests
         env:
           PYTHONUTF8: "1"
-          # 无交互桌面的 runner 上也让 Qt 控件能构造
-          QT_QPA_PLATFORM: offscreen
         run: python -m pytest -q -p no:cacheprovider -rf --tb=short
 
       - name: Quality gate (privacy + size + tests)
