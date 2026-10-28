@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "root": ".",
-  "count": 20,
+  "count": 23,
   "entries": [
     {
       "path": "AGENTS.md",
@@ -17,6 +17,43 @@
       "tags": [],
       "bytes": 2603,
       "mtime": "2026-10-24T05:10:06.501793+00:00",
+      "archive": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "title": "Changelog",
+      "headings": [
+        "Changelog",
+        "[3.2.0] - 2026-10-28",
+        "新增",
+        "变更",
+        "修复",
+        "安全",
+        "[3.1.0] - 2026-10-27"
+      ],
+      "tags": [],
+      "bytes": 3525,
+      "mtime": "2026-10-28T04:14:58.519839+00:00",
+      "archive": false
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "title": "贡献指南（Contributing）",
+      "headings": [
+        "贡献指南（Contributing）",
+        "环境",
+        "提交前必跑",
+        "硬规矩",
+        "新增/修改界面文案的做法",
+        "1) 语言包：src/assets/i18n/zh_CN.json + en_US.json（插件用 plugins/<id>/i18n/*.json）",
+        "2) 控件只在 retranslateUi() 里取词",
+        "提示词的约定",
+        "提交信息",
+        "发布"
+      ],
+      "tags": [],
+      "bytes": 3387,
+      "mtime": "2026-10-28T04:15:51.129773+00:00",
       "archive": false
     },
     {
@@ -306,18 +343,28 @@
       "title": "发布说明 · RELEASE",
       "headings": [
         "发布说明 · RELEASE",
-        "1. 本次打包（v3.1.0）",
-        "2. 隐私复核（推送前）",
-        "3. 推送 GitHub",
-        "1) 在 GitHub 建一个空仓库（不要勾选 README/LICENSE，避免冲突）",
-        "dist/ 与 build/ 已 gitignore，exe 作为 Release 附件上传，不进仓库",
-        "然后在 GitHub Release 页面手工上传该 zip，正文可直接引用下方「发布要点」",
-        "4. 发布要点（可直接用作 Release 正文）",
-        "5. 后续可选'"
+        "0. 版本号管理",
+        "1. 发版步骤（按顺序）",
+        "1) 改版本号 + 写 CHANGELOG，然后校验",
+        "2) 全量验证",
+        "3) 打包（先确认没有残留进程占用 dist\\config，否则会 PermissionError）",
+        "4) 冒烟：启动 exe 10 秒不崩，然后按 PID 结束并清掉冒烟产生的 config",
+        "5) 压缩产物 + 记哈希（Release 附件）",
+        "6) 打 tag 并校验一致",
+        "2. 隐私复核（推送前必做）",
+        "3. 推送 GitHub（首次）",
+        "在 GitHub 建空仓库（不要勾选 README/LICENSE，避免与本地历史冲突）",
+        "4. 发布 Release",
+        "发布要点（可复用）",
+        "5. 回滚",
+        "6. 后续可选",
+        "发版记录",
+        "v3.2.0（2026-10-28）",
+        "v3.1.0（2026-10-27）"
       ],
       "tags": [],
-      "bytes": 3773,
-      "mtime": "2026-10-27T13:50:23.847785+00:00",
+      "bytes": 5695,
+      "mtime": "2026-10-28T04:17:01.114526+00:00",
       "archive": false
     },
     {
@@ -366,20 +413,41 @@
       "title": "WordPilot",
       "headings": [
         "WordPilot",
-        "功能特性",
-        "快速开始",
-        "1. 创建并激活虚拟环境",
-        "2. 安装依赖",
-        "3. 准备配置（首次运行也会自动生成，但建议用模板）",
-        "然后编辑 MWindow_config.json，填入你自己的 DeepSeek api_key",
-        "4. 运行",
-        "隐私与数据安全（重要）",
-        "项目结构（分层 + 微内核 + 插件化）",
+        "目录",
+        "核心特性",
+        "系统要求",
+        "安装与使用",
+        "方式一：下载发布包（推荐）",
+        "方式二：从源码运行",
+        "配置 API Key",
+        "多语言",
+        "隐私与数据边界",
+        "从源码构建",
+        "产物：dist\\WordPilot\\WordPilot.exe（onedir，约 103 MB）",
+        "插件化架构",
+        "开发与贡献",
+        "版本与发布",
+        "已知限制",
         "许可"
       ],
       "tags": [],
-      "bytes": 7596,
-      "mtime": "2026-10-27T13:32:12.776861+00:00",
+      "bytes": 8886,
+      "mtime": "2026-10-28T04:16:34.114417+00:00",
+      "archive": false
+    },
+    {
+      "path": "SECURITY.md",
+      "title": "安全策略（Security Policy）",
+      "headings": [
+        "安全策略（Security Policy）",
+        "支持版本",
+        "报告漏洞",
+        "不要提交的内容",
+        "已知的安全边界"
+      ],
+      "tags": [],
+      "bytes": 2031,
+      "mtime": "2026-10-28T04:15:58.046779+00:00",
       "archive": false
     }
   ]
