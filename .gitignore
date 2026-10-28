@@ -109,3 +109,7 @@ src/config/references/
 # 发布附件：打包压缩包体积大，作为 Release 附件上传，不入库
 WordPilot-v*.zip
 *.zip
+
+# PyInstaller 备用输出目录（旧 dist 被占用时用 --distpath 构建）
+dist_new/
+dist_locked/
