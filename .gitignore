@@ -114,3 +114,6 @@ WordPilot-v*.zip
 dist_new/
 dist_locked/
 dist_noupx/
+
+# 开发工具链的架构模型（本地工具用，不对公开仓库发布）
+.dsh/
