@@ -105,3 +105,7 @@ src/config/plugins/
 
 # 参考文献助手的用户数据（CSV 库 + 派生索引），属于用户数据不入库
 src/config/references/
+
+# 发布附件：打包压缩包体积大，作为 Release 附件上传，不入库
+WordPilot-v*.zip
+*.zip
