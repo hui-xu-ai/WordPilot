@@ -102,7 +102,7 @@
   "language.en_US": "English",
   "theme.light": "浅色",
   "theme.dark": "深色",
-  "prompt.proof.default": "你是中文科技论文校对专家。修正错别字、语病、标点、专业词汇拼写。校对所有单位的空格：数字与℃、%、°之间不加空格（例：2℃、5%、9°）；数字与其他单位（如m）之间加半角空格（例：10 m）。\n原文：{text}",
+  "prompt.proof.default": "你是{lang}科技论文校对专家。修正错别字、语病、标点、专业词汇拼写。校对所有单位的空格：数字与℃、%、°之间不加空格（例：2℃、5%、9°）；数字与其他单位（如m）之间加半角空格（例：10 m）。\n原文：{text}",
   "prompt.proof.system": "只输出这一句校对后的文字，不解释、不提问、不加前缀、不加引号。",
   "prompt.proof.placeholder_system": "只输出完整校对结果，不解释、不提问。如果输入中有类似[IMG0]或[EQ1]的标记，它们是内嵌对象占位符，必须原样保留，不得修改。",
   "prompt.translate.default": "将以下{lang}文本翻译为{target_lang}，保持术语与数字准确、保持段落结构，只输出译文：\n{text}",

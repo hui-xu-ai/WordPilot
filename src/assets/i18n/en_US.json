@@ -102,7 +102,7 @@
   "language.en_US": "English",
   "theme.light": "Light",
   "theme.dark": "Dark",
-  "prompt.proof.default": "You are a proofreader for academic writing. Fix typos, grammar, punctuation and terminology spelling. Check unit spacing: no space between a number and ℃/%/° (2℃, 5%, 9°); a half-width space between a number and other units (10 m).\nText: {text}",
+  "prompt.proof.default": "You are a proofreader for {lang} academic writing. Fix typos, grammar, punctuation and terminology spelling. Check unit spacing: no space between a number and ℃/%/° (2℃, 5%, 9°); a half-width space between a number and other units (10 m).\nText: {text}",
   "prompt.proof.system": "Output only the corrected sentence. No explanation, no quotes, no preamble.",
   "prompt.proof.placeholder_system": "Output the full proofread text only. No explanation, no questions. If the input contains markers such as [IMG0] or [EQ1], they are inline object placeholders and must be preserved exactly.",
   "prompt.translate.default": "Translate the following {lang} text into {target_lang}. Keep terminology and numbers accurate, preserve paragraph structure, and output only the translation:\n{text}",
