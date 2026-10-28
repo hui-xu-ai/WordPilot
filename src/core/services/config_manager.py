@@ -105,8 +105,7 @@ class ConfigManager:
         config.setdefault("theme", "light")
         config.setdefault("ui_language", "zh_CN")       # 界面语言（与提示词语言解耦）
         # 内置默认提示词的语言：auto = 跟随界面语言（界面上不再单独暴露）
-        config.setdefault("prompt_language", "auto")
-        # 校对/纠错的**文本语言**（与提示词语言解耦）：auto = 按待校文本自动判断
+            # 校对/纠错的**文本语言**（与提示词语言解耦）：auto = 按待校文本自动判断
         config.setdefault("proof_language", "auto")
         # 翻译目标语言：auto = 中文→英文、其他语言→中文；也可填「英文」「日文」等
         config.setdefault("translate_language", "auto")

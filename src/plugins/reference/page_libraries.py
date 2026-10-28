@@ -68,7 +68,7 @@ class LibraryMixin:
         combo.setMinimumWidth(120)
         fallback = getattr(self, "_active_library", "") or message("library.default_name")
         names = self._libraries or [fallback]
-        tr = getattr(self, "tr", None)
+        tr = self._label_tr()
         for name in names:
             # 显示用翻译后的名字；itemData 保留**后端原值**，切换时不改动数据
             combo.addItem(library_label(name, tr), name)
@@ -81,6 +81,18 @@ class LibraryMixin:
         self.library_combo = combo
         toolbar.addWidget(combo)
         return combo
+
+    def _label_tr(self):
+        """显示映射用的 tr：**应用级**语言服务（插件 tr 会加 `reference.` 前缀）。"""
+        ctx = getattr(self, "_ctx", None)
+        if ctx is not None:
+            try:
+                service = ctx.get_service("i18n")
+                if service is not None:
+                    return service.tr
+            except Exception:                  # noqa: BLE001 - 取不到就用兜底
+                pass
+        return getattr(self, "tr", None)
 
     def _library_names(self) -> list[str]:
         """当前库名列表：优先问插件（新建/删除后快照是旧的）。"""
@@ -104,7 +116,7 @@ class LibraryMixin:
         plugin = getattr(self, "_plugin", None)
         active = (active or getattr(plugin, "_active_name", "")
                   or getattr(self, "_active_library", "") or combo.currentText())
-        tr = getattr(self, "tr", None)
+        tr = self._label_tr()
         blocked = combo.blockSignals(True)
         try:
             combo.clear()

@@ -75,7 +75,8 @@ def test_library_combo_shows_translation_but_keeps_backend_value(app):
     class _Host:
         _libraries = ["默认库", "My own library"]
         _active_library = "默认库"
-        tr = staticmethod(en.tr)
+        tr = staticmethod(lambda key, **kw: en.tr(key, **kw))      # 插件级 tr 替身
+        _label_tr = staticmethod(lambda: (lambda key, **kw: en.tr(key, **kw)))  # 应用级 tr
 
         def __init__(self):
             self._on_switch_library = None
@@ -117,3 +118,12 @@ def test_display_mapping_is_single_place():
     assert "ui_labels" in monitor, "监控面板应复用共享映射"
     bar = (ROOT / "src/core/widgets/prompt_version_bar.py").read_text(encoding="utf-8")
     assert "ui_labels" in bar, "版本条应复用共享映射"
+
+def test_raw_key_is_never_shown():
+    """插件 tr 查不到时返回裸 key —— 显示层必须当作没有译文，而不是把 key 显示出来。"""
+    from core.services.ui_labels import library_label
+
+    def namespaced_tr(key):
+        return f"reference.{key}"
+
+    assert library_label("默认库", namespaced_tr) == "默认库", "查不到译文就退回原名，不显示裸 key"

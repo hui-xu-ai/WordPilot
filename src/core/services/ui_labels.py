@@ -31,13 +31,20 @@ TASK_LEGACY_ZH = {"逐句校对": "task.proof", "整段纠错": "task.correct",
 
 
 def _translate(key: str, tr: Callable[..., str] | None) -> str:
+    """查词；查不到时返回空串（绝不把裸 key 显示给用户）。"""
     if tr is None:
         return ""
     try:
         text = tr(key)
     except Exception:                          # noqa: BLE001 - 显示层不允许抛错
         return ""
-    return "" if not text or text == key else text
+    if not text:
+        return ""
+    # 插件 tr 会加命名空间前缀（library.default_name → reference.library.default_name），
+    # 查不到时原样返回 key —— 这种情况要当作"没有译文"。
+    if text == key or text.endswith("." + key):
+        return ""
+    return text
 
 
 def library_label(name: str, tr: Callable[..., str] | None = None) -> str:

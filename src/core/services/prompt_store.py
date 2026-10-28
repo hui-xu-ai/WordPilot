@@ -289,6 +289,10 @@ def effective_text(key: str, config, prompt_tr=None) -> str:
     """
     text = (config.get(key) or "").strip() if config is not None else ""
     if text:
+        # config 里若是**某个语言的系统默认**（早期"保存"把默认文案写死了），
+        # 视为未自定义 → 返回当前界面语言的默认，避免英文界面里出现中文提示词。
+        if _normalised(text) in default_text_variants(key, prompt_tr):
+            return default_text(key, prompt_tr)
         return text
     return default_text(key, prompt_tr)
 

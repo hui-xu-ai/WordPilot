@@ -45,22 +45,18 @@ class I18nService:
 
     @property
     def prompt_language(self) -> str:
-        """提示词语言：决定**内置默认提示词**用哪种语言书写。
+        """提示词语言 == 界面语言（唯一标准）。
 
-        `auto`（默认）跟随界面语言；需要英文提示词而界面仍是中文的高级用户，
-        可以把配置里的 `prompt_language` 手动改成 `en_US` —— 界面上不再提供这个开关。
+        用户 2026-10-28 明确：界面上所有文字（含内置默认提示词）只看界面语言。
+        `prompt_language` 配置键已废弃——即使旧配置里写着 `zh_CN`，也不再影响任何文案；
+        校对语言 / 翻译目标 / 纠错语言只用于判断待处理文本的语言，与显示无关。
         """
-        if not self.config:
-            return BASE_LANGUAGE
-        value = str(self.config.get("prompt_language", "auto") or "auto").strip()
-        if value.lower() in {"auto", ""}:
-            return self.current
-        return value
+        return self.current
 
     def _active_langs(self) -> tuple[str, ...]:
         """需要常驻内存的语言：界面语言 + 提示词语言 + 基准语言（去重保序）。"""
         seen: dict[str, None] = {}
-        for lang in (self.current, self.prompt_language, BASE_LANGUAGE):
+        for lang in (self.current, BASE_LANGUAGE):
             seen.setdefault(lang, None)
         return tuple(seen)
 
