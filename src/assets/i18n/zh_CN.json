@@ -217,11 +217,11 @@
   "skin.chestnut_corgi": "栗子柯基",
   "skin.dusk_owl": "暮色小鸮",
   "skin.ink_cat": "墨墨猫",
-  "skin.maple_fox": "枫叶狐",
-  "skin.mint_dragon": "薄荷龙",
-  "skin.mochi_bunny": "麻薯兔",
-  "skin.page_spirit": "书页精灵",
-  "skin.sky_whale": "晴空鲸",
+  "skin.maple_fox": "枫糖小狐",
+  "skin.mint_dragon": "薄荷小龙",
+  "skin.mochi_bunny": "奶团兔",
+  "skin.page_spirit": "书页灵",
+  "skin.sky_whale": "浮游鲸",
   "prompt.version.mine": "我的版本 {index}",
   "prompt.version.auto": "自动备份 {stamp}"
 }

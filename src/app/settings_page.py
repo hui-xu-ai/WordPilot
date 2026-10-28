@@ -161,6 +161,18 @@ class SettingsPage(QWidget):
         self.api_key_toggle.setText(
             self.tr("settings.api.key_hide") if shown else self.tr("settings.api.key_show"))
 
+    def _retranslate_skin_combo(self) -> None:
+        """切语言后重建皮肤名（下拉存 id，显示文案随界面语言）。"""
+        combo = getattr(self, "skin_combo", None)
+        skins = getattr(self, "skins", None)
+        if combo is None or skins is None:
+            return
+        from core.services.ui_labels import skin_label
+
+        for index in range(combo.count()):
+            skin_id = combo.itemData(index)
+            combo.setItemText(index, skin_label(str(skin_id), combo.itemText(index), self.tr))
+
     def _on_pet_skin_changed(self, _index: int) -> None:
         """外观页切皮肤：同时更新内核状态、皮肤服务与宠物窗口。"""
         skin_id = self.skin_combo.currentData()
@@ -535,6 +547,7 @@ class SettingsPage(QWidget):
         # 清单文案是"组名 + 数量"拼出来的，切语言必须重算，否则仍是旧语言
         if hasattr(self, "storage_value"):
             self._refresh_storage()
+        self._retranslate_skin_combo()      # 皮肤名同样只随界面语言
         self.storage_title.setText(self.tr("settings.storage.title"))
         self.storage_hint.setText(self.tr("settings.storage.hint"))
         self.storage_logs_btn.setText(self.tr("settings.storage.logs"))

@@ -39,11 +39,13 @@ STATE_COLORS = {
 
 
 class SkinService:
-    def __init__(self, config, skins_dir: Path | None = None) -> None:
+    def __init__(self, config, skins_dir: Path | None = None, i18n=None) -> None:
         self.config = config
         self.skins_dir = Path(skins_dir) if skins_dir else Path(resource_path("assets/skins"))
         self._manifests: dict[str, dict] = {}
         self._svg_cache: dict[tuple[str, str], str] = {}
+        # 皮肤名的语言：只受界面语言控制（文案库 skin.<id>）
+        self._i18n = i18n
         self._load_all()
 
     # ---------------- 发现与选择 ----------------
@@ -93,12 +95,11 @@ class SkinService:
             sorted(self._manifests)[0] if self._manifests else "")
 
     def _display_name(self, skin_id: str, fallback: str) -> str:
-        """皮肤显示名：i18n `skin.<id>` 优先，取不到用清单里的 name。"""
+        """皮肤显示名：`skin.<id>`（界面语言）优先，清单里的 name 兜底。"""
+        from core.services.ui_labels import skin_label
+
         service = getattr(self, "_i18n", None)
-        if service is None:
-            return fallback
-        translated = service.tr(f"skin.{skin_id}")
-        return translated if translated and translated != f"skin.{skin_id}" else fallback
+        return skin_label(skin_id, fallback, service.tr if service is not None else None)
 
     def available(self) -> list[dict]:
         """[{id, name}]，按 id 排序，供切换菜单使用。"""

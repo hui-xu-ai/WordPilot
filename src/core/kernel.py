@@ -72,7 +72,7 @@ class Kernel:
         self.services.register("config", config)
         self.services.register("i18n", I18nService(config))
         self.services.register("theme", ThemeService(config))
-        self.services.register("skins", SkinService(config))
+        self.services.register("skins", SkinService(config, i18n=self.services.get("i18n")))
         i18n_service = self.services.get("i18n")
         if i18n_service is not None:
             from core.services.i18n import set_message_service

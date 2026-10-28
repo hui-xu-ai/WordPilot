@@ -23,8 +23,11 @@ class PetMenuMixin:
 
         skins_menu = menu.addMenu(self.tr("pet.menu.skin"))
         current_skin = self._skins.current_id if self._skins else ""
+        from core.services.ui_labels import skin_label
+
         for item in (self._skins.available() if self._skins else []):
-            action = skins_menu.addAction(item["name"],
+            label = skin_label(item["id"], item["name"], self.tr)
+            action = skins_menu.addAction(label,
                                           lambda sid=item["id"]: self._switch_skin(sid))
             action.setCheckable(True)
             action.setChecked(item["id"] == current_skin)
