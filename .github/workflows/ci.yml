@@ -12,9 +12,9 @@ jobs:
     # WordPilot 依赖 Windows + pywin32（COM），CI 只跑离线单测（不需要 Word）
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
           cache: pip
@@ -24,6 +24,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
+
+      - name: Environment info
+        run: |
+          python --version
+          python -c "import sys, platform; print(sys.executable); print(platform.platform())"
+          git rev-parse HEAD
+          python -m pip list --format=freeze | findstr /I "PySide6 pywin32 numpy cryptography pytest"
 
       - name: Run offline unit tests
         env:
@@ -49,16 +56,23 @@ jobs:
           }
           Write-Host "tag 与版本号一致：$tag"
 
-      # 失败时把「失败的用例清单」写进 Job Summary：
-      # run 页面不用展开日志就能看到哪几条例挂（此前排查 CI 失败全靠猜）
+      # 失败时把「失败用例清单 + 输出尾部」写进 Job Summary：
+      # run 页面不用展开日志就能看到失败原因（此前排查 CI 靠猜）
       - name: Failure summary
         if: failure()
         shell: pwsh
+        continue-on-error: true
         run: |
-          "## CI 失败：离线单测" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "``````" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          python -m pytest -q -p no:cacheprovider -rf --tb=line --no-header 2>&1 |
-            Select-String -Pattern '^(FAILED|ERROR)' |
-            ForEach-Object { $_.Line } |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "``````" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          $log = Join-Path $env:RUNNER_TEMP 'pytest-fail.txt'
+          python -m pytest -q -p no:cacheprovider -rf --tb=line --no-header *> $log
+          $lines = @(Get-Content $log -Encoding utf8 -ErrorAction SilentlyContinue)
+          '## CI 失败诊断' | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          '### 失败用例' | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          ($lines | Select-String -Pattern '^(FAILED|ERROR)' | ForEach-Object { $_.Line }) |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          '### 输出尾部（最后 25 行）' | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          ($lines | Select-Object -Last 25) | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          '```' | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
