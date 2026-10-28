@@ -20,6 +20,8 @@
   "tab.figure": "图题注",
   "status.ready": "就绪",
   "chapter.all": "全部章节",
+  "chapter.index": "第{index}章",
+  "chapter.index_title": "第{index}章 {title}",
   "status.offline_done": "已离线解析：表 {tables} 条 / 图 {figures} 条",
   "status.no_doc": "未找到打开的 Word 文档，请确认 Word 已启动并打开文件",
   "status.scanning": "后台扫描正在进行中，请稍后...",

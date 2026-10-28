@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QMessageBox
 
+from plugins.navigator.offline_scan import chapter_label
+
 
 class JumpMixin:
     """过滤与跳转方法。"""
@@ -44,17 +46,25 @@ class JumpMixin:
         return data if isinstance(data, int) else -1
 
     def _populate_chapters(self) -> None:
-        """用离线扫描到的章节填充下拉框（第一项固定"全部章节"）。"""
+        """用离线扫描到的章节填充下拉框（第一项固定"全部章节"）。
+
+        章节名按**当前语言**现拼（`chapter_label(..., self.tr)`），
+        所以切语言时重建这个下拉即可，不用重新扫描文档。
+        """
         combo = getattr(self, "chapter_combo", None)
         if combo is None:
             return
         chapters = list(getattr(self, "_chapters", []) or [])
+        previous = combo.currentData()          # 切语言不该顺手改掉用户选的章节
         combo.blockSignals(True)
         combo.clear()
         combo.addItem(self.tr("chapter.all"), -1)
         for index, title in enumerate(chapters):
-            combo.addItem(title, index)
+            combo.addItem(chapter_label(index, title, self.tr), index)
         combo.setCurrentIndex(0)
+        find_data = getattr(combo, "findData", None)     # 测试替身没有这个方法
+        if isinstance(previous, int) and callable(find_data):
+            combo.setCurrentIndex(max(0, find_data(previous)))
         combo.setEnabled(bool(chapters))
         combo.blockSignals(False)
 
@@ -97,9 +107,9 @@ class JumpMixin:
                 pass
             if item.select_in_document(doc):
                 word.ActiveWindow.ScrollIntoView(word.Selection.Range, True)
-                self.status_label.setText(self.tr("status.jumped", target=list_item.text().split("[")[0].strip()))
+                self._set_status("status.jumped", target=list_item.text().split("[")[0].strip())
             else:
-                self.status_label.setText(self.tr("status.jump_failed"))
+                self._set_status("status.jump_failed")
         except Exception as e:
             QMessageBox.critical(self, self.tr("error.jump_title"), str(e))
         finally:
@@ -110,7 +120,7 @@ class JumpMixin:
 
     def go_back(self):
         if not self.history_stack:
-            self.status_label.setText(self.tr("status.no_history"))
+            self._set_status("status.no_history")
             return
         try:
             word, _, _ = self._get_word_document()
@@ -120,7 +130,7 @@ class JumpMixin:
             prev_range = self.history_stack.pop()
             prev_range.Select()
             word.ActiveWindow.ScrollIntoView(prev_range, True)
-            self.status_label.setText(self.tr("status.back"))
+            self._set_status("status.back")
         except Exception as e:
             QMessageBox.critical(self, self.tr("error.back_title"), str(e))
         finally:

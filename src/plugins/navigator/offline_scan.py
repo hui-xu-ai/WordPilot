@@ -51,6 +51,8 @@ class OfflineItem:
 @dataclass
 class OfflineResult:
     chapters: list[str] = field(default_factory=list)
+    #: 章节**原始标题**（未加"第N章"前缀）：界面切语言时据此重新拼名字
+    chapter_titles: list[str] = field(default_factory=list)
     items: list[OfflineItem] = field(default_factory=list)
     paragraphs: int = 0
     chapter_level: int = 0       # 判定"章"所用的标题层级（0 = 没识别到标题）
@@ -102,16 +104,22 @@ _CHAPTER_NUM_RE = re.compile(r"第\s*[0-9一二三四五六七八九十百零]+\
 _LEADING_NUM_RE = re.compile(r"^\s*[0-9]+[.\s、]")
 
 
-def chapter_label(index: int, text: str) -> str:
-    """章节下拉里显示的名字：已有编号就原样用，否则补"第N章"。"""
+def chapter_label(index: int, text: str, tr=None) -> str:
+    """章节下拉里显示的名字：已有编号就原样用，否则补"第N章"。
+
+    `tr` 传入面板的查词函数（`self.tr`）时，前缀走语言包
+    （`chapter.index` / `chapter.index_title`）；不传则用中文写法
+    （离线解析本身不依赖 i18n）。
+    """
     text = (text or "").strip()
     if _CHAPTER_NUM_RE.search(text) or _LEADING_NUM_RE.match(text):
         return text
     if any(word in text.lower() for word in BACK_MATTER):
         return text
     if text in PLACEHOLDER_TITLES or len(text) <= 2:
-        return f"第{index + 1}章"
-    return f"第{index + 1}章 {text}"
+        return tr("chapter.index", index=index + 1) if tr else f"第{index + 1}章"
+    return (tr("chapter.index_title", index=index + 1, title=text) if tr
+            else f"第{index + 1}章 {text}")
 
 
 def _kind_of(text: str, style_name: str, paragraph: ET.Element) -> str | None:
@@ -190,6 +198,7 @@ def scan_docx(docx_path: str) -> OfflineResult:
         if level == chapter_level:
             mapping[index] = len(result.chapters)
             result.chapters.append(chapter_label(len(result.chapters), text))
+            result.chapter_titles.append((text or "").strip())
     result.chapter_level = chapter_level
 
     def chapter_index(heading_index: int) -> int:

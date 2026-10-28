@@ -20,6 +20,43 @@ logger = logging.getLogger(__name__)
 class ScanMixin:
     """扫描与缓存相关方法。"""
 
+    # ---------- 状态栏（存 key，切语言时按原文重译）----------
+    def _set_status(self, *parts, **params) -> None:
+        """设置状态栏并记住**词条 key**（成品文案没法反查原文，切语言就会残留旧语言）。
+
+        每个段落写成 `"key"` 或 `("key", {"name": value})`；多段落按顺序拼接，
+        例如「加载完成…」+「[页码已更新]」。`params` 作用于**第一段**的占位符。
+        切语言时 `_render_status()` 按新语言重译。
+        """
+        normalized: list[tuple[str, dict]] = [
+            part if isinstance(part, tuple) else (part, {}) for part in parts
+        ]
+        if normalized and params:
+            key, own = normalized[0]
+            normalized[0] = (key, {**own, **params})
+        self._status_parts = normalized
+        self._render_status()
+
+    def _render_status(self) -> None:
+        """按当前界面语言重画状态栏（未设置过则保持原样）。"""
+        parts = getattr(self, "_status_parts", None)
+        if not parts:
+            return
+        self.status_label.setText("".join(self.tr(key, **params) for key, params in parts))
+
+    def _retranslate_captions(self) -> None:
+        """重拼题录显示文本里的页码后缀（`[第N页]` / `[p.N]`）。
+
+        题录基名是**文档原文**，不翻译；只有我们加的页码后缀随语言变。
+        """
+        for captions in (self.table_captions, self.figure_captions):
+            for item in captions:
+                page = getattr(item, "page", "")
+                if not page:
+                    continue
+                base = item.display.rsplit("  [", 1)[0]
+                item.display = self.tr("caption.display", text=base, page=page)
+
     def _apply_chapter_tags(self) -> None:
         """COM 扫描补出页码/跳转引用后，把离线扫描的章节信息续回条目上。
 
@@ -56,7 +93,7 @@ class ScanMixin:
         if not result.items:
             return False        # 没有可识别题录时交给 COM 再试一次（可能用了不常见的样式）
 
-        self._chapters = list(result.chapters)
+        self._chapters = list(result.chapter_titles)
         from plugins.navigator.offline_scan import chapter_key
 
         # 题录文本 → 章节下标：COM 路径补页码后据此把章节信息"续"回去
@@ -66,9 +103,9 @@ class ScanMixin:
         self.figure_captions = [CaptionItem(display=i.text, chapter=i.chapter)
                                 for i in result.figure_items()]
         self._render_lists()
-        self.status_label.setText(self.tr("status.offline_done",
-                                          tables=len(self.table_captions),
-                                          figures=len(self.figure_captions)))
+        self._set_status("status.offline_done",
+                         tables=len(self.table_captions),
+                         figures=len(self.figure_captions))
         return True
     def _refresh_captions(self, force_com=False, silent=False):       #  2026.05.18
         """刷新题录。
@@ -80,10 +117,10 @@ class ScanMixin:
         self._captions_cache_data = []   # 每次刷新前都重置，保证属性存在
         word, doc, full_path = self._get_word_document()
         if not doc:
-            self.status_label.setText(self.tr("status.no_doc"))
+            self._set_status("status.no_doc")
             return
         if self._scanning:
-            self.status_label.setText(self.tr("status.scanning"))
+            self._set_status("status.scanning")
             return
         if not force_com and self._try_offline_scan(full_path):
             return
@@ -103,7 +140,7 @@ class ScanMixin:
                 self._load_from_cache(word, doc, fingerprint, cached_data, update_pages, silent)
                 return
             except Exception as e:
-                self.status_label.setText(self.tr("status.cache_failed", error=e))
+                self._set_status("status.cache_failed", error=e)
                 # 加载失败直接进行全量扫描，不要递归调用 _refresh_captions
         # 未命中缓存或加载失败 → 全量扫描
         self._do_full_scan(word, doc, full_path, update_pages, silent)
@@ -141,11 +178,13 @@ class ScanMixin:
                 self.progress_bar.setMaximum(total_fields)
                 self.progress_bar.setValue(0)
                 self.progress_bar.setVisible(True)
-            self.status_label.setText(self.tr("status.scanning_captions") if silent
-                                    else self.tr("status.scan_progress", current=0, total=total_fields))
+            if silent:
+                self._set_status("status.scanning_captions")
+            else:
+                self._set_status("status.scan_progress", current=0, total=total_fields)
             QTimer.singleShot(1, self._scan_fields_batch)
         except Exception as e:
-            self.status_label.setText(self.tr("status.init_error", error=e))
+            self._set_status("status.init_error", error=e)
             self.progress_bar.setVisible(False)
             self._scanning = False
             self._restore_screen_updating(word)   # 异常路径也要恢复 Word 屏幕刷新
@@ -169,13 +208,13 @@ class ScanMixin:
             self._scan_index = end_index + 1
             if not self._scan_silent:
                 self.progress_bar.setValue(end_index)
-                self.status_label.setText(self.tr("status.scan_progress", current=end_index, total=self._scan_total))
+                self._set_status("status.scan_progress", current=end_index, total=self._scan_total)
             if self._scan_index <= self._scan_total:
                 QTimer.singleShot(1, self._scan_fields_batch)
             else:
                 self._process_seq_info()
         except Exception as e:
-            self.status_label.setText(self.tr("status.scan_aborted", error=e))
+            self._set_status("status.scan_aborted", error=e)
             self._scanning = False
             self.progress_bar.setVisible(False)
             self._restore_screen_updating()   # 扫描中断时恢复 Word 屏幕刷新
@@ -194,8 +233,10 @@ class ScanMixin:
         if not self._scan_silent:
             self.progress_bar.setMaximum(total)
             self.progress_bar.setValue(0)
-        self.status_label.setText(self.tr("status.updating") if self._scan_silent
-                                    else self.tr("status.process_progress", current=0, total=total))
+        if self._scan_silent:
+            self._set_status("status.updating")
+        else:
+            self._set_status("status.process_progress", current=0, total=total)
         QTimer.singleShot(1, self._process_seq_batch)
 
     def _process_seq_batch(self):
@@ -251,7 +292,7 @@ class ScanMixin:
             self._seq_index = end_index
             if not self._scan_silent:
                 self.progress_bar.setValue(end_index)
-                self.status_label.setText(self.tr("status.process_progress", current=end_index, total=total))
+                self._set_status("status.process_progress", current=end_index, total=total)
             if self._seq_index < total:
                 QTimer.singleShot(1, self._process_seq_batch)
             else:
@@ -259,7 +300,7 @@ class ScanMixin:
         except Exception as e:
             # 外层兜底：QTimer 回调里未捕获的异常会吞掉且不再调度，
             # 必须在此恢复屏幕刷新与扫描状态
-            self.status_label.setText(self.tr("status.process_aborted", error=e))
+            self._set_status("status.process_aborted", error=e)
             self._scanning = False
             self.progress_bar.setVisible(False)
             self._restore_screen_updating()
@@ -305,7 +346,7 @@ class ScanMixin:
                         pass  # 页码获取失败则保留原值，不中断流程
 
                 # 构造显示文本与数据对象
-                display = f"{text}  [第{page_num}页]"
+                display = self.tr("caption.display", text=text, page=page_num)
                 item = CaptionItem(
                     display,
                     field=None,          # 缓存恢复时没有 field 对象，依赖 start/end 定位
@@ -340,16 +381,14 @@ class ScanMixin:
 
             # 6. 状态提示
             total = len(self._new_table) + len(self._new_figure)
-            msg = self.tr("status.fast_loaded", total=total,
-                           tables=len(self._new_table), figures=len(self._new_figure))
-            if update_pages:
-                msg += self.tr("status.pages_updated")
-            else:
-                msg += self.tr("status.pages_cached")
-            self.status_label.setText(msg)
+            self._set_status(("status.fast_loaded", {"total": total,
+                                                    "tables": len(self._new_table),
+                                                    "figures": len(self._new_figure)}),
+                             "status.pages_updated" if update_pages
+                             else "status.pages_cached")
 
             if silent:
-                QTimer.singleShot(3000, lambda: self.status_label.setText(self.tr("status.ready")))
+                QTimer.singleShot(3000, lambda: self._set_status("status.ready"))
 
             # 7. 保存更新后的缓存（页码可能已变）
             self.cache.save_document_cache(fingerprint, cached_data)
@@ -392,15 +431,14 @@ class ScanMixin:
                 self.tab_widget.setCurrentIndex(1)
 
         if self._scan_silent:
-            self.status_label.setText(self.tr("status.auto_updated"))
-            QTimer.singleShot(3000, lambda: self.status_label.setText(self.tr("status.ready")))
+            self._set_status("status.auto_updated")
+            QTimer.singleShot(3000, lambda: self._set_status("status.ready"))
         else:
-            self.status_label.setText(
-                self.tr("status.loaded", total=num_table + num_figure,
-                    tables=num_table, figures=num_figure)
-                + (self.tr("status.pages_updated") if self._scan_update_pages
-                   else self.tr("status.pages_cached"))
-            )
+            self._set_status(("status.loaded", {"total": num_table + num_figure,
+                                               "tables": num_table,
+                                               "figures": num_figure}),
+                             "status.pages_updated" if self._scan_update_pages
+                             else "status.pages_cached")
         self.progress_bar.setVisible(False)
         self._scanning = False
         self._scan_silent = False

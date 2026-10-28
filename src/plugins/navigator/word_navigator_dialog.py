@@ -71,7 +71,8 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         # 关闭标志：closeEvent 先置 True，所有排队中的 QTimer 回调据此立即返回
         # （历史实现在 CoUninitialize 之后仍会跑批处理，在已释放的 COM 公寓上访问 Word）
         self._closing = False
-        self._chapters: list[str] = []      # 一级章节标题（离线扫描填充，供章节下拉使用）
+        self._chapters: list[str] = []      # 章节原始标题（离线扫描填充，章节下拉按语言现拼）
+        self._status_parts: list[tuple[str, dict]] = []   # 状态栏词条 key（切语言时重译）
 
         # 保存监测
         self._save_monitor_timer = QTimer(self)
@@ -97,13 +98,23 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         return self.i18n.tr(f"{self._ns}.{key}", **params)
 
     def retranslateUi(self):        # noqa: N802 - Qt 命名惯例
-        """切换语言后刷新常驻界面的文案。"""
+        """切换语言后刷新常驻界面的文案。
+
+        覆盖常驻控件：按钮文字与工具提示、筛选标签与占位符、章节下拉项
+        （「全部章节」+ 各章名按存下来的章节标题重建）、两个标签页、
+        题录列表里的页码后缀，以及状态栏（按存下来的 key 重译）。
+        """
         self.btn_refresh.setText(self.tr("btn.refresh"))
+        self.btn_refresh.setToolTip(self.tr("btn.refresh.tip"))
         self.btn_return.setText(self.tr("btn.return"))
+        self.search_label.setText(self.tr("search.label"))
         self.search_edit.setPlaceholderText(self.tr("search.placeholder"))
         self.tab_widget.setTabText(0, self.tr("tab.table"))
         self.tab_widget.setTabText(1, self.tr("tab.figure"))
-        self.status_label.setText(self.tr("status.ready"))
+        self._populate_chapters()       # 下拉项必须重建（存 key/标题，不存成品文案）
+        self._retranslate_captions()    # 题录的「[第N页]」后缀
+        self.filter_lists()             # 用新文案重画两份列表
+        self._render_status()
 
     def load_config(self):
         legacy = {}
@@ -148,7 +159,8 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         layout.addLayout(toolbar)
 
         search_layout = QHBoxLayout()
-        search_layout.addWidget(QLabel(self.tr("search.label")))
+        self.search_label = QLabel(self.tr("search.label"))   # 存下来，切语言时才能重译
+        search_layout.addWidget(self.search_label)
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText(self.tr("search.placeholder"))
         self.search_edit.textChanged.connect(self.filter_lists)
@@ -181,10 +193,11 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
-        self.status_label = QLabel(self.tr("status.ready"))
+        self.status_label = QLabel()
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setObjectName("hintLabel")   # 样式见 base.qss
         layout.addWidget(self.status_label)
+        self._set_status("status.ready")
 
     def _on_tab_changed(self, index):
         self.last_tab_index = index
@@ -221,7 +234,7 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
     # ---------- Word 连接与保存监测 ----------
     def _get_word_document(self):
         if not self._com_ok:
-            self.status_label.setText(self.tr("com_error"))
+            self._set_status("com_error")
             return None, None, ""
         try:
             self.word = get_word_app()

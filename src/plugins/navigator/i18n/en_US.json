@@ -20,6 +20,8 @@
   "tab.figure": "Figures",
   "status.ready": "Ready",
   "chapter.all": "All chapters",
+  "chapter.index": "Chapter {index}",
+  "chapter.index_title": "Chapter {index} {title}",
   "status.offline_done": "Offline parse: {tables} tables / {figures} figures",
   "status.no_doc": "No open Word document found. Please start Word and open a file",
   "status.scanning": "A background scan is running, please wait...",
