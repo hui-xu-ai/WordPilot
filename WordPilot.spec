@@ -31,6 +31,10 @@ skin_datas = [
     for path in glob.glob('src/assets/skins/*/*')
 ]
 
+# 工作文档模板：assets/templates/Image.docx（图片工具箱首次使用时复制到 config/）
+template_datas = [(path, 'assets/templates')
+                  for path in glob.glob('src/assets/templates/*.docx')]
+
 # 界面图标：assets/icons/*.svg（Fluent 线条稿，运行时按主题令牌染色）
 icon_datas = [(path, 'assets/icons') for path in glob.glob('src/assets/icons/*.svg')]
 
@@ -39,6 +43,7 @@ a = Analysis(
     pathex=['src'],
     binaries=[],
     datas=[
+        *template_datas,
         ('src/assets/icon_float.png', 'assets'),
         ('src/assets/tray_icon.png', 'assets'),
         # 只打包配置模板；真实配置（含 API Key）由程序首次运行时在 exe 同级 config/ 自动生成

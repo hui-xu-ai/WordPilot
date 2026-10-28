@@ -59,6 +59,10 @@ class ApiMonitorPanel(QWidget):
             return key
         return self._i18n.tr(key, **kwargs)
 
+    def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
+        """统一入口（Qt 惯例命名）。"""
+        self.retranslate()
+
     def retranslate(self) -> None:
         labels = (("api.monitor.task_view", "task"), ("api.monitor.call_view", "call"),
                   ("api.monitor.day_view", "day"), ("api.monitor.month_view", "month"))

@@ -65,6 +65,10 @@ class PromptVersionBar(QWidget):
         self.menu_btn.setToolTip(self._tr("prompt.version.title"))
 
     # ---------------- 数据 ----------------
+    def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
+        """统一入口：重译版本条并按需切换到当前语言的默认文案。"""
+        self.refresh_language()
+
     def refresh_language(self) -> None:
         """界面语言切换后调用：重译标签；用户没自定义时把编辑框换成新语言的默认文案。
 

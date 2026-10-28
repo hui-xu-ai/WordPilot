@@ -51,7 +51,8 @@ class SidePanelHost(QWidget):
         self.toggle_btn.setAutoRaise(True)
         self.toggle_btn.setCursor(Qt.PointingHandCursor)
         self.toggle_btn.setFixedWidth(COLLAPSED_WIDTH)
-        self.toggle_btn.setToolTip(self.tr("展开/收起次要面板"))
+        self._toggle_tip_key = "展开/收起次要面板"
+        self.toggle_btn.setToolTip(self.tr(self._toggle_tip_key))
         self.toggle_btn.clicked.connect(self._on_toggle_clicked)
         root.addWidget(self.toggle_btn)
 
@@ -81,6 +82,10 @@ class SidePanelHost(QWidget):
         self.setVisible(False)
 
     # ---------------- 内容 ----------------
+    def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
+        """切语言后刷新自身文案（tooltip）。"""
+        self.toggle_btn.setToolTip(self.tr(self._toggle_tip_key))
+
     def set_content(self, widget: QWidget | None, title: str = "") -> None:
         """换内容；`None` 表示当前页没有次要界面（整个抽屉隐藏）。
 

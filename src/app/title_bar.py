@@ -119,6 +119,16 @@ class TitleBar(QWidget):
         """最大化时换「还原」图标。"""
         self.max_btn.setIcon(icon)
 
+    def retranslateUi(self) -> None:        # noqa: N802 - Qt 命名惯例
+        """切语言后刷新按钮 tooltip（key 由 set_tooltip_keys 提供）。"""
+        keys = getattr(self, "_tooltip_keys", None)
+        if keys:
+            self.set_tooltips(self.tr(keys[0]), self.tr(keys[1]), self.tr(keys[2]))
+
+    def set_tooltip_keys(self, minimize: str, maximize: str, close: str) -> None:
+        """登记 tooltip 的语言包 key（供 retranslateUi 使用）。"""
+        self._tooltip_keys = (minimize, maximize, close)
+
     def set_tooltips(self, minimize: str, maximize: str, close: str) -> None:
         self.min_btn.setToolTip(minimize)
         self.max_btn.setToolTip(maximize)

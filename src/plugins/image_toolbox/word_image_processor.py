@@ -2,6 +2,7 @@ import logging
 import math
 import os
 import shutil
+from pathlib import Path
 import tempfile
 import time
 import zipfile
@@ -45,10 +46,16 @@ class WordImageProcessor:
 
 
     def _ensure_workspace_file(self) -> None:
-        """确保 `config/Image.docx` 存在（缺失时用 Word 建一个空白工作文档）。"""
+        """确保 `config/Image.docx` 存在。
+
+        顺序：① 已存在 → 直接用；② 安装包自带模板 → 复制（不需要 Word）；
+        ③ 最后才用 Word COM 现场新建（打包没带模板的兜底）。
+        """
         if os.path.exists(self.temp_docx_path):
             return
         os.makedirs(self.config_dir, exist_ok=True)
+        if self._copy_template():
+            return
         doc = None
         try:
             doc = self.word_app.Documents.Add()
@@ -63,6 +70,32 @@ class WordImageProcessor:
                 except Exception:                 # noqa: BLE001 - 关闭失败不影响主流程
                     pass
         logger.info("已创建图片工作文档：%s", self.temp_docx_path)
+
+    def _copy_template(self) -> bool:
+        """把安装包里的 `assets/templates/Image.docx` 复制成工作文档。"""
+        template = self._template_path()
+        if template is None or not template.exists():
+            logger.info("安装包未带 Image.docx 模板，改用 Word 新建")
+            return False
+        try:
+            shutil.copyfile(template, self.temp_docx_path)
+        except OSError:
+            logger.warning("复制 Image.docx 模板失败", exc_info=True)
+            return False
+        logger.info("已从模板创建图片工作文档：%s", self.temp_docx_path)
+        return True
+
+    @staticmethod
+    def _template_path():
+        """安装包内模板路径（测试可覆盖本方法）。"""
+        try:
+            from infra.utils import resource_path
+
+            return Path(resource_path("assets/templates/Image.docx"))
+        except Exception:                      # noqa: BLE001 - 资源定位失败就走 Word 兜底
+            logger.warning("定位 Image.docx 模板失败", exc_info=True)
+            return None
+
 
     def _open_word_app(self):
         try:
