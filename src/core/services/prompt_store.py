@@ -280,6 +280,20 @@ def default_text(key: str, prompt_tr=None, tr=None) -> str:
     return text
 
 
+def value_for_save(key: str, text: str, prompt_tr=None) -> str:
+    """保存到 config 的值：**默认文案永不落盘**（返回空串表示"用系统默认"）。
+
+    用户口径（2026-10-28）：「默认」就是程序里写死的那套提示词，中英各一套，
+    不是用户数据，因此不该被保存；config 只存用户自己改过、另存为的文本。
+    """
+    content = (text or "").strip()
+    if not content:
+        return ""
+    if _normalised(content) in default_text_variants(key, prompt_tr):
+        return ""
+    return content
+
+
 def effective_text(key: str, config, prompt_tr=None) -> str:
     """界面**应该显示**的提示词正文 —— 与真正发给模型的保持一致。
 
@@ -377,29 +391,6 @@ def default_text_variants(key: str, prompt_tr=None) -> set[str]:
     except Exception:                          # noqa: BLE001
         pass
     return variants
-
-
-def drop_frozen_defaults(config, prompt_tr=None, root: Path | None = None) -> int:
-    """把 config 里"等于某个语言默认文案"的提示词清空，让它重新跟随系统默认。
-
-    为什么需要：早先「保存」会把当时的默认文案写进 config；用户后来切换语言，
-    框里就一直显示旧语言（如英文界面里出现中文默认提示词），且以后软件升级默认词也不生效。
-    """
-    cleared = 0
-    for key in PROMPT_KEYS:
-        value = _normalised(config.get(key) or "")
-        if not value:
-            continue
-        if value in default_text_variants(key, prompt_tr):
-            config.set(key, "")
-            cleared += 1
-            logger.info("%s 里存的是系统默认提示词的旧语言副本，已清空", key)
-    if cleared:
-        try:
-            config.save()
-        except Exception as exc:               # noqa: BLE001
-            logger.warning("写回配置失败：%s", exc)
-    return cleared
 
 
 def drop_redundant_versions(key: str, prompt_tr=None, root: Path | None = None) -> int:

@@ -17,11 +17,23 @@ NAV_KEY = {"clipboard": "page_label", "image_toolbox": "page_label",
            "navigator": "nav.page", "proofread": "nav.page", "reference": "page_label"}
 
 
+class _Config:
+    """固定语言的配置替身：用例结果不能随本机 `ui_language` 漂移。"""
+
+    def __init__(self, language: str = "zh_CN"):
+        self.data = {"ui_language": language}
+
+    def get(self, key, default=None):
+        return self.data.get(key, default)
+
+    def set(self, key, value):
+        self.data[key] = value
+
+
 def _i18n(locale: str = "zh_CN"):
-    from core.services.config_manager import ConfigManager
     from core.services.i18n import I18nService
 
-    service = I18nService(ConfigManager(), ROOT / "src/assets/i18n")
+    service = I18nService(_Config(locale), ROOT / "src/assets/i18n")
     for plugin in PLUGINS:
         service.register_namespace(plugin, ROOT / f"src/plugins/{plugin}/i18n")
     return service

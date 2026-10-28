@@ -21,6 +21,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QComboBox, QCheckBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
                                QPushButton, QSlider, QSpinBox, QTextEdit,
                                QVBoxLayout, QWidget)
+from core.services import prompt_store
 from core.services.api_logger import clear_api_log
 from core.widgets import MonitorPanel, Switch
 from core.widgets.choice_combo import ChoiceCombo
@@ -230,8 +231,14 @@ class DashboardPage(QWidget):
         self.proof_prompt_edit.setPlainText(prompt_store.effective_text(
             "proof_prompt", self._config, getattr(self._i18n, "prompt_tr", None)))
         lay.addWidget(self.proof_prompt_edit)
+        def _app_tr(key, **params):
+            """应用级文案（界面语言），版本名用。"""
+            service = self._ctx.get_service("i18n") if self._ctx is not None else None
+            return service.tr(key, **params) if service is not None else key
+
         self.proof_prompt_bar = PromptVersionBar(
             "proof_prompt", self._config, self.tr,
+            label_tr=_app_tr,
             read_text=self.proof_prompt_edit.toPlainText,
             apply_text=self.proof_prompt_edit.setPlainText, parent=self,
             prompt_tr=getattr(self._i18n, "prompt_tr", None))
@@ -253,7 +260,10 @@ class DashboardPage(QWidget):
             "auto_show_suggestion": self.auto_popup_check.isChecked(),
             "suggestion_opacity": max(20, min(100, self.opacity_slider.value())) / 100.0,
             "suggestion_font_size": self.font_size_spin.value(),
-            "proof_prompt": self.proof_prompt_edit.toPlainText(),
+            # 默认文案不落盘：等于任一语言默认 → 存空串（界面按语言包显示）
+            "proof_prompt": prompt_store.value_for_save(
+                "proof_prompt", self.proof_prompt_edit.toPlainText(),
+                getattr(self._i18n, "prompt_tr", None)),
             "proof_language": self.proof_language_edit.current_value(),
         }
         self.proof_prompt_bar.commit()       # 保存即生效，并更新当前提示词版本

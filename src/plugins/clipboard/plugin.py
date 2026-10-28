@@ -249,6 +249,7 @@ class ClipboardPlugin(PluginBase):
         if self._side_panel is not None:
             return self._side_panel
         config = self.ctx.get_service("config")
+        i18n = self.ctx.get_service("i18n") if getattr(self, "ctx", None) else None
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -385,11 +386,21 @@ class ClipboardPlugin(PluginBase):
 
     def save_plugin_settings(self) -> None:
         """一次写盘并广播 `settings.saved`（内核据此重建 AI 客户端）。"""
+        from core.services import prompt_store
+
         config = self.ctx.get_service("config")
+        i18n = self.ctx.get_service("i18n") if getattr(self, "ctx", None) else None
         payload = {
-            "translate_prompt": self.translate_prompt_edit.toPlainText(),
-            "rewrite_prompt": self.rewrite_prompt_edit.toPlainText(),
-            "correct_prompt": self.correct_prompt_edit.toPlainText(),
+            # 默认文案不落盘（等于任一语言默认 → 空串）
+            "translate_prompt": prompt_store.value_for_save(
+                "translate_prompt", self.translate_prompt_edit.toPlainText(),
+                getattr(i18n, "prompt_tr", None)),
+            "rewrite_prompt": prompt_store.value_for_save(
+                "rewrite_prompt", self.rewrite_prompt_edit.toPlainText(),
+                getattr(i18n, "prompt_tr", None)),
+            "correct_prompt": prompt_store.value_for_save(
+                "correct_prompt", self.correct_prompt_edit.toPlainText(),
+                getattr(i18n, "prompt_tr", None)),
             "translate_language": self.translate_language_edit.current_value(),
             "correct_language": self.correct_language_edit.current_value(),
             "rewrite_strength": self.rewrite_strength_edit.current_value(),

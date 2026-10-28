@@ -65,11 +65,10 @@ class Kernel:
 
             prompt_store.migrate_legacy()              # 旧 config/prompts → plugins/<插件>/prompts
             prompt_store.repair_bogus_versions()       # 清掉内容为原始 key 的坏版本
-            prompt_store.drop_frozen_defaults(config, self.services.get("i18n").prompt_tr)
             prompt_store.migrate_stale_defaults(config)  # config 里的旧版内置默认 → 用新默认
             prompt_store.seed_from_config(config)      # 已有自定义提示词 → 登记为「默认」版本
-        except Exception:                  # noqa: BLE001 - 登记失败不阻断启动
-            pass
+        except Exception:                  # noqa: BLE001 - 迁移失败不阻断启动，但必须留痕
+            logger.warning("提示词启动迁移失败（种类/版本登记可能不完整）", exc_info=True)
         self.services.register("config", config)
         self.services.register("i18n", I18nService(config))
         self.services.register("theme", ThemeService(config))

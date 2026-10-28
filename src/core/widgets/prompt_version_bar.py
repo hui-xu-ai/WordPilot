@@ -25,7 +25,7 @@ class PromptVersionBar(QWidget):
     """
 
     def __init__(self, key: str, config, tr, read_text, apply_text, parent=None,
-                 prompt_tr=None) -> None:
+                 prompt_tr=None, label_tr=None) -> None:
         super().__init__(parent)
         self._key = key
         self._config = config
@@ -34,6 +34,8 @@ class PromptVersionBar(QWidget):
         self._apply_text = apply_text
         # prompt_tr 是**应用级**提示词翻译（i18n.prompt_tr）；插件的 tr 带命名空间，查 prompt.* 只会拿到 key
         self._prompt_tr = prompt_tr
+        # 版本名等"界面文字"只用应用级 tr（界面语言），与插件命名空间无关
+        self._label_tr = label_tr or tr
 
         # 紧凑布局：版本下拉 + 一个「⋯」菜单（三个大按钮太占地方，用户反馈）
         layout = QHBoxLayout(self)
@@ -142,7 +144,7 @@ class PromptVersionBar(QWidget):
         """版本名 → 当前语言的可读文案（映射集中在 core.services.ui_labels）。"""
         from core.services.ui_labels import version_label
 
-        return version_label(name, self._tr, default_name=prompt_store.DEFAULT_VERSION)
+        return version_label(name, self._label_tr, default_name=prompt_store.DEFAULT_VERSION)
 
     def _default_key(self) -> str:
         return prompt_store.default_keys(self._key)
@@ -178,7 +180,7 @@ class PromptVersionBar(QWidget):
                 self._save_config()
             self.refresh()
             return True
-        self._config.set(self._key, content)
+        self._config.set(self._key, prompt_store.value_for_save(self._key, content, self._prompt_tr))
         self._save_config()
         active = prompt_store.active_name(self._key)
         if not active or active == prompt_store.DEFAULT_VERSION:
