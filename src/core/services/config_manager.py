@@ -46,6 +46,16 @@ DEFAULT_CONFIG = {
     # 配色已由主题令牌接管；校对缓存为 SQLite 主键查询，不再需要「查询条数」配置
 }
 
+
+class _Unset:
+    """哨兵：区分"没传 api_key"与"显式传空串（要清除）"。"""
+
+    def __repr__(self) -> str:      # pragma: no cover - 仅调试用
+        return "<unset>"
+
+
+_UNSET_API_KEY = _Unset()
+
 class ConfigManager:
     def __init__(self):
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -150,16 +160,18 @@ class ConfigManager:
         self.config[key] = value
         self.save()
 
-    def update(self, values: dict, api_key: str | None = None) -> bool:
+    def update(self, values: dict, api_key=_UNSET_API_KEY) -> bool:
         """批量更新并**只落盘一次**；返回是否写盘成功（原因见 ``last_save_error``）。
 
         设置页一次保存会改十几项：逐项 ``set()`` 等于把配置文件重写十几次，
         中途失败就留下"一半新一半旧"的配置。
         """
         payload = dict(values)
-        if api_key is not None:
+        # 不传 api_key = 不动它（历史实现默认 None 表示"清空"，导致任何一次保存都会
+        # 把用户已存的密钥抹掉 —— 用户现场：填了密钥仍 401）。
+        if api_key is not _UNSET_API_KEY:
             payload["api_key"] = (
-                "" if not api_key else self._cipher.encrypt(api_key.encode()).decode()
+                "" if not api_key else self._cipher.encrypt(str(api_key).encode()).decode()
             )
         self.config.update(payload)
         return self.save()

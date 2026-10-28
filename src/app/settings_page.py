@@ -623,7 +623,16 @@ class SettingsPage(QWidget):
         if self.skins is not None and self.skin_combo.currentData():
             payload["skin"] = self.skin_combo.currentData()
 
-        ok = self.config.update(payload, api_key=self.api_key_edit.text().strip())
+        # 只有用户**真的改了**密钥才写：否则清空/未改都会把已存密钥覆盖成空串
+        typed_key = self.api_key_edit.text().strip()
+        stored_key = ""
+        try:
+            stored_key = (self.config.get_api_key() or "").strip()
+        except Exception:                      # noqa: BLE001 - 读失败按"未改"处理
+            stored_key = ""
+        api_key_arg = typed_key if typed_key != stored_key else None
+        ok = (self.config.update(payload, api_key=api_key_arg) if api_key_arg is not None
+              else self.config.update(payload))
         if not ok:
             reason = getattr(self.config, "last_save_error", "") or ""
             self.save_status.setText(self.tr("settings.save_failed")
@@ -674,5 +683,8 @@ class SettingsPage(QWidget):
         text = self.tr("settings.api.test_ok") if ok else self.tr("settings.api.test_fail")
         if not ok and reason:
             text += f"：{reason}"
+        # 测试连接不会保存 Key：通过后提醒一次，避免"测过就以为生效了"（用户现场）
+        if ok and self.api_key_edit.text().strip() != (self.config.get_api_key() or "").strip():
+            text += " · " + self.tr("settings.api.remember_save")
         self.test_status.setText(text)
         self.test_btn.setEnabled(True)

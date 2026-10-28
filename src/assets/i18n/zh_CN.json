@@ -224,5 +224,6 @@
   "skin.page_spirit": "书页灵",
   "skin.sky_whale": "浮游鲸",
   "prompt.version.mine": "我的版本 {index}",
-  "prompt.version.auto": "自动备份 {stamp}"
+  "prompt.version.auto": "自动备份 {stamp}",
+  "settings.api.remember_save": "记得点「保存」才会生效"
 }

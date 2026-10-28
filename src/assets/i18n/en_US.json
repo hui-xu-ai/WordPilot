@@ -224,5 +224,6 @@
   "skin.page_spirit": "Page spirit",
   "skin.sky_whale": "Sky whale",
   "prompt.version.mine": "My version {index}",
-  "prompt.version.auto": "Auto backup {stamp}"
+  "prompt.version.auto": "Auto backup {stamp}",
+  "settings.api.remember_save": "Click Save to apply"
 }
