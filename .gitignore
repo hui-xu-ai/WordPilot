@@ -113,4 +113,4 @@ WordPilot-v*.zip
 # PyInstaller 备用输出目录（旧 dist 被占用时用 --distpath 构建）
 dist_new/
 dist_locked/
-ndist_noupx/
+dist_noupx/
