@@ -24,7 +24,7 @@ from typing import Any
 from . import adr, context, graph, packs, pushcheck, scanner, wiki
 from . import imports as imp
 
-SERVER_INFO = {"name": "pydev-proj", "version": "0.4.0"}
+SERVER_INFO = {"name": "pydev-proj", "version": "0.7.0"}
 PROTOCOL_VERSION = "2024-11-05"
 MAX_TEXT = 40_000
 MAX_FRAME = 4 * 1024 * 1024
@@ -345,7 +345,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             stream.reconfigure(encoding="utf-8")
         except (AttributeError, OSError, ValueError):
-            pass
+            pass  # silent-ok: stdio 被重定向时不可重配
     args = argv if argv is not None else sys.argv[1:]
     if "--list-tools" in args:
         print(_text({"server": SERVER_INFO, "tools": [t["name"] for t in TOOLS]}))

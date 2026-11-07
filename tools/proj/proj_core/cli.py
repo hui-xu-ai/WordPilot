@@ -8,6 +8,7 @@
   python tools/proj/proj.py wiki index <root> [--out docs/wiki]
   python tools/proj/proj.py wiki search <root> <query> [--limit N] [--json]
   python tools/proj/proj.py context <root> [--task work/tasks/<id>] [--max-tokens 2500] [--json]
+  python tools/proj/proj.py split-check <root> --src <old.py> --dst <新目录> [--src-rev HEAD] [--cycles]
 
 设计约束：
 - 除 `init --apply` 与 `wiki index` 写索引外，全部只读。
@@ -37,6 +38,15 @@ from .panel import serve as panel_serve
 from .profile import detect, print_profile, write_profile
 from .pushcheck import print_push_check, push_check
 from .scanner import print_scan, scan
+from .silent import (
+    compare_baseline,
+    counts_by_file,
+    find_silent,
+    load_baseline,
+    print_silent,
+    write_baseline,
+)
+from .split_check import check_split, print_split
 from .taskcheck import check_tasks, print_tasks
 from .wiki import build_index, print_index, print_search, search
 
@@ -255,6 +265,46 @@ def cmd_arch(args) -> int:
     return 1 if report.violations else 0
 
 
+def cmd_split(args) -> int:
+    report = check_split(
+        Path(args.root), args.src, args.dst,
+        src_rev=args.src_rev,
+        allow_change=tuple(args.allow_change or ()),
+        strict=args.strict,
+        check_cycles=args.cycles,
+    )
+    print_split(report)
+    _write_json(args.json_out, report.to_dict())
+    return 1 if report.failed else 0
+
+
+def cmd_silent(args) -> int:
+    report = find_silent(Path(args.root))
+    data = report.to_dict()
+    total = len(report.bare) + len(report.swallow) + len(report.fallback)
+    if args.update_baseline:
+        target = Path(args.update_baseline)
+        write_baseline(target, counts_by_file(report))
+        _write_json(args.json_out, data)
+        print(f"=== proj silent：已写入存量债务基线 {target}（{total} 处）")
+        print("  之后只拦**新增/增长**；改完一处就重跑 --update-baseline 把基线降下来")
+        return 0
+    if args.baseline:
+        base_path = Path(args.baseline)
+        if base_path.exists():
+            over = compare_baseline(counts_by_file(report), load_baseline(base_path))
+            # 把基线结果写进 JSON：闸门据此只判增量，而不是把 90 处存量全报成 FAIL
+            data["baseline"] = str(base_path)
+            data["over"] = over
+            _write_json(args.json_out, data)
+            print_silent(report, over, str(base_path))
+            return 1 if over else 0
+        print(f"  [WARN] 基线不存在：{base_path}（先跑 --update-baseline 建档）")
+    _write_json(args.json_out, data)
+    print_silent(report)
+    return 1 if report.failed else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -386,6 +436,24 @@ def main(argv: list[str] | None = None) -> int:
     p_task_check.add_argument("root", nargs="?", default=".")
     p_task_check.add_argument("--json", dest="json_out")
 
+    p_silent = sub.add_parser("silent")
+    p_silent.add_argument("root", nargs="?", default=".")
+    p_silent.add_argument("--baseline", help="存量债务基线（只拦新增/增长）")
+    p_silent.add_argument("--update-baseline", dest="update_baseline",
+                          help="把当前计数写成基线（首次接入存量项目时用）")
+    p_silent.add_argument("--json", dest="json_out")
+
+    p_split = sub.add_parser("split-check")
+    p_split.add_argument("root", nargs="?", default=".")
+    p_split.add_argument("--src", required=True, help="拆分前的文件（相对 root）")
+    p_split.add_argument("--src-rev", help="从该 git 版本读 src（旧文件已删时用，如 HEAD）")
+    p_split.add_argument("--dst", required=True, help="拆分后的目录或文件")
+    p_split.add_argument("--allow-change", action="append", default=[],
+                         help="允许语义变化的符号名（可重复；纯搬移不该用它）")
+    p_split.add_argument("--strict", action="store_true", help="出现新符号也算失败")
+    p_split.add_argument("--cycles", action="store_true", help="同时检查拆分范围内的循环 import")
+    p_split.add_argument("--json", dest="json_out")
+
     p_arch = sub.add_parser("arch")
     arch_sub = p_arch.add_subparsers(dest="arch_cmd", required=True)
     p_arch_init = arch_sub.add_parser("init")
@@ -447,6 +515,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_arch(args)
     if args.cmd == "imports":
         return cmd_imports(args)
+    if args.cmd == "silent":
+        return cmd_silent(args)
+    if args.cmd == "split-check":
+        return cmd_split(args)
     ap.print_help()
     return 2
 

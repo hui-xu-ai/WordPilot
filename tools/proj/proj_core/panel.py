@@ -287,7 +287,7 @@ def serve(root: Path, host: str = "127.0.0.1", port: int = 8787) -> None:
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        pass
+        pass  # silent-ok: Ctrl-C 是面板的正常退出路径
     finally:
         httpd.server_close()
 
@@ -429,7 +429,7 @@ def _acquire_lock(path: Path) -> int | None:
                     path.unlink(missing_ok=True)
                     continue
             except OSError:
-                pass
+                pass  # silent-ok: 陈旧锁清理失败不影响本次获锁
             time.sleep(0.15)
     return None
 
@@ -440,7 +440,7 @@ def _release_lock(fd: int | None, path: Path) -> None:
     try:
         os.close(fd)
     except OSError:
-        pass
+        pass  # silent-ok: close 失败时 fd 已不可用
     path.unlink(missing_ok=True)
 
 

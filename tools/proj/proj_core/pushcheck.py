@@ -92,6 +92,23 @@ def _blob_size(root: Path, path: str, mode: str, rev_range: str | None) -> int:
         return 0
 
 
+def _split_suspects(changes: list[tuple[str, str]]) -> list[tuple[str, list[str]]]:
+    """删掉一个 .py、又在同一目录（或子目录）新增 .py ⇒ 疑似拆分。
+
+    只报 WARN、不判 FAIL：**"是不是拆分"可机械判定，"搬得对不对"不能**——
+    等价性必须由 `proj split-check` 证明，闸门不替它下结论（不可判定的检查不做门禁）。
+    """
+    deleted = [p for st, p in changes if st == "D" and p.lower().endswith(".py")]
+    added = [p for st, p in changes if st in ("A", "R") and p.lower().endswith(".py")]
+    out: list[tuple[str, list[str]]] = []
+    for old in deleted:
+        base = old.rsplit("/", 1)[0] if "/" in old else ""
+        near = [a for a in added if a.startswith(base + "/")] if base else list(added)
+        if near:
+            out.append((old, near))
+    return out
+
+
 def push_check(root: Path, mode: str = "staged", rev_range: str | None = None, message: str = "") -> PushCheck:
     root = root.resolve()
     pc = PushCheck(root=str(root), mode=mode)
@@ -128,6 +145,13 @@ def push_check(root: Path, mode: str = "staged", rev_range: str | None = None, m
             if len(text) <= 1_000_000:
                 for lineno, kind in scan_text_secrets(text):
                     pc.issues.append(asdict(Issue("FAIL", "secret", rel, f"第 {lineno} 行疑似 {kind}")))
+
+    for old, near in _split_suspects(changes):
+        pc.issues.append(asdict(Issue(
+            "WARN", "split-suspect", old,
+            f"删了它、又新增 {len(near)} 个 .py（如 {near[0]}）⇒ 若属拆分，必须先证明是纯搬移："
+            f"proj split-check . --src {old} --src-rev HEAD --dst <新目录>",
+        )))
 
     msg = message or _read_commit_message(root)
     pc.message = msg

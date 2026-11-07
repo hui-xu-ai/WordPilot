@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -90,7 +91,8 @@ def load_limits(root: Path) -> dict:
         return {"warn": 400, "fail": 600}
     try:
         raw = tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        print(f"[warn] 读取 {path} 失败（{exc}），使用默认行数阈值", file=sys.stderr)
         return {"warn": 400, "fail": 600}
     proj = raw.get("project", {})
     return {"warn": int(proj.get("max_lines_warn", 400)), "fail": int(proj.get("max_lines_fail", 600))}

@@ -67,7 +67,7 @@ def build_context(root: Path, task: str | None = None, max_tokens: int = 2500) -
             try:
                 body = json.dumps(json.loads(body), ensure_ascii=False, indent=2)[:4000]
             except json.JSONDecodeError:
-                pass
+                pass  # silent-ok: profile 不是合法 JSON 时按原文展示
         pack.sections.append({"label": label, "path": str(path), "body": body})
 
     # 预算裁剪：从最低优先级开始整段丢弃，必要时截断最高优先级

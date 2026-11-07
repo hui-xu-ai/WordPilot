@@ -16,6 +16,7 @@ DeepSeek Harness 自己的设计笔记标题就是《Mechanical quality gates ov
   G5 测试与版本对应 —— 测试指向的模块是否还存在；改了源码却没动对应测试
   G6 git 卫生       —— 未提交规模、回滚锚点（tag/最近提交）是否存在
   G7 外部工具       —— 配置里的 ruff / pytest 等（存在才跑，缺失只 WARN）
+G8 静默失败       —— 裸 except / 只写 pass 的 except / `except …: return 默认配置`（`proj silent`；可 `# silent-ok: 理由` 豁免）
 
 用法：
   pwsh -NoProfile -File tools\quality-gate.ps1                    # 报告
@@ -323,6 +324,73 @@ else {
     }
     elseif ($c.severity -eq 'fail') { Fail ($c.name + " 失败（exit " + $code + "）：" + $tail) }
     else { Warn ($c.name + " 有问题（exit " + $code + "）：" + $tail) }
+  }
+}
+
+# ══ G8 静默失败（裸 except / 吞异常） ═════════════════════════════════════════
+# 为什么是 FAIL 而不是 WARN：**吞异常是审计盲区**——出了事日志里一个字都没有，只能靠猜。
+# 真实事故（2026-10-28）：启动路径里的 AttributeError 被外层裸 `except: pass` 吞掉，
+# 源码级脚本照样"通过"，真实入口却从未执行过那段迁移（连续 4 轮误报"已修"）。
+# 逃生口：确实无害的清理可在 body 行写 `# silent-ok: <理由>`（必须有理由，会被统计出来）。
+Say "G8 静默失败（异常被吞掉 = 审计盲区）"
+if (-not $py -or -not (Test-Path -LiteralPath $projScript)) {
+  Info "缺 python 或 tools\proj\proj.py —— 跳过（项目未从模板初始化）"
+} else {
+  $silentJson = Join-Path $env:TEMP ("proj-silent-" + [guid]::NewGuid().ToString('n') + ".json")
+  # 存量项目用棘轮：`.dsh\silent-baseline.json` 存在时只拦"新增/增长"，
+  # 不要求一次性清完历史债务（否则新闸门在老项目上必然被 --no-verify 绕过）。
+  $silentArgs = @($projScript, 'silent', $rootFull, '--json', $silentJson)
+  # 基线必须**可提交**（进版本库，CI 与同事才共享同一棘轮）；
+  # 依次找：.dsh\silent-baseline.json（若未被忽略）→ tools\silent-baseline.json（推荐）→ 仓库根。
+  $silentBaseline = $null
+  foreach ($cand in @((Join-Path $rootFull '.dsh\silent-baseline.json'),
+                      (Join-Path $rootFull 'tools\silent-baseline.json'),
+                      (Join-Path $rootFull 'silent-baseline.json'))) {
+    if (Test-Path -LiteralPath $cand) { $silentBaseline = $cand; break }
+  }
+  if ($silentBaseline) { $silentArgs += @('--baseline', $silentBaseline) }
+  $silentOut = & python @silentArgs 2>&1 | Out-String
+  $silentCode = $LASTEXITCODE
+  if ($silentOut -match 'invalid choice' -or $silentCode -eq 2) {
+    Info "proj 版本较旧（无 silent 子命令），跳过 —— 用模板更新 tools\proj 后生效"
+  } elseif (-not (Test-Path -LiteralPath $silentJson)) {
+    Warn ("proj silent 未产出结果（exit " + $silentCode + "）：" + (($silentOut -split "\r?\n" | Where-Object { $_.Trim() } | Select-Object -Last 2) -join ' | '))
+  } else {
+    $sd = Get-Content -LiteralPath $silentJson -Raw -Encoding UTF8 | ConvertFrom-Json
+    $bareRows = @($sd.bare)
+    $swRows = @($sd.swallow)
+    $fbRows = @($sd.fallback)
+    $okRows = @($sd.marked)
+    if ($null -ne $sd.over) {
+      # 基线（棘轮）模式：存量债务不追究，只判本次新增/增长
+      $overRows = @($sd.over)
+      if ($overRows.Count -gt 0) {
+        foreach ($o in ($overRows | Select-Object -First 5)) {
+          Fail ("静默失败新增：" + $o.file + " " + $o.kind + "（" + $o.baseline + " → " + $o.now + "）—— 新代码不要加；无害清理写 # silent-ok: <理由>")
+        }
+        if ($overRows.Count -gt 5) { Fail ("另有 " + ($overRows.Count - 5) + " 处新增（同上）") }
+      } else {
+        Pass ("静默失败未增长（存量债务 " + ($bareRows.Count + $swRows.Count + $fbRows.Count) + " 处已在基线 " + $sd.baseline + " 中接受）")
+      }
+    } else {
+    if ($bareRows.Count -gt 0) {
+      foreach ($h in ($bareRows | Select-Object -First 5)) { Fail ("裸 except：" + $h.file + ":" + $h.line + " —— 改成 except Exception + 日志") }
+      if ($bareRows.Count -gt 5) { Fail ("另有 " + ($bareRows.Count - 5) + " 处裸 except（跑 python tools\proj\proj.py silent . 看全量）") }
+    }
+    if ($swRows.Count -gt 0) {
+      foreach ($h in ($swRows | Select-Object -First 5)) { Fail ("吞异常：" + $h.file + ":" + $h.line + " —— 加日志；无害清理请写 # silent-ok: <理由>") }
+      if ($swRows.Count -gt 5) { Fail ("另有 " + ($swRows.Count - 5) + " 处吞异常（同上）") }
+    }
+    if ($fbRows.Count -gt 0) {
+      # 静默降级：捕获面宽/多类型 + 只 return 默认配置 + 无任何日志 ⇒ 调用方分不清"没有"与"坏了"。
+      # 判据刻意收窄（只认返回 dict(DEFAULTS)/DEFAULTS/{…}，且排除 error 载荷），否则会把正常兜底全报出来。
+      foreach ($h in ($fbRows | Select-Object -First 5)) { Fail ("静默降级：" + $h.file + ":" + $h.line + " —— 抛专用异常或加日志；有意降级请写 # silent-ok: <理由>") }
+      if ($fbRows.Count -gt 5) { Fail ("另有 " + ($fbRows.Count - 5) + " 处静默降级（同上）") }
+    }
+    if ($bareRows.Count -eq 0 -and $swRows.Count -eq 0 -and $fbRows.Count -eq 0) {
+      Pass ("无裸 except、无未标记的吞异常、无静默降级（已标记豁免 " + $okRows.Count + " 处）")
+    }
+    }
   }
 }
 
