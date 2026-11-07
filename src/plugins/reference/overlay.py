@@ -394,7 +394,7 @@ class ReferenceOverlay(QWidget):
             x = min(max(x, area.left()), area.right() - width)
             y = min(max(y, area.top()), area.bottom() - height)
         except Exception:                  # noqa: BLE001 - 拿不到屏幕就按原坐标
-            pass
+            logger.warning("取屏幕可用区域失败，悬浮窗按原坐标显示", exc_info=True)
         return x, y
 
     def show_entries(self, entries: list[OverlayEntry], anchor: tuple[int, int],
@@ -431,7 +431,7 @@ class ReferenceOverlay(QWidget):
             try:
                 card.flush()
             except Exception:                  # noqa: BLE001
-                pass
+                logger.warning("隐藏悬浮窗时落盘备注草稿失败", exc_info=True)
         for card in self._cards:
             card.flush()
         self.hide()
@@ -463,7 +463,7 @@ class ReferenceOverlay(QWidget):
             try:
                 card.flush()
             except Exception:                  # noqa: BLE001 - 单卡失败不影响重建
-                pass
+                logger.warning("重建悬浮窗时落盘备注草稿失败", exc_info=True)
         for card in self._cards:
             card.setParent(None)
             card.deleteLater()

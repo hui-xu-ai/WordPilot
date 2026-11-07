@@ -23,11 +23,14 @@ offline_docx_scan.py — 离线 .docx 扫描原型（零 COM，不干扰前台 W
 """
 import argparse
 import json
+import logging
 import re
 import sys
 import time
 import zipfile
 import xml.etree.ElementTree as ET
+
+logger = logging.getLogger(__name__)
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
@@ -198,7 +201,7 @@ def parse_zotero(instr):
                 if item_data.get("title"):
                     titles.append(item_data["title"])
         except Exception:
-            pass
+            logger.warning("解析 Zotero 引用域 JSON 失败，item_keys/titles 会为空", exc_info=True)
     return {"item_keys": ids, "titles": titles, "json_ok": bool(raw)}
 
 

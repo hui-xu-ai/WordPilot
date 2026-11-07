@@ -124,7 +124,7 @@ class PluginBase:
             try:
                 unsubscribe()
             except Exception:
-                pass
+                pass  # silent-ok: 退订失败不影响卸载
         self._unsubscribes.clear()
         self.ctx = None
 

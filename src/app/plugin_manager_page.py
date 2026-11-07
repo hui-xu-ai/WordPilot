@@ -108,7 +108,7 @@ class PluginManagerPage(QWidget):
             for _label, _handler, icon, plugin_id in ui.tools():
                 icons.setdefault(plugin_id, icon)
         except Exception:
-            pass
+            pass  # silent-ok: 图标取不到就用默认图标
         return icons
 
     # ---------------- 卡片网格 ----------------

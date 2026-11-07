@@ -15,6 +15,8 @@ from core.kernel import Kernel
 from app.main_window import MainWindow
 from infra.memory_trimmer import start_periodic_trim, delayed_trim  #   定时清理内存占用
 
+logger = logging.getLogger(__name__)
+
 
 def _install_failure_hooks() -> None:
     """打包配置是 console=False：一切失败都必须落盘，否则用户侧现象只剩"点了没反应"。
@@ -41,33 +43,34 @@ def _install_failure_hooks() -> None:
             app_handler.setFormatter(fmt)
             root.addHandler(app_handler)
     except OSError:
-        pass  # 配置目录不可写时退化为标准 excepthook，不阻断启动
+        # 配置目录不可写时退化为标准 excepthook，不阻断启动
+        logger.warning("创建 app.log 失败，启动期日志会缺失", exc_info=True)
 
-    logger = logging.getLogger("wordpilot.unhandled")
-    logger.setLevel(logging.ERROR)
-    if not logger.handlers:
+    err_logger = logging.getLogger("wordpilot.unhandled")
+    err_logger.setLevel(logging.ERROR)
+    if not err_logger.handlers:
         try:
             handler = logging.FileHandler(CONFIG_DIR / "errors.log", encoding="utf-8")
             handler.setFormatter(fmt)
-            logger.addHandler(handler)
+            err_logger.addHandler(handler)
         except OSError:
-            pass
+            logger.warning("创建 errors.log 失败，未捕获异常不会落盘", exc_info=True)
 
     def _excepthook(exc_type, exc, tb):
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc, tb)
             return
-        logger.error("未捕获异常", exc_info=(exc_type, exc, tb))
+        err_logger.error("未捕获异常", exc_info=(exc_type, exc, tb))
 
     def _thread_hook(args):
-        logger.error("线程未捕获异常: %s", getattr(args.thread, "name", "?"),
+        err_logger.error("线程未捕获异常: %s", getattr(args.thread, "name", "?"),
                      exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
 
     def _qt_handler(mode, context, message):
         text = str(message)
         if "propagateSizeHints" in text:   # 无边框窗口的已知无害告警
             return
-        logger.error("Qt: %s", text)
+        err_logger.error("Qt: %s", text)
 
     sys.excepthook = _excepthook
     threading.excepthook = _thread_hook

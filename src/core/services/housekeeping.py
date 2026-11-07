@@ -353,7 +353,7 @@ def run_pending(root: Path | None = None) -> dict[str, tuple[int, int, int]]:
     try:
         path.unlink()
     except OSError:
-        pass
+        pass  # silent-ok: 清理标记删除失败
     return result
 
 

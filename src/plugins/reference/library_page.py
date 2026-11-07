@@ -93,7 +93,7 @@ class LibraryPage(ToolbarMixin, PanelChromeMixin, PanelEditMixin, ScanMixin,
         try:                               # 同进程写入（悬浮窗/本页保存）立即刷新
             self._store.subscribe(self._on_store_changed)
         except Exception:                  # noqa: BLE001
-            pass
+            logger.warning("订阅数据变更失败，页面不会自动刷新", exc_info=True)
 
     # ---------------- 文案 ----------------
     def tr(self, key: str, /, **params) -> str:

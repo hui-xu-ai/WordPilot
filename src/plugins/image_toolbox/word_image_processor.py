@@ -88,7 +88,8 @@ class WordImageProcessor:
                 try:
                     doc.Close(SaveChanges=0)      # wdDoNotSaveChanges
                 except Exception:                 # noqa: BLE001 - 关闭失败不影响主流程
-                    pass
+                    logger.warning("关闭新建的 Image.docx 临时文档失败，Word 里可能残留空文档",
+                                   exc_info=True)
         logger.info("已创建图片工作文档：%s", self.temp_docx_path)
 
     def _copy_template(self) -> bool:
@@ -155,7 +156,7 @@ class WordImageProcessor:
                 try:
                     self.user_active_doc.Activate()
                 except Exception:
-                    pass
+                    pass  # silent-ok: 可选激活，失败无影响
 
         except Exception as e:
             raise RuntimeError(f"无法打开工作文档: {e}")
@@ -176,7 +177,7 @@ class WordImageProcessor:
                 self.user32.ShowWindow(hwnd, 0)  # SW_HIDE
                 win.Visible = False
         except Exception:
-            pass
+            pass  # silent-ok: 仅视觉隐藏，失败无影响
 
     def close(self):
         try:
@@ -184,7 +185,8 @@ class WordImageProcessor:
                 self.work_doc.Close(SaveChanges=False)
                 self.work_doc = None
         except Exception:
-            pass
+            logger.warning("关闭图片工作文档失败，隐藏文档可能仍在占用 Image.docx",
+                           exc_info=True)
 
     def __enter__(self):
         return self
@@ -229,7 +231,7 @@ class WordImageProcessor:
             rng.WholeStory()
             rng.Delete()
         except:
-            pass
+            logger.warning("清空图片工作文档失败，可能提取到上一次的旧图片", exc_info=True)
 
     def _wait_clipboard_image(self, timeout=2.0):  # 识别图片有无复制成功
         """轮询剪贴板直到出现图片格式，返回 True 成功，False 超时"""
@@ -244,7 +246,7 @@ class WordImageProcessor:
                     return True
                 win32clipboard.CloseClipboard()
             except Exception:
-                pass
+                pass  # silent-ok: 剪贴板被占用，轮询重试
             _time.sleep(0.004)  # 10ms 轮询一次，不占 CPU
         return False
 
@@ -429,7 +431,7 @@ class WordImageProcessor:
                 exif_dict = piexif.load(exif_bytes)
                 save_kwargs['exif'] = piexif.dump(exif_dict)
             except:
-                pass
+                logger.warning("复制原图 EXIF 失败，输出图片将缺少元数据", exc_info=True)
         new_img.save(dst_path, format=fmt, **save_kwargs)
         return new_img.size
 
@@ -448,7 +450,8 @@ class WordImageProcessor:
                 self.word_app.Options.PictureCompression = False
                 self.word_app.Options.DoNotCompressImages = True
             except Exception:
-                pass
+                logger.warning("设置 Word 图片不压缩选项失败，替换后图片可能被压缩",
+                               exc_info=True)
 
             doc = self.word_app.ActiveDocument
             try:
@@ -486,14 +489,15 @@ class WordImageProcessor:
                     try:
                         self.word_app.Undo()      # 回滚本次自定义记录：文档里仍是原图
                     except Exception:
-                        pass
+                        logger.warning("撤销本次图片替换失败，文档可能残留新图片", exc_info=True)
                 raise
             finally:
                 if undo is not None:
                     try:
                         undo.EndCustomRecord()
                     except Exception:
-                        pass
+                        logger.warning("结束撤销记录失败，Word 撤销栈可能停在自定义记录里",
+                                       exc_info=True)
 
             self.word_app.ScreenRefresh()
         finally:
@@ -557,4 +561,4 @@ class WordImageProcessor:
                     if path and os.path.isfile(path):
                         os.remove(path)
                 except Exception:
-                    pass
+                    pass  # silent-ok: 临时文件清理失败可忽略

@@ -50,4 +50,4 @@ def clear_error_marks(start: int, end: int) -> None:
             if char.Font.Underline == wdUnderlineWavy and char.Font.UnderlineColor == wdColorRed:
                 char.Font.Underline = 0
     except Exception:
-        pass
+        logger.warning("逐字符清除校对标记失败，标记可能残留", exc_info=True)

@@ -30,7 +30,7 @@ def trim_memory() -> None:
         SIZE_MAX = ctypes.c_size_t(2 ** (ctypes.sizeof(SIZE_T) * 8) - 1)
         ctypes.windll.kernel32.SetProcessWorkingSetSize(h_process, SIZE_MAX, SIZE_MAX)
     except Exception:
-        pass
+        pass  # silent-ok: 内存清理失败不影响功能
 
 def delayed_trim(delay: float = 3.0) -> None:
     """

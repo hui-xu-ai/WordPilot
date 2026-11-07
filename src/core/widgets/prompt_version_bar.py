@@ -99,7 +99,7 @@ class PromptVersionBar(QWidget):
                     try:
                         prompt_store.activate(self._key, prompt_store.DEFAULT_VERSION)
                     except KeyError:
-                        pass
+                        pass  # silent-ok: 无系统默认版本时跳过对齐
         items = prompt_store.versions(self._key)
         if not items:
             # 从没用过这个提示词：把系统自带的默认文案登记成「默认」版本，方便随时切回

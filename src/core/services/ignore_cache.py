@@ -67,7 +67,7 @@ class IgnoreCacheManager:
             try:
                 os.unlink(tmp_name)
             except OSError:
-                pass
+                pass  # silent-ok: 临时文件清理失败
             raise
 
     def is_ignored(self, sentence: str) -> bool:

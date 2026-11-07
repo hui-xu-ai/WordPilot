@@ -25,7 +25,7 @@ def pet_anchor_point(window=None) -> tuple[int, int] | None:
         if point is not None:
             return point
     except Exception:                          # noqa: BLE001
-        pass
+        pass  # silent-ok: 取不到宠物锚点就退回窗口
 
     for candidate in (window, _host_window()):
         try:
@@ -59,7 +59,7 @@ def pet_screen_rect(window=None) -> tuple[int, int, int, int] | None:
             size = int(service.size)
             return pos.x(), pos.y(), size, size
     except Exception:                          # noqa: BLE001
-        pass
+        pass  # silent-ok: 取不到宠物几何就返回空
     return None
 
 

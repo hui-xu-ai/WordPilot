@@ -131,7 +131,7 @@ def migrate_legacy(root: Path | None = None) -> int:
         if not any(legacy_root.iterdir()):
             legacy_root.rmdir()
     except OSError:
-        pass
+        pass  # silent-ok: 空目录删除失败
     if moved:
         logger.info("已把 %d 个旧提示词目录迁到 plugins/<插件>/prompts/", moved)
     return moved
@@ -241,7 +241,7 @@ def backup_active(key: str, text: str, root: Path | None = None,
         try:
             (_key_dir(key, root) / item.get("file", "")).unlink(missing_ok=True)
         except OSError:
-            pass
+            pass  # silent-ok: 旧备份删除失败
         data["versions"] = [x for x in data["versions"] if x["name"] != item["name"]]
     _write_index(_key_dir(key, root), data)
     return saved
@@ -398,7 +398,7 @@ def default_text_variants(key: str, prompt_tr=None) -> set[str]:
             if value and not _RAW_KEY.fullmatch(value):
                 variants.add(value)
     except Exception:                          # noqa: BLE001
-        pass
+        logger.warning("扫描系统默认提示词语言包失败", exc_info=True)
     return variants
 
 
@@ -480,7 +480,7 @@ def repair_bogus_versions(root: Path | None = None) -> int:
             try:
                 (directory / item.get("file", "")).unlink(missing_ok=True)
             except OSError:
-                pass
+                pass  # silent-ok: 坏版本删除失败
             data["versions"] = [x for x in data["versions"] if x["name"] != item["name"]]
             if data.get("active") == item["name"]:
                 data["active"] = data["versions"][-1]["name"] if data["versions"] else ""

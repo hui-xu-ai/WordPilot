@@ -303,7 +303,7 @@ class PluginManager:
 
             PetService.instance().unregister_plugin(plugin_id)
         except Exception:                      # noqa: BLE001
-            pass
+            pass  # silent-ok: 宠物服务可选可忽略
 
     def _register_plugin_assets(self, manifest: PluginManifest, instance) -> None:
         """把插件声明的**用户资产**登记给清理服务（`PluginBase.assets()`）。

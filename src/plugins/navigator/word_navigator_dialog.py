@@ -8,6 +8,7 @@ P10 后续：本文件原先是独立浮窗 `QDialog`（Layer.PALETTE + 置顶 +
 （标题栏、置顶、关于、字体、几何记忆）随之下线。
 """
 import json
+import logging
 from pathlib import Path
 
 import pythoncom
@@ -25,6 +26,8 @@ from core.services.word_constants import wdConst
 from plugins.navigator.caption_item import CaptionItem  # noqa: F401  兼容旧引用
 from plugins.navigator.navigator_jump import JumpMixin
 from plugins.navigator.navigator_scan import ScanMixin
+
+logger = logging.getLogger(__name__)
 
 CONFIG_FILE = CONFIG_DIR / "navigator_config.json"
 wdFieldSequence = wdConst.wdFieldSequence               # Word 序列域类型常量
@@ -46,7 +49,7 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
             pythoncom.CoInitialize()
             self._com_ok = True
         except Exception:
-            pass  # 即使 COM 初始化失败，面板仍然可以显示，只是无法操作 Word
+            logger.warning("COM 初始化失败，题录面板将无法操作 Word", exc_info=True)
 
         # ---------- 预定义所有可能在异常路径中访问的属性 ----------
         self._scan_silent = False
@@ -260,7 +263,7 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         try:
             target.ScreenUpdating = True
         except Exception:
-            pass
+            pass  # silent-ok: COM 已断开，恢复刷新可忽略
 
 
     def _start_save_monitor(self):
@@ -315,19 +318,19 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
         try:
             self._stop_save_monitor()
         except Exception:
-            pass
+            pass  # silent-ok: 关闭面板时停监测可忽略
         try:
             self._restore_screen_updating()
         except Exception:
-            pass
+            pass  # silent-ok: 关闭面板时恢复刷新可忽略
         try:
             self.cache.close()
         except Exception:
-            pass
+            pass  # silent-ok: 关闭面板时缓存释放可忽略
         self.doc = None
         self.word = None
         if self._com_ok:
             try:
                 pythoncom.CoUninitialize()
             except Exception:
-                pass
+                pass  # silent-ok: 关闭时释放 COM 可忽略

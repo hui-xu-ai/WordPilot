@@ -6,9 +6,13 @@
 """
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtWidgets import QMessageBox
 
 from plugins.navigator.offline_scan import chapter_label
+
+logger = logging.getLogger(__name__)
 
 
 class JumpMixin:
@@ -104,7 +108,7 @@ class JumpMixin:
                 if len(self.history_stack) > self.max_history:
                     self.history_stack.pop(0)
             except:
-                pass
+                logger.warning("记录跳转历史失败，返回上一位置将不可用", exc_info=True)
             if item.select_in_document(doc):
                 word.ActiveWindow.ScrollIntoView(word.Selection.Range, True)
                 self._set_status("status.jumped", target=list_item.text().split("[")[0].strip())
@@ -116,7 +120,7 @@ class JumpMixin:
             try:
                 word.ScreenUpdating = True
             except:
-                pass
+                logger.warning("跳转后恢复 Word 屏幕刷新失败", exc_info=True)
 
     def go_back(self):
         if not self.history_stack:
@@ -137,5 +141,5 @@ class JumpMixin:
             try:
                 word.ScreenUpdating = True
             except:
-                pass
+                logger.warning("返回上一位置后恢复 Word 屏幕刷新失败", exc_info=True)
 

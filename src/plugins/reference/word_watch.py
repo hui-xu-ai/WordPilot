@@ -59,18 +59,18 @@ def _field_info(selection) -> tuple[str, str]:
     try:
         candidates.append(selection.Fields)
     except Exception:                      # noqa: BLE001
-        pass
+        pass  # silent-ok: 折叠光标取域可能为空
     try:
         candidates.append(selection.Range.Fields)
     except Exception:                      # noqa: BLE001
-        pass
+        pass  # silent-ok: 选区取域可能为空
     try:
         start = int(selection.Start)
         end = int(selection.End)
         document = selection.Document
         candidates.append(document.Range(max(0, start - 1), end + 1).Fields)
     except Exception:                      # noqa: BLE001
-        pass
+        pass  # silent-ok: 扩一字符取域可能失败
 
     for fields in candidates:
         try:
@@ -182,7 +182,7 @@ def resolve_selection(word) -> dict | None:
                                                             prefix="en"),
                               "label": "", "reference": None, "doc_name": doc_name})
         except Exception:                  # noqa: BLE001
-            pass
+            pass  # silent-ok: 无脚注时探测会抛错
 
     if not items:
         return None
@@ -325,7 +325,7 @@ class WordWatch(QThread):
             try:
                 pythoncom.CoUninitialize()
             except Exception:              # noqa: BLE001
-                pass
+                logger.warning("Word COM 反初始化失败（监听线程退出）", exc_info=True)
 
     # ---------------- 单次循环 ----------------
     @staticmethod

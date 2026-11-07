@@ -32,14 +32,14 @@ class CaptionItem:
                 self.field.Result.Select()
                 return True
             except Exception:  # noqa: BLE001  COM 对象可能已失效，退回区间选择
-                pass
+                pass  # silent-ok: 域失效时退回区间选择
         if self.start is not None and self.end is not None:
             try:
                 rng = doc.Range(self.start, self.end)
                 rng.Select()
                 return True
             except Exception:  # noqa: BLE001  同上
-                pass
+                pass  # silent-ok: 区间失效时退回全文查找
         return self._select_by_text(doc)
 
     def search_needles(self) -> list[str]:

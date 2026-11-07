@@ -215,7 +215,7 @@ class WindowManager:
                 try:
                     widget.deleteLater()
                 except Exception:
-                    pass
+                    pass  # silent-ok: 控件已销毁可忽略
             self._unregister(window_id)
 
     def close_owner(self, owner: str, force: bool = True) -> None:
@@ -345,4 +345,4 @@ class WindowManager:
             widget.raise_()
             widget.activateWindow()
         except RuntimeError:
-            pass
+            pass  # silent-ok: 控件已销毁激活失败

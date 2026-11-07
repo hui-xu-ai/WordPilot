@@ -86,7 +86,7 @@ class UiRegistry:
 
             PetService.instance().register_action(plugin_id, label, handler, order=order)
         except Exception:                      # noqa: BLE001 - 宠物不可用不该影响插件
-            pass
+            pass  # silent-ok: 宠物服务可选缺失可忽略
 
 class NullUiRegistry(UiRegistry):
     """无界面环境的空实现。"""

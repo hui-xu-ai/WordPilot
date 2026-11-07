@@ -198,7 +198,7 @@ class ConfigManager:
                 if tmp_name:
                     os.unlink(tmp_name)
             except OSError:
-                pass
+                pass  # silent-ok: 临时文件清理失败
             return False
 
     def get_api_key(self) -> str:

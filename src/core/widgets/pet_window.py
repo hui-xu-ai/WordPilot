@@ -18,6 +18,7 @@
 """
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import (QEasingCurve, QPoint, QRect, QRectF, Qt, QTimer,
@@ -32,6 +33,8 @@ from core.services.skin_service import STATE_COLORS, STATE_TOKENS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+logger = logging.getLogger(__name__)
 
 WINDOW_ID = "proofread.pet"
 
@@ -97,7 +100,7 @@ class PetCanvas(QWidget):
             try:
                 return self._skins.size()
             except Exception:              # noqa: BLE001
-                pass
+                logger.warning("读取皮肤尺寸失败，回退 64px", exc_info=True)
         return 64, 64
 
     def set_pet_size(self, size: int) -> None:
@@ -118,7 +121,7 @@ class PetCanvas(QWidget):
             service.visibilityChanged.connect(lambda visible: self.setVisible(bool(visible)))
             self.set_pet_size(service.size)
         except Exception:                  # noqa: BLE001
-            pass
+            logger.warning("挂接桌宠服务失败，尺寸与显隐联动不可用", exc_info=True)
 
     def set_services(self, skins=None, theme=None) -> None:
         """主题/皮肤切换后刷新引用并立即重绘。"""
@@ -284,7 +287,7 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
         try:
             self._remember_pet_anchor()
         except Exception:                      # noqa: BLE001
-            pass
+            pass  # silent-ok: 画布尚未创建，稍后重建锚点
         self.bubble.accepted.connect(self._on_accepted)
         self.bubble.ignored.connect(self._on_ignored)
         self.bubble.setVisible(False)
@@ -350,7 +353,7 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
 
             self.set_pet_size(PetService.instance().size)       # 皮肤基准会重置，这里恢复尺寸
         except Exception:                      # noqa: BLE001
-            pass
+            logger.warning("应用皮肤后恢复桌宠尺寸失败", exc_info=True)
         self._reflow_keeping_pet()
 
     # ---------------- 气泡 ----------------
@@ -491,7 +494,7 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
         try:
             service.update_geometry(self.x(), self.y(), self.width())
         except Exception:                      # noqa: BLE001
-            pass
+            logger.warning("上报桌宠几何失败，悬浮窗锚定可能不准", exc_info=True)
 
     def moveEvent(self, event) -> None:        # noqa: N802 - Qt 命名惯例
         super().moveEvent(event)
@@ -548,7 +551,7 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
                 if target is not None and hasattr(target, "is_enabled"):
                     return bool(target.is_enabled())
         except Exception:                      # noqa: BLE001
-            pass
+            logger.warning("读取校对插件启用状态失败，菜单按本地记忆显示", exc_info=True)
         return bool(getattr(self, "_proofread_on", True))
 
     def _switch_skin(self, skin_id: str) -> None:
@@ -563,7 +566,7 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
 
             self.set_pet_size(PetService.instance().size)
         except Exception:                      # noqa: BLE001
-            pass
+            logger.warning("切换皮肤后同步桌宠尺寸失败", exc_info=True)
 
     # ---------------- 建议回调 ----------------
     def _on_accepted(self, corrected, start, end, original) -> None:
@@ -582,7 +585,7 @@ class PetWindow(PetEventMixin, PetMenuMixin, QWidget):
             try:
                 clear_error_marks(start, end)
             except Exception:
-                pass      # Word 可能已关闭，忽略 COM 异常
+                pass  # silent-ok: Word 已关闭，COM 调用可忽略
         self._discard_suggestion()
 
     def refresh_visibility(self) -> None:

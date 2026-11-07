@@ -264,7 +264,7 @@ class ScanMixin:
                             try:
                                 page_num = str(para_range.Information(3))
                             except:
-                                pass
+                                logger.warning("扫描时实时取域页码失败，页码留占位", exc_info=True)
                         else:
                             if start_pos in self._scan_page_map:
                                 page_num = self._scan_page_map[start_pos]
@@ -272,7 +272,7 @@ class ScanMixin:
                                 try:
                                     page_num = str(para_range.Information(3))
                                 except:
-                                    pass
+                                    logger.warning("扫描时取域页码失败，页码留占位", exc_info=True)
                         display = self.tr("caption.display", text=text, page=page_num)
                         item = CaptionItem(display, field=field, start=start_pos,
                                           end=para_range.End, page=page_num)
@@ -343,7 +343,8 @@ class ScanMixin:
                         page_num = str(para_range.Information(3))
                         item_data['page'] = page_num  # 更新缓存数据，以便后续保存
                     except Exception:
-                        pass  # 页码获取失败则保留原值，不中断流程
+                        # 页码获取失败则保留原值，不中断流程
+                        logger.warning("缓存加载时更新页码失败，保留缓存页码", exc_info=True)
 
                 # 构造显示文本与数据对象
                 display = self.tr("caption.display", text=text, page=page_num)
@@ -403,7 +404,7 @@ class ScanMixin:
                 try:
                     word.ScreenUpdating = True
                 except Exception:
-                    pass
+                    logger.warning("恢复 Word 屏幕刷新失败", exc_info=True)
             self._scanning = False
             self.progress_bar.setVisible(False)
 

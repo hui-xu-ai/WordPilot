@@ -125,7 +125,7 @@ def apply_correction(plugin, corrected_text: str, start: int | None = None,
             try:
                 word.ScreenUpdating = prev_screen_updating
             except Exception:              # noqa: BLE001
-                pass
+                logger.warning("恢复 Word 屏幕刷新失败", exc_info=True)
         logger.info("apply_correction 用时 %.0f ms（成功=%s）",
                     (time.perf_counter() - started) * 1000, applied)
     return applied

@@ -2,11 +2,15 @@
 """页面里的「仓库下拉 + 切换重绑」（从 library_page 拆出，保持单文件在阈值内）。"""
 from __future__ import annotations
 
+import logging
+
 from core.services.ui_labels import library_label
 
 from core.services.i18n import message
 
 from PySide6.QtWidgets import QComboBox
+
+logger = logging.getLogger(__name__)
 
 
 FILTERS = (("all", "filter.all"), ("note", "filter.note"), ("star", "filter.star"),
@@ -91,7 +95,7 @@ class LibraryMixin:
                 if service is not None:
                     return service.tr
             except Exception:                  # noqa: BLE001 - 取不到就用兜底
-                pass
+                pass  # silent-ok: 取不到语言服务就用兜底
         return getattr(self, "tr", None)
 
     def _library_names(self) -> list[str]:
@@ -104,7 +108,7 @@ class LibraryMixin:
                 if names:
                     return list(names)
             except Exception:                  # noqa: BLE001 - 注册表读失败就用快照
-                pass
+                logger.warning("读取仓库名列表失败，退回快照", exc_info=True)
         return list(getattr(self, "_libraries", None) or [])
 
     def rebuild_library_combo(self, active: str = "") -> None:
@@ -258,18 +262,18 @@ class LibraryMixin:
             if getattr(self, "panel_stack", None) is not None and self.panel_stack.currentIndex() == 1:
                 self.cancel_edit()
         except Exception:                      # noqa: BLE001 - 收尾失败不该阻塞切库
-            pass
+            logger.warning("切库前取消编辑失败，草稿可能留在表单里", exc_info=True)
         for attr in ("_current_key", "_orphan", "_selected_key"):
             try:
                 setattr(self, attr, "" if attr != "_orphan" else None)
             except Exception:                  # noqa: BLE001
-                pass
+                logger.warning("重置编辑态字段 %s 失败", attr, exc_info=True)
         clear = getattr(self, "_clear_panel", None)
         if callable(clear):
             try:
                 clear()
             except Exception:                  # noqa: BLE001
-                pass
+                logger.warning("清空编辑面板失败，表单可能残留上一条", exc_info=True)
 
     def _on_library_changed(self, name: str) -> None:
         # `name` 是显示文案，真正的库名在 itemData 里（显示与后端解耦）

@@ -9,6 +9,7 @@ GUI 重设计后，本插件从「模态对话框」改为「主界面导航页�
 """
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
@@ -20,6 +21,8 @@ from plugins.image_toolbox.image_reshaper_widget import ImageReshaperWidget
 
 if TYPE_CHECKING:
     from core.sdk.context import PluginContext
+
+logger = logging.getLogger(__name__)
 
 CONFIG_FILE = CONFIG_DIR / "Image.docx"
 
@@ -63,7 +66,7 @@ class ImageToolboxPlugin(PluginBase):
             try:
                 self._widget.cleanup()
             except Exception:
-                pass
+                logger.warning("卸载图片工具箱时释放隐藏工作文档失败", exc_info=True)
             self._widget = None
         super().deactivate()
 

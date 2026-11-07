@@ -32,8 +32,8 @@ def hint_missing_reference(plugin, items: list[dict]) -> None:
         try:
             page.append_status(status_key, **status_params)   # 存 key，切语言可重画
         except Exception:                  # noqa: BLE001
-            pass
+            pass  # silent-ok: 状态栏历史失败不影响提示
     try:
         plugin.ctx.ui.status(text, 3000)
     except Exception:                      # noqa: BLE001
-        pass
+        logger.warning("界面状态提示失败，用户看不到「库里没有这条」", exc_info=True)

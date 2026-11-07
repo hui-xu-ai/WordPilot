@@ -48,13 +48,13 @@ class EventBus:
         try:
             self._handlers[event].remove(handler)
         except (ValueError, KeyError):
-            pass
+            pass  # silent-ok: 重复退订无副作用
 
     def unsubscribe_all(self, handler: Callable) -> None:
         try:
             self._any_handlers.remove(handler)
         except ValueError:
-            pass
+            pass  # silent-ok: 重复退订无副作用
 
     def emit(self, event: str, payload: Any = None) -> None:
         """发布事件；处理器签名为 handler(event_name, payload)。"""

@@ -59,7 +59,7 @@ def _ensure_utf8_output() -> None:
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
         except Exception:                      # noqa: BLE001 - 老环境/重定向流不支持就算了
-            pass
+            pass  # silent-ok: 老环境流不支持重配编码
 
 
 def main(argv: list[str]) -> int:

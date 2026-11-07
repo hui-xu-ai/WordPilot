@@ -9,6 +9,7 @@
 - 「界面语言」与「提示词语言」是两个独立配置：
   前者只影响 UI，后者决定送 AI 的提示词语种，互不影响。
 """
+import logging
 import os
 import subprocess
 import sys
@@ -24,6 +25,8 @@ from PySide6.QtWidgets import (
 from core.services.api_client import DeepSeekClient
 from core.services.skin_service import DEFAULT_SKIN_ID
 from core.services.theme_service import USER_QSS
+
+logger = logging.getLogger(__name__)
 
 #: 界面语言与提示词语言共用的可选语种
 PROMPT_LANGUAGE_NAMES = {
@@ -187,12 +190,12 @@ class SettingsPage(QWidget):
                 try:
                     self.skins.set_skin(str(skin_id))     # 让窗口内的皮肤服务也切过去
                 except Exception:                       # noqa: BLE001
-                    pass
+                    logger.warning("切换窗口皮肤服务失败", exc_info=True)
             host = PetHost.instance()
             host.apply_skin(str(skin_id))
             host.apply_size(PetService.instance().size)
         except Exception:                      # noqa: BLE001
-            pass
+            logger.warning("应用桌宠皮肤失败，皮肤可能未生效", exc_info=True)
 
     def _on_pet_size_changed(self, value: int) -> None:
         self.pet_size_value.setText(f"{value} px")
@@ -207,7 +210,7 @@ class SettingsPage(QWidget):
             if window is not None:                 # 直接落到窗口，排除信号链问题
                 window.set_pet_size(int(value))
         except Exception:                      # noqa: BLE001
-            pass
+            logger.warning("设置桌宠尺寸失败", exc_info=True)
 
     def _on_pet_visible_toggled(self, visible: bool) -> None:
         try:
@@ -217,7 +220,7 @@ class SettingsPage(QWidget):
             PetService.instance().set_visible(bool(visible))
             PetHost.instance().apply_visibility(bool(visible))
         except Exception:                      # noqa: BLE001
-            pass
+            logger.warning("设置桌宠显示/隐藏失败", exc_info=True)
     def _card(self) -> tuple[QWidget, QVBoxLayout]:
         """一张通栏卡片（样式见 base.qss #contentCard）。"""
         card = QWidget()
@@ -657,7 +660,7 @@ class SettingsPage(QWidget):
             tester.requestInterruption()
             tester.quit()
         except Exception:                      # noqa: BLE001 - 已在收尾阶段，忽略
-            pass
+            pass  # silent-ok: 收尾阶段对象可能已释放
         if tester.isRunning():
             tester.wait(3000)
         self._tester = None

@@ -8,10 +8,14 @@
 注意：COM 对象不可跨线程持有。在使用 Word 对象的线程内调用 com_initialized()。
 """
 
+import logging
+
 from core.services.i18n import message
 
 import pythoncom
 import win32com.client
+
+logger = logging.getLogger(__name__)
 
 
 class WordNotRunningError(RuntimeError):
@@ -84,6 +88,7 @@ def root_hwnd(hwnd: int) -> int:
         user32.GetAncestor.restype = wintypes.HWND
         return int(user32.GetAncestor(wintypes.HWND(int(hwnd)), 2) or hwnd)
     except Exception:                      # noqa: BLE001
+        logger.warning("获取窗口根祖先失败，退回原窗口句柄", exc_info=True)
         return int(hwnd)
 
 
@@ -216,5 +221,5 @@ class screen_updating_off:
         try:
             self._app.ScreenUpdating = True
         except Exception:
-            pass  # Word 已关闭等场景下允许失败
+            pass  # silent-ok: Word 关闭时恢复失败
         return False

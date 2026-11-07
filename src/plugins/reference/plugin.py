@@ -106,7 +106,7 @@ def _force_topmost(widget) -> None:
         user32.SetWindowPos(wintypes.HWND(int(widget.winId())), wintypes.HWND(-1), 0, 0, 0, 0,
                             swp_nomove | swp_nosize | swp_noactivate | swp_showwindow)
     except Exception:                      # noqa: BLE001 - 置顶失败不影响功能
-        pass
+        pass  # silent-ok: 置顶失败不影响功能
 
 
 def _pet_on_work_screen(pet_rect) -> bool:
@@ -434,11 +434,11 @@ class ReferencePlugin(PluginBase):
             try:
                 self._page.append_status(key, **params)   # 存 key，切语言可重画
             except Exception:              # noqa: BLE001 - 页面可能还没建好
-                pass
+                pass  # silent-ok: 页面可能还没建好
         try:
             self.ctx.ui.status(text, 2000)
         except Exception:                  # noqa: BLE001
-            pass
+            pass  # silent-ok: 状态栏提示可丢弃
 
     def _watch_status_key(self, code: str) -> tuple[str, dict]:
         """状态码 → (语言包 key, 参数)：页面状态栏存结构化的一份，才跟得上语言切换。"""
@@ -527,7 +527,7 @@ class ReferencePlugin(PluginBase):
             try:
                 self._page.reload()
             except Exception:              # noqa: BLE001
-                pass
+                logger.warning("刷新参考文献页面失败，表格可能仍显示旧数据", exc_info=True)
 
     def _on_overlay_dismissed(self, anchor_key: str) -> None:
         # 关一次就关掉整个弹窗：压制当前显示的**所有**条目（[7-8] 不该只剩 [8]）
@@ -776,7 +776,7 @@ class ReferencePlugin(PluginBase):
             try:
                 overlay.refresh_notes()
             except Exception:                  # noqa: BLE001
-                pass
+                logger.warning("刷新悬浮窗备注失败，卡片可能仍显示旧备注", exc_info=True)
         return result
 
     def create_library(self, name: str) -> bool:
@@ -819,7 +819,7 @@ class ReferencePlugin(PluginBase):
             try:
                 self._page.reload()
             except Exception:                      # noqa: BLE001
-                pass
+                logger.warning("删除仓库后刷新页面失败，表格可能仍列出已删仓库", exc_info=True)
         return True
 
     def bind_current_document(self, doc_path: str, library: str) -> None:
@@ -831,11 +831,11 @@ class ReferencePlugin(PluginBase):
                 # 成品文本：没有 key 可存，切语言时**不重画**（保留旧行为）
                 self._page.append_status_text(text)
             except Exception:                      # noqa: BLE001
-                pass
+                pass  # silent-ok: 状态栏文本可丢弃
         try:
             self.ctx.ui.status(text, 3000)
         except Exception:                          # noqa: BLE001
-            pass
+            pass  # silent-ok: 状态栏提示可丢弃
 
     def _reshow(self, anchor_key: str, doc_name: str, label: str) -> None:
         """绑定/新建之后，用库里最新数据把悬浮窗重画一次（用户不用挪光标）。"""

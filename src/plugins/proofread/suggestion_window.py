@@ -1,5 +1,6 @@
 # suggestion_window.py
 import difflib
+import logging
 
 from PySide6.QtCore import Qt, Signal, QPoint, QEvent, QSize
 from PySide6.QtGui import QColor, QPalette, QIcon, QCursor, QPixmap, QFont  # 悬浮按钮位置--修改17   QPixmap--修改21
@@ -8,6 +9,8 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushBu
 
 from infra.utils import resource_path  # 或直接定义在文件内   #  -修改21
 from plugins.proofread.word_monitor import clear_error_marks  # --修改17  --修改19 proof_sentence
+
+logger = logging.getLogger(__name__)
 
 PLUGIN_ID = "proofread"
 
@@ -498,7 +501,7 @@ class FloatingButton(QToolButton):
             try:
                 clear_error_marks(start, end)
             except Exception:
-                pass  # 忽略可能的 COM 错误（如 Word 已关闭）
+                logger.warning("清除 Word 校对标记失败（Word 可能已关闭）", exc_info=True)
         # self._clear_state()         #    清空内容
         self.suggestion_card.hide()     #    先隐藏，再显示，避免受到之前建议窗口的位置影响
         self.show_card()
