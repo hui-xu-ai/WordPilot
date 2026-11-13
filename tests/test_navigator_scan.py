@@ -231,6 +231,54 @@ def test_refresh_button_triggers_com_full_scan():
     assert panel.calls == ["com"]
 
 
+class _HitCache:
+    """每次都能"命中缓存"的假缓存：用来确认「刷新列表」不吃缓存。"""
+
+    def get_document_fingerprint(self, _path):
+        return ("C:/fake/doc.docx", 1024, 12345.0)
+
+    def get_document_cache(self, _fingerprint):
+        return [{'type': 'figure', 'text': '图1.1 旧缓存题注', 'page': '1',
+                 'start': 0, 'end': 10}]
+
+
+def _policy_panel_with_cache(offline_ok: bool = True):
+    from plugins.navigator.navigator_scan import ScanMixin
+
+    cls = type("CachePanel", (ScanMixin, _PolicyPanel), {})
+    panel = cls()
+    panel.cache = _HitCache()
+    panel._get_word_document = lambda: (object(), object(), "C:/fake/doc.docx")
+    panel.calls = []
+
+    def _offline(_path):
+        panel.calls.append("offline")
+        return offline_ok
+
+    panel._try_offline_scan = _offline
+    panel._load_from_cache = lambda *_a, **_k: panel.calls.append("cache")
+    panel._do_full_scan = lambda *_a, **_k: panel.calls.append("com")
+    return panel
+
+
+def test_refresh_button_never_uses_cache():
+    """「刷新列表」= 全域刷新：缓存里的字符偏移是旧文件状态的，命中它会"刷新了还是旧内容"。
+
+    用户现场（2026-11-13）：文档改了题注格式后点刷新，列表还是旧文案、跳转还错位 ——
+    因为 `force_com=True` 先查缓存并直接返回了。
+    """
+    panel = _policy_panel_with_cache()
+    panel._refresh_captions(force_com=True)
+    assert panel.calls == ["com"], "全量刷新必须走 COM 全量扫描，不能吃缓存"
+
+
+def test_offline_failure_still_falls_back_to_cache_then_com():
+    """离线解析失败时才允许缓存兜底（缓存也没命中就全量扫）。"""
+    panel = _policy_panel_with_cache(offline_ok=False)
+    panel._refresh_captions(force_com=False)
+    assert panel.calls == ["offline", "cache"]
+
+
 def test_offline_failure_falls_back_to_com():
     """离线解析失败时仍要能刷新（先试离线，失败再走 COM）。"""
     panel = _policy_panel(offline_ok=False)

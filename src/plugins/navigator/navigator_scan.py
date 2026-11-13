@@ -108,7 +108,8 @@ class ScanMixin:
             seen[key] = ordinal + 1
             by_kind.setdefault(offline_item.kind, []).append(
                 CaptionItem(display=offline_item.text, chapter=offline_item.chapter,
-                            ordinal=ordinal))
+                            ordinal=ordinal,
+                            paragraph_index=offline_item.paragraph_index))
         self.table_captions = by_kind.get("table", [])
         self.figure_captions = by_kind.get("figure", [])
         self._render_lists()
@@ -134,8 +135,16 @@ class ScanMixin:
         if not force_com and self._try_offline_scan(full_path):
             return
         update_pages = force_com        # 页码只在显式全量刷新时更新
-        
-        # ---------- 缓存优先 ----------
+
+        # 「刷新列表」= 全域刷新：**不吃缓存**。缓存里的 range_start/range_end 是上一次
+        # 文件状态下的字符偏移，文档改过（哪怕还没保存）就会整体错位 —— 用户现场：
+        # "点了刷新还是旧内容、跳转落点还错位"。缓存只在离线解析失败时兜底。
+        if force_com:
+            logger.info("题录刷新：全量扫描（不吃缓存）%s", full_path)
+            self._do_full_scan(word, doc, full_path, update_pages, silent)
+            return
+
+        # ---------- 缓存优先（仅非全量刷新） ----------
         fingerprint = self.cache.get_document_fingerprint(full_path)
         cached_data = None
         if fingerprint:

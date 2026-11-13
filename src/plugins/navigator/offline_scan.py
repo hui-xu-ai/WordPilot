@@ -48,6 +48,9 @@ class OfflineItem:
     text: str
     kind: str = "table"          # table / figure
     chapter: int = -1            # 所属章节下标（-1 = 第一个章节标题之前）
+    #: 该题注是文档里的第几段（0 起，与 `Document.Paragraphs` 同序）。
+    #: 跳转时用它精确定位 —— 只按文案找会撞上"文档里同名的其它题注"或排版改动。
+    paragraph_index: int = -1
 
 
 @dataclass
@@ -161,7 +164,7 @@ def scan_docx(docx_path: str) -> OfflineResult:
     章节以**识别到的最小标题层级**为准（模板不一定用 Heading 1）。
     """
     titles: list[tuple[int, str]] = []          # (层级, 文案) 全量标题
-    items: list[tuple[int, str, str]] = []      # (标题下标, kind, 文案)
+    items: list[tuple[int, str, str, int]] = []  # (标题下标, kind, 文案, 段落下标)
     heading_positions: list[int] = []
     paragraphs = 0
 
@@ -181,12 +184,13 @@ def scan_docx(docx_path: str) -> OfflineResult:
                 elif text:
                     kind = _kind_of(text, style, elem)
                     if kind is not None:
-                        items.append((len(titles) - 1, kind, text))
+                        items.append((len(titles) - 1, kind, text, paragraphs - 1))
                 elem.clear()
 
     result = OfflineResult(paragraphs=paragraphs)
     if not titles:
-        result.items = [OfflineItem(text=text, kind=kind) for _ch, kind, text in items]
+        result.items = [OfflineItem(text=text, kind=kind, paragraph_index=index)
+                        for _ch, kind, text, index in items]
         return result
 
     chapter_level = min(level for level, _ in titles)
@@ -208,8 +212,9 @@ def scan_docx(docx_path: str) -> OfflineResult:
                 break
         return current
 
-    result.items = [OfflineItem(text=text, kind=kind, chapter=chapter_index(pos))
-                    for pos, kind, text in items]
+    result.items = [OfflineItem(text=text, kind=kind, chapter=chapter_index(pos),
+                                paragraph_index=index)
+                    for pos, kind, text, index in items]
     return result
 
 

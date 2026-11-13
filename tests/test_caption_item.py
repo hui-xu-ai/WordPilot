@@ -62,16 +62,22 @@ class _FakeFind:
 class _FakeDoc:
     """一份纯文本文档：`Content` 覆盖全文，`Range(a,b)` 是子区间。"""
 
-    def __init__(self, text: str):
+    def __init__(self, text: str, paragraphs: list[tuple[int, int]] | None = None):
         self.text = text
         self.searches: list[str] = []
         self.range_calls: list[tuple[int, int]] = []
         self.selection: tuple[int, int] | None = None
         self.Content = _FakeRange(self, 0, len(text))
+        self._paragraphs = paragraphs or []
 
     def Range(self, start, end):             # noqa: N802
         self.range_calls.append((start, end))
         return _FakeRange(self, int(start), int(end))
+
+    def Paragraphs(self, index):             # noqa: N802 - Word 段落集合 1-based
+        start, end = self._paragraphs[index - 1]
+        para_range = _FakeRange(self, start, end)
+        return type("P", (), {"Range": para_range})()
 
     def selected_text(self) -> str:
         if self.selection is None:
@@ -147,6 +153,32 @@ def test_display_with_page_suffix_is_trimmed():
 
     assert doc.searches[0] == "图1.2 演示图片"
     assert doc.selected_text() == "图1.2 演示图片"
+
+
+def test_paragraph_index_locates_caption_even_if_text_changed():
+    """按"第几段"定位：排版改了文案（`图2.2 演示图片` → `图 2.2 · 演示图片`）也能命中。"""
+    first = "前言\r"
+    second = "图 2.2 · 演示图片\r"
+    text = first + second
+    start = len(first)
+    doc = _FakeDoc(text, paragraphs=[(0, len(first)), (start, len(text))])
+    item = CaptionItem(display="图2.2 演示图片", paragraph_index=1)
+
+    assert item.select_in_document(doc) is True
+    assert doc.selection == (start, len(text) - 1), "选中该段落（去掉段尾标记）"
+    assert doc.searches == [], "段落下标命中时不该再去搜索文本"
+
+
+def test_paragraph_index_falls_back_when_text_differs():
+    """下标准不住（文档结构变了）时必须退回按文案找，不能硬跳别的段落。"""
+    text = "前言\r图1.2 演示图片\r"
+    start = len("前言\r")
+    doc = _FakeDoc(text, paragraphs=[(0, start), (start, len(text))])
+    item = CaptionItem(display="图1.2 演示图片", paragraph_index=0)   # 下标指向"前言"
+
+    assert item.select_in_document(doc) is True
+    assert doc.selected_text() == "图1.2 演示图片", "必须靠文案找回来，而不是跳到前言"
+    assert doc.searches, "应走过文案搜索"
 
 
 def test_caption_kind_recognizes_chinese_and_english_seq_codes():

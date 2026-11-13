@@ -2,7 +2,10 @@
 """题录条目（从 word_navigator_dialog.py 抽出，供面板与扫描/跳转 mixin 共用，避免循环导入）。"""
 from __future__ import annotations
 
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 
 #: 题注编号前缀（"图 1.1" / "表 2-3" / "Figure 1.1"）：离线来源定位时要去掉，
 #: 因为 Word 里的编号常由 SEQ 域渲染，按"图 1.1"整串搜不到
@@ -32,6 +35,15 @@ def caption_kind(field_code) -> str | None:
     return None
 
 
+#: 比对文案时要忽略的字符：空格与常见分隔符（文档里写 `图 2.2 · 演示图片`，
+#: 扫描/列表里可能是 `图2.2 演示图片`，本质是同一段题注）
+_SEPARATOR_CHARS = " \t\r\n\u3000·・•-—–－_"
+
+
+def _squash(text) -> str:
+    return "".join(ch for ch in str(text or "") if ch not in _SEPARATOR_CHARS)
+
+
 class CaptionItem:
     """一条题录：文案 + 可选序列域 + 起止偏移 + 页码 + 所属章节。
 
@@ -41,7 +53,7 @@ class CaptionItem:
     """
 
     def __init__(self, display, field=None, start=None, end=None, page="", chapter=-1,
-                 ordinal=0):
+                 ordinal=0, paragraph_index=None):
         self.display = display
         self.field = field
         self.start = start
@@ -51,6 +63,8 @@ class CaptionItem:
         #: 同一份文案在文档里出现多次时，这是第几条（0 起）。离线来源只有文案，
         #: 靠它区分"图1.1 演示图片"与"图1.2 演示图片"这类同名题注。
         self.ordinal = ordinal
+        #: 题注是文档里的第几段（0 起，离线扫描提供）。跳转优先用它。
+        self.paragraph_index = paragraph_index
 
     def select_in_document(self, doc):
         """在 Word 里选中该题录 —— 同时就是"跳转 + 高亮"。"""
@@ -60,9 +74,36 @@ class CaptionItem:
             try:
                 doc.Range(self.start, self.end).Select()
                 return True
-            except Exception:  # noqa: BLE001  区间失效时退回全文查找
-                pass  # silent-ok: 区间失效时退回按文案查找
+            except Exception:  # noqa: BLE001  区间失效时退回按文案查找
+                pass  # silent-ok: 区间失效时退回按段落/文案查找
+        if self._select_paragraph_by_index(doc):
+            return True
         return self._select_by_text(doc)
+
+    def _select_paragraph_by_index(self, doc) -> bool:
+        """按"第几段"定位（离线扫描记下的段落下标）。
+
+        为什么优先于按文案找：文案会随排版变（`图2.2 演示图片` ↔ `图 2.2 · 演示图片`），
+        而段落下标不变。选中前用"去掉空格与分隔符"的文本核对一次，对不上就退回按文案找
+        —— 不核对就可能在文档结构变过之后硬按旧下标跳到别的段落。
+        """
+        if self.paragraph_index is None or int(self.paragraph_index) < 0:
+            return False
+        try:
+            para = doc.Paragraphs(int(self.paragraph_index) + 1).Range
+            start, end = int(para.Start), int(para.End)
+            text = str(para.Text)
+        except Exception:  # noqa: BLE001  下标越界/COM 失效
+            return False
+        if _squash(text) != _squash(str(self.display).split("  [", 1)[0]):
+            return False
+        if end <= start:
+            return False
+        try:
+            doc.Range(start, end - 1).Select()      # -1 去掉段尾 ¶
+            return True
+        except Exception:  # noqa: BLE001
+            return False
 
     def _select_paragraph_of_field(self, doc) -> bool:
         """选中域所在**整段**（去掉段尾标记）。
@@ -116,6 +157,8 @@ class CaptionItem:
             target = hits[min(self.ordinal, len(hits) - 1)]
             try:
                 target.Select()
+                logger.info("跳转按文案定位：%r 命中 %d 处，取第 %d 条（该条目没有域/区间/段落下标）",
+                            needle, len(hits), min(self.ordinal, len(hits) - 1) + 1)
                 return True
             except Exception:  # noqa: BLE001
                 continue
