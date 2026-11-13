@@ -12,7 +12,7 @@ import logging
 
 from PySide6.QtCore import QTimer
 
-from plugins.navigator.caption_item import CaptionItem
+from plugins.navigator.caption_item import CaptionItem, caption_kind
 
 logger = logging.getLogger(__name__)
 
@@ -200,9 +200,9 @@ class ScanMixin:
             for i in range(self._scan_index, end_index + 1):
                 field = fields.Item(i)
                 try:
-                    code = field.Code.Text.lower()
-                    if "seq " in code and ("seq 表" in code or "seq 图" in code):
-                        self._scan_seq_info.append((i, field))
+                    kind = caption_kind(field.Code.Text)
+                    if kind:
+                        self._scan_seq_info.append((i, field, kind))
                 except:
                     continue
             self._scan_index = end_index + 1
@@ -247,10 +247,9 @@ class ScanMixin:
             total = len(self._scan_seq_info)
             end_index = min(self._seq_index + batch_size, total)
             for idx in range(self._seq_index, end_index):
-                _, field = self._scan_seq_info[idx]
+                _, field, seq_kind = self._scan_seq_info[idx]
                 try:
-                    code = field.Code.Text.lower()
-                    seq_type = "表" if "seq 表" in code else "图"
+                    seq_type = seq_kind
                     para = field.Result.Paragraphs(1)
                     para_range = para.Range
                     start_pos = para_range.Start
@@ -276,12 +275,12 @@ class ScanMixin:
                         display = self.tr("caption.display", text=text, page=page_num)
                         item = CaptionItem(display, field=field, start=start_pos,
                                           end=para_range.End, page=page_num)
-                        if seq_type == "表":
+                        if seq_type == "table":
                             self._new_table.append(item)
                         else:
                             self._new_figure.append(item)
                         self._captions_cache_data.append({
-                            'type': 'table' if seq_type == '表' else 'figure',
+                            'type': seq_type,
                             'text': text,
                             'page': page_num,
                             'start': start_pos,

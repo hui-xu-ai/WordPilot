@@ -8,6 +8,29 @@ import re
 #: 因为 Word 里的编号常由 SEQ 域渲染，按"图 1.1"整串搜不到
 _NUMBER_PREFIX_RE = re.compile(r"^\s*(?:图|表|Figure|Table)\s*[0-9０-９]+(?:[.\-－．_][0-9０-９]+)*\s*")
 
+#: 序列域里表示"表"与"图"的关键词。中英文都要认：中文学位论文写 `SEQ 图`/`SEQ 表`，
+#: 英文模板与 EndNote 导出写 `SEQ figure`/`SEQ table` —— 只认中文会让 COM 刷新扫出 0 条，
+#: 把离线扫描已经拿到的题录整份清空（用户现场：点「刷新列表」后题录全没了）。
+_TABLE_SEQ_HINTS = ("表", "TABLE")
+_FIGURE_SEQ_HINTS = ("图", "FIGURE")
+
+
+def caption_kind(field_code) -> str | None:
+    """按序列域指令判断题注种类：`table` / `figure` / None（不是题注域）。
+
+    离线扫描（docx 的 `instrText`）与 COM 刷新（`Field.Code.Text`）共用这一份判定，
+    避免两边口径不一致（一边认出 2 条、另一边 0 条，刷新就把列表清空了）。
+    `SEQ chapter \\c`（章号）、`SEQ 公式` 之类本来就不含图/表关键词，自然返回 None。
+    """
+    code = str(field_code or "").upper()
+    if "SEQ" not in code:
+        return None
+    if any(hint in code for hint in _TABLE_SEQ_HINTS):
+        return "table"
+    if any(hint in code for hint in _FIGURE_SEQ_HINTS):
+        return "figure"
+    return None
+
 
 class CaptionItem:
     """一条题录：文案 + 可选序列域 + 起止偏移 + 页码 + 所属章节。

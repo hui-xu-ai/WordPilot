@@ -20,6 +20,34 @@ def test_api_failure_is_not_reported_as_unchanged_text(monitor_module):
         monitor_module.proof_sentence(span, api, {})
 
 
+def test_user_selecting_whole_sentence_triggers_proofing(monitor_module):
+    """上一轮光标 + 这一轮选中正好整句 ⇒ 用户在选整句，校对一次（原有行为）。"""
+    sentence = "图1.1 演示图片"
+    assert monitor_module.should_proof_selection(
+        100, 112, sentence, sentence, (50, 50), sentence) is True
+
+
+def test_programmatic_selection_does_not_trigger_proofing(monitor_module):
+    """题录跳转的高亮是**程序**选区：同一条规则必须不命中，否则跳一下就校对一次。"""
+    sentence = "图1.1 演示图片"
+    assert monitor_module.should_proof_selection(
+        100, 112, sentence, sentence, (50, 50), sentence, programmatic=True) is False
+
+
+def test_selection_needs_previous_caret(monitor_module):
+    """上一轮已经是选区（不是光标）⇒ 不重复触发。"""
+    sentence = "图1.1 演示图片"
+    assert monitor_module.should_proof_selection(
+        100, 112, sentence, sentence, (90, 100), sentence) is False
+
+
+def test_selection_of_partial_sentence_is_not_proofed(monitor_module):
+    """选中的不是整句（例如选了半个句子）⇒ 不触发。"""
+    full = "图1.1 演示图片，这是一条很长的说明文字。"
+    assert monitor_module.should_proof_selection(
+        100, 112, full, "图1.1 演示图片", (50, 50), full) is False
+
+
 def test_missing_api_does_not_report_success(monitor_module):
     span = SimpleNamespace(Text="这是一个测试句子。", Start=0, End=9)
     with pytest.raises(RuntimeError):

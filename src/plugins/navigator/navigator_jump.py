@@ -110,7 +110,9 @@ class JumpMixin:
             except:
                 logger.warning("记录跳转历史失败，返回上一位置将不可用", exc_info=True)
             if item.select_in_document(doc):
-                self._collapse_to_caret(word)
+                # 保留选中（用户要看见"跳到哪了"的高亮），但把它登记成"程序选区"，
+                # 让智能纠错别把这次选中当成"用户选了整句 ⇒ 校对一次"。
+                self._mark_programmatic(word)
                 word.ActiveWindow.ScrollIntoView(word.Selection.Range, True)
                 self._set_status("status.jumped", target=list_item.text().split("[")[0].strip())
             else:
@@ -124,20 +126,18 @@ class JumpMixin:
                 logger.warning("跳转后恢复 Word 屏幕刷新失败", exc_info=True)
 
     @staticmethod
-    def _collapse_to_caret(word) -> None:
-        """把跳转后的选区收成光标：只跳过去，不选中整条题注。
+    def _mark_programmatic(word) -> None:
+        """把跳转选中的区间登记为"程序选区"，供智能纠错忽略。
 
-        为什么必须收：题注整段往往**正好是一个句子**，而智能纠错的监听线程里有这样一条规则
-        ——"上一轮是光标 + 这一轮选中的文字正好等于整句"⇒ 用户在选整句、应当校对一次。
-        于是双击题录跳转就顺手把那条题注送去校对了一次（用户现场：偶尔触发纠错）。
-        收成光标后 `Selection.Start == Selection.End`，该规则不再命中，用户看到的就只是跳转。
+        为什么不能干脆把选区收成光标：收掉之后用户就看不到高亮了（"跳过去"得看得出跳到了哪）。
+        所以保留 Word 原生选中当高亮，同时告诉轮询类插件"这次选区是程序造的"。
         """
         try:
-            selection = word.Selection
-            caret = int(selection.Start)
-            selection.SetRange(caret, caret)
-        except Exception:                   # noqa: BLE001 - 收不起来也不能让跳转失败
-            logger.warning("跳转后收敛选区失败（题注可能仍保持选中）", exc_info=True)
+            from core.services.word_bridge import mark_programmatic_selection
+
+            mark_programmatic_selection(word.Selection)
+        except Exception:                   # noqa: BLE001 - 登记失败只是可能多校对一次
+            logger.warning("登记跳转选区失败（该次跳转可能触发一次纠错）", exc_info=True)
 
     def go_back(self):
         if not self.history_stack:

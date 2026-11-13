@@ -112,6 +112,33 @@ def _is_workspace_document(document) -> bool:
 _headless_checked = False
 
 
+#: 最近一次"程序造成的选区"（题录跳转的高亮），格式 (start, end)。
+_programmatic_range: tuple[int, int] | None = None
+
+
+def mark_programmatic_selection(selection) -> None:
+    """登记"当前这个选区是程序造的"（例如题录跳转把目标区间 Select 出来做高亮）。
+
+    为什么要登记：跳转必须把目标区间 `Select()` 出来，用户才看得见跳到了哪（高亮）；
+    而智能纠错的监听线程会把"上一轮光标 + 这一轮选中的文字正好等于整句"当成
+    "用户在选整句、校对一次" —— 题注整段往往正好是一句话，于是"跳一下就顺手校对了一次"。
+    登记过的区间不再被当成用户意图。
+    """
+    global _programmatic_range
+    try:
+        _programmatic_range = (int(selection.Start), int(selection.End))
+    except Exception:                      # noqa: BLE001 - 登记失败只是可能多校对一次
+        logger.warning("登记程序选区失败（该项跳转可能触发一次校对）", exc_info=True)
+
+
+def selection_is_programmatic(start, end) -> bool:
+    """这个选区是不是上面登记的那一个（程序造的），而不是用户手选的。"""
+    try:
+        return _programmatic_range == (int(start), int(end))
+    except Exception:                      # noqa: BLE001
+        return False
+
+
 def _recycle_headless_word(word) -> bool:
     """退出自己造的隐藏 Word 实例（只做一次），好让下次附着回到用户真正的 Word。
 

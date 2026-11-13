@@ -1,12 +1,15 @@
 # tests/test_navigator_jump.py
-"""双击题录跳转只跳不选：选区必须收成光标。
+"""双击题录跳转：保留高亮（选中目标区间），但把这次选中登记为"程序选区"。
 
-用户现场（2026-11-13）：双击题录跳到题注时，整条题注被选中，而题注整段往往**正好等于一个句子**
-—— 智能纠错监听线程里"上一轮是光标 + 这一轮选中正好等于整句 ⇒ 校对这次选中"的规则被命中，
-于是"跳一下顺便触发一次纠错"。
+用户现场（2026-11-13）：跳转把整条题注选中 → 题注整段往往正好是一个句子 → 智能纠错
+"上一轮光标 + 这一轮选中正好等于整句 ⇒ 校对这次选中"的规则被命中，跳一下就顺手校对一次。
+把选区收成光标能避免触发，但高亮也没了（用户明确要保留高亮）⇒ 改为登记程序选区。
 """
 from __future__ import annotations
 
+import pytest
+
+from core.services import word_bridge
 from plugins.navigator.navigator_jump import JumpMixin
 
 
@@ -19,12 +22,6 @@ class _Selection:
     @property
     def Duplicate(self):                    # noqa: N802 - Word 的 Range.Duplicate 是属性
         return _Selection(self.Start, self.End)
-
-    def SetRange(self, start: int, end: int):   # noqa: N802
-        self.Start, self.End = start, end
-
-    def Select(self):                       # noqa: N802
-        return None
 
 
 class _Window:
@@ -44,12 +41,8 @@ class _Word:
 
 
 class _Doc:
-    def __init__(self, selection: _Selection, span: tuple[int, int]):
+    def __init__(self, selection: _Selection):
         self._selection = selection
-        self._span = span
-
-    def Range(self, start, end):            # noqa: N802
-        return _Selection(start, end)
 
 
 class _Item:
@@ -58,22 +51,10 @@ class _Item:
         self._span = span
         self.selected = False
 
-    def select_in_document(self, doc, selection=None):
+    def select_in_document(self, doc):
         self.selected = True
-        target = selection if selection is not None else doc._selection
-        target.Start, target.End = self._span      # 模拟 `Range.Select()`：整段被选中
+        doc._selection.Start, doc._selection.End = self._span   # 模拟 `Range.Select()`
         return True
-
-
-class _ListWidget:
-    def __init__(self, text: str):
-        self._text = text
-
-    def item(self):                         # 只给测试用
-        return self
-
-    def text(self) -> str:
-        return self._text
 
 
 class _ListItem:
@@ -85,14 +66,11 @@ class _ListItem:
 
 
 class _Panel(JumpMixin):
-    def __init__(self, word, doc, captions, display):
+    def __init__(self, word, doc, captions):
         self.word = word
         self.doc = doc
-        self._captions = captions
         self.table_captions = captions
         self.figure_captions = captions
-        self.table_list = _ListWidget(display)
-        self.figure_list = _ListWidget(display)
         self.history_stack = []
         self.max_history = 5
         self.statuses: list[str] = []
@@ -104,56 +82,71 @@ class _Panel(JumpMixin):
         self.statuses.append(key)
 
 
-def _make(span=(100, 112)):
+SPAN = (100, 112)
+
+
+@pytest.fixture
+def panel_and_word(monkeypatch):
+    monkeypatch.setattr(word_bridge, "_programmatic_range", None)
     selection = _Selection(50, 50)          # 跳转前：光标
     word = _Word(selection)
-    doc = _Doc(selection, span)
-    item = _Item("图1.1  演示图片", span)
-    panel = _Panel(word, doc, [item], "图1.1  演示图片  [3]")
+    item = _Item("图1.1  演示图片", SPAN)
+    panel = _Panel(word, _Doc(selection), [item])
     return panel, word, item
 
 
-def test_jump_collapses_selection_to_caret():
-    panel, word, item = _make()
+def _jump(panel):
+    display = "图1.1  演示图片  [3]"
+    panel._jump_to_caption(_ListItem(display), panel.table_captions, _ListItem(display))
 
-    panel._jump_to_caption(_ListItem("图1.1  演示图片  [3]"), [item],
-                           _ListItem("图1.1  演示图片  [3]"))
+
+def test_jump_keeps_highlight(panel_and_word):
+    """跳转后目标区间仍然被选中 —— 这就是用户要看的"高亮"。"""
+    panel, word, item = panel_and_word
+
+    _jump(panel)
 
     assert item.selected is True, "跳转本身必须发生"
-    assert word.Selection.Start == word.Selection.End, "跳转后必须收成光标（否则触发智能纠错）"
-    assert word.Selection.Start == 100, "光标落在题注起点"
+    assert (word.Selection.Start, word.Selection.End) == SPAN, "保留选中才有高亮"
 
 
-def test_jump_still_scrolls_and_reports():
-    panel, word, _item = _make()
+def test_jump_registers_programmatic_selection(panel_and_word):
+    """这次选中必须登记为程序选区，智能纠错才不会把它当成"用户在选整句"。"""
+    panel, word, _item = panel_and_word
 
-    panel._jump_to_caption(_ListItem("图1.1  演示图片  [3]"), panel.table_captions,
-                           _ListItem("图1.1  演示图片  [3]"))
+    _jump(panel)
+
+    assert word_bridge.selection_is_programmatic(*SPAN) is True
+    assert word_bridge.selection_is_programmatic(7, 9) is False, "别的区间不算程序选区"
+
+
+def test_jump_still_scrolls_and_reports(panel_and_word):
+    panel, word, _item = panel_and_word
+
+    _jump(panel)
 
     assert word.ActiveWindow.scrolled, "跳转后仍要滚动到该处"
     assert "status.jumped" in panel.statuses
 
 
-def test_jump_records_history_of_previous_caret():
-    panel, _word, item = _make()
+def test_jump_records_history_of_previous_caret(panel_and_word):
+    panel, _word, _item = panel_and_word
 
-    panel._jump_to_caption(_ListItem("图1.1  演示图片  [3]"), [item],
-                           _ListItem("图1.1  演示图片  [3]"))
+    _jump(panel)
 
     assert len(panel.history_stack) == 1, "跳转前的位置要进历史（返回上一位置用）"
     assert panel.history_stack[0].Start == panel.history_stack[0].End == 50
 
 
-def test_collapse_failure_does_not_break_jump():
-    """Word 不给改选区时，跳转仍要完成（只是可能还保持选中）。"""
-    panel, word, item = _make()
+def test_registration_failure_does_not_break_jump(panel_and_word, monkeypatch):
+    """登记失败只可能多校对一次，不能连跳转都失败。"""
+    panel, _word, _item = panel_and_word
 
-    def _boom(_start, _end):
+    def _boom(_selection):
         raise RuntimeError("COM 拒绝")
 
-    word.Selection.SetRange = _boom
+    monkeypatch.setattr(word_bridge, "mark_programmatic_selection", _boom)
 
-    panel._jump_to_caption(_ListItem("图1.1  演示图片  [3]"), [item],
-                           _ListItem("图1.1  演示图片  [3]"))
+    _jump(panel)
 
     assert "status.jumped" in panel.statuses

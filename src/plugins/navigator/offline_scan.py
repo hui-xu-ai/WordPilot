@@ -23,6 +23,8 @@ from io import BytesIO
 from typing import Iterator
 from xml.etree import ElementTree as ET
 
+from plugins.navigator.caption_item import caption_kind
+
 WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 W = f"{{{WORD_NS}}}"
 
@@ -133,15 +135,11 @@ def _kind_of(text: str, style_name: str, paragraph: ET.Element) -> str | None:
     if match:
         return "table" if match.group("kind").lower() in _KIND_TABLE else "figure"
     # 文案里没有编号（编号由 SEQ 域渲染，例如多行题注）时看域指令；
-    # 但只认 图/表/Figure/Table 系列，避免把 `SEQ 公式` 也当成图题注。
+    # 判定口径与 COM 刷新共用 `caption_item.caption_kind`，避免两边不一致。
     for instr in paragraph.iter(f"{W}instrText"):
-        value = (instr.text or "").upper()
-        if "SEQ" not in value:
-            continue
-        if "表" in value or "TABLE" in value:
-            return "table"
-        if "图" in value or "FIGURE" in value:
-            return "figure"
+        kind = caption_kind(instr.text)
+        if kind:
+            return kind
     return None
 
 

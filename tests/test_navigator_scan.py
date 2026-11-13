@@ -236,3 +236,58 @@ def test_offline_failure_falls_back_to_com():
     panel = _policy_panel(offline_ok=False)
     panel._refresh_captions(force_com=False)
     assert panel.calls == ["offline", "com"]
+
+
+class _FakeFieldCode:
+    def __init__(self, text: str):
+        self.Text = text
+
+
+class _FakeField:
+    def __init__(self, code: str):
+        self.Code = _FakeFieldCode(code)
+
+
+class _FakeFields:
+    def __init__(self, codes):
+        self._fields = [_FakeField(code) for code in codes]
+
+    def Item(self, index):                  # noqa: N802 - Word COM 命名（1-based）
+        return self._fields[index - 1]
+
+
+class _FakeFieldDoc:
+    def __init__(self, codes):
+        self.Fields = _FakeFields(codes)
+
+
+def test_com_scan_recognizes_english_seq_fields():
+    """COM 刷新必须认得 `SEQ figure/table`。
+
+    用户现场（2026-11-13）：模板.docx 的题注用 `SEQ figure \\h \\s 1`，而 COM 扫描只认
+    `SEQ 图`/`SEQ 表` ⇒ 扫出 0 条并 `_finish_scan(0, 0)`，点「刷新列表」就把离线扫描已经
+    拿到的题录整份清空（"题录完全消失"）。
+    """
+    from plugins.navigator.navigator_scan import ScanMixin
+
+    cls = type("BarePanel", (ScanMixin, object), {})
+    panel = cls.__new__(cls)
+    panel._closing = False
+    panel._scan_doc = _FakeFieldDoc([
+        "SEQ figure \\h \\s 1",
+        "SEQ chapter \\c",
+        "SEQ TABLE \\* ARABIC",
+        "SEQ 图 \\* ARABIC",
+    ])
+    panel._scan_index = 1
+    panel._scan_total = 4
+    panel._scan_seq_info = []
+    panel._scan_silent = True
+    panel._set_status = lambda *_a, **_k: None
+    panel._process_seq_info = lambda: None      # 截断后续批次调度
+
+    panel._scan_fields_batch()
+
+    kinds = [(index, kind) for index, _field, kind in panel._scan_seq_info]
+    assert kinds == [(1, "figure"), (3, "table"), (4, "figure")], \
+        "必须按域指令认种类，且跳过章号域"

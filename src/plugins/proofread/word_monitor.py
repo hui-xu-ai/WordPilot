@@ -11,7 +11,7 @@ from core.services.proof_cache import get_default_cache
 from plugins.proofread.tokenized_sentence import TokenizedSentence
 from plugins.proofread.context_window import (context_cache_key, debate_seconds,
                                               surrounding_text)
-from core.services.word_bridge import get_word_app, com_initialized
+from core.services.word_bridge import get_word_app, com_initialized, selection_is_programmatic
 from core.services.word_constants import wdConst as constants  # word常量修改  2026.05.19
 
 logger = logging.getLogger(__name__)
@@ -250,6 +250,25 @@ def get_context_sentences():
         return ["", "", ""]
 
 
+def should_proof_selection(sel_start, sel_end, sent_text, sel_text, last_range, current_text,
+                           *, programmatic=False) -> bool:
+    """这次选区要不要送去校对（"用户手动选中整句"才算；程序造的选区不算）。
+
+    规则：上一轮是光标 + 这一轮选中的文字正好等于整句。`sent_text` / `sel_text` 传**已 strip**
+    的字符串。`programmatic` 由调用方用 `word_bridge.selection_is_programmatic(...)` 判定
+    （题录跳转的高亮属于这一类）。
+    """
+    if programmatic:
+        return False
+    if sel_start is None or sel_end is None or sel_start >= sel_end:
+        return False
+    if not current_text or len(current_text) < 8:
+        return False
+    if sent_text != sel_text:
+        return False
+    return last_range is not None and last_range[0] == last_range[1]
+
+
 class WordMonitor(QThread):
     text_detected = Signal(str)
     debug_signal = Signal(str)
@@ -335,12 +354,12 @@ class WordMonitor(QThread):
                             # print(adjusted_sent.End - adjusted_sent.Start)
                             
                         # 条件：之前是光标（last_selection_range起点=终点），当前选中了一个单词且长度是整个句子
-                        if (sel_start is not None and sel_start < sel_end and
-                            # (sel_end - sel_start) == (adjusted_sent.End - adjusted_sent.Start) and     #  --修改 20260513 判断是否恰好选中整个句子
-                            (sent_text_stripped == sel_text_stripped) and     #  直接判断句子是否一样 更灵敏
-                            self.last_selection_range is not None and
-                            self.last_selection_range[0] == self.last_selection_range[1] and
-                            current_text and len(current_text) >= 8):
+                        # 程序造的选区（题录跳转的高亮）不算用户意图 —— 否则跳一下就校对一次题注。
+                        programmatic = selection_is_programmatic(sel_start, sel_end)
+                        if should_proof_selection(sel_start, sel_end,
+                                                  sent_text_stripped, sel_text_stripped,
+                                                  self.last_selection_range, current_text,
+                                                  programmatic=programmatic):
                             
                             self.status_update.emit(self.tr("monitor.proofing_selection"))
                             proofing = True
@@ -372,7 +391,7 @@ class WordMonitor(QThread):
                             self.last_selection_range = (sentence_range.Start, sentence_range.Start)
                         # ---- 选中句子检测结束 ----      --修改20
 
-                        if current_text and len(current_text) >= 8:
+                        if not programmatic and current_text and len(current_text) >= 8:
                             is_complete = current_text.endswith(('。', '？', '！', '?', '!'))
                             sent_key = start
                             prev_state = self.sentence_state.get(sent_key)

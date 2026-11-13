@@ -105,3 +105,23 @@ def test_display_with_page_suffix_is_trimmed():
 
     item.select_in_document(doc)
     assert doc.Content.Find.searches[0] == "图 1.2 z"
+
+
+def test_caption_kind_recognizes_chinese_and_english_seq_codes():
+    """序列域判定中英文都要认：只认中文会让 COM 刷新把英文模板的题录刷成 0 条。"""
+    from plugins.navigator.caption_item import caption_kind
+
+    assert caption_kind("SEQ 图 \\* ARABIC") == "figure"
+    assert caption_kind("SEQ 表 \\* ARABIC") == "table"
+    assert caption_kind("SEQ figure \\h \\s 1") == "figure"
+    assert caption_kind("SEQ TABLE \\* ARABIC") == "table"
+
+
+def test_caption_kind_ignores_non_caption_fields():
+    from plugins.navigator.caption_item import caption_kind
+
+    assert caption_kind("SEQ chapter \\c") is None, "章号域不是题注"
+    assert caption_kind("SEQ 公式 \\* ARABIC") is None
+    assert caption_kind("PAGEREF _Toc123 \\h") is None
+    assert caption_kind("") is None
+    assert caption_kind(None) is None
