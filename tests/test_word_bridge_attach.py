@@ -63,6 +63,8 @@ def test_attach_raises_when_word_not_running(monkeypatch):
         raise RuntimeError("没有在运行的 Word")
 
     monkeypatch.setattr(win32com.client, "GetActiveObject", _fail)
+    # 不碰真实的运行对象表（本机可能真开着 Word，那样用例就不隔离了）
+    monkeypatch.setattr(word_bridge, "_attach_from_documents", lambda *a, **k: None)
 
     with pytest.raises(word_bridge.WordNotRunningError):
         word_bridge.attach_word_app()
@@ -137,6 +139,95 @@ def test_dead_attachment_is_skipped(monkeypatch):
     monkeypatch.setattr(word_bridge, "_attach_word", lambda: next(attached))
 
     assert word_bridge._attach_word_ready(timeout=1.0) is user
+
+
+def test_get_word_app_replaces_dead_attachment(monkeypatch):
+    """Word 退出/重启后注册表里留着死对象时，`get_word_app` 必须当场换一个活的。
+
+    用户现场（2026-11-13）：Word 关掉后每秒一条 `AttributeError: Word.Application.Windows`，
+    题录离线自动更新与引文识别全部静默失效 —— 因为死对象被当成了可用的 Word。
+    """
+
+    class _Dead:
+        @property
+        def Documents(self):
+            raise AttributeError("Word.Application.Documents")
+
+    live = _Word(True, [_Doc("模板.docx", PAPER)])
+    attached = iter([_Dead(), live])
+    monkeypatch.setattr(word_bridge, "_attach_word", lambda: next(attached))
+    monkeypatch.setattr(word_bridge, "_headless_checked", True)   # 跳过幽灵实例回收分支
+    monkeypatch.setattr(word_bridge, "_attach_from_documents", lambda *a, **k: None)
+
+    assert word_bridge.get_word_app() is live
+
+
+def test_get_word_app_raises_when_only_dead_object_left(monkeypatch):
+    """只剩死对象时宁可按"Word 未运行"报错，也不能把死对象交出去。"""
+
+    class _Dead:
+        @property
+        def Documents(self):
+            raise AttributeError("Word.Application.Documents")
+
+    monkeypatch.setattr(word_bridge, "_attach_word", lambda: _Dead())
+    monkeypatch.setattr(word_bridge, "_headless_checked", True)
+    monkeypatch.setattr(word_bridge, "_attach_from_documents", lambda *a, **k: None)
+
+    with pytest.raises(word_bridge.WordNotRunningError):
+        word_bridge.get_word_app()
+
+
+class _DeadApp:
+    @property
+    def Documents(self):
+        raise AttributeError("Word.Application.Documents")
+
+
+class _BoundDocument:
+    """伪造 `win32com.client.GetObject(路径)` 的返回值：Document + 它所属的 Application。"""
+
+    def __init__(self, document: _Doc, application):
+        self.FullName = document.FullName
+        self.Name = document.Name
+        self.Application = application
+
+
+def test_attach_from_documents_skips_work_document(monkeypatch):
+    """图片工具箱的草稿文档不算"用户的 Word 文档"，不能拿它当附着入口。"""
+    monkeypatch.setattr(word_bridge, "_work_documents", set())
+    word_bridge.register_work_document(IMAGE)
+    live = _Word(True, [_Doc("模板.docx", PAPER)])
+    documents = {
+        IMAGE: _BoundDocument(_Doc("Image.docx", IMAGE), live),
+        PAPER: _BoundDocument(_Doc("模板.docx", PAPER), live),
+    }
+
+    application = word_bridge._attach_from_documents(
+        paths=[IMAGE, PAPER], opener=lambda path: documents[path])
+
+    assert application is live
+
+
+def test_attach_from_documents_skips_dead_application(monkeypatch):
+    """第一篇文档所属的应用是死对象时，继续试下一篇（僵尸注册表的典型形态）。"""
+    monkeypatch.setattr(word_bridge, "_work_documents", set())
+    live = _Word(True, [_Doc("模板.docx", PAPER)])
+    documents = {
+        "C:/docs/旧.docx": _BoundDocument(_Doc("旧.docx", "C:/docs/旧.docx"), _DeadApp()),
+        PAPER: _BoundDocument(_Doc("模板.docx", PAPER), live),
+    }
+
+    application = word_bridge._attach_from_documents(
+        paths=["C:/docs/旧.docx", PAPER], opener=lambda path: documents[path])
+
+    assert application is live
+
+
+def test_attach_from_documents_returns_none_when_nothing_alive(monkeypatch):
+    monkeypatch.setattr(word_bridge, "_work_documents", set())
+
+    assert word_bridge._attach_from_documents(paths=[], opener=lambda _p: None) is None
 
 
 def test_recycle_happens_only_once(monkeypatch):

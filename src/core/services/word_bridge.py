@@ -59,15 +59,76 @@ def _attach_word_ready(timeout: float = 3.0):
         time.sleep(0.2)
 
 
-def get_word_app():
-    """附着到用户已打开的 Word 实例（不新建进程）。
+def _rot_document_paths() -> list[str]:
+    """运行对象表里"已经打开的 Word 文档"的完整路径（排除系统 moniker）。
 
-    Raises: WordNotRunningError —— Word 未运行或 COM 附着失败。
+    多实例 / 僵尸注册表时，`GetActiveObject` 可能拿到死对象或错的实例；但每篇打开的文档
+    都在 ROT 里登记了自己，从文档回溯到它的 Application 才拿得到**用户正在用的那个 Word**。
     """
-    word = _attach_word()
-    if _recycle_headless_word(word):
-        word = _attach_word_ready()        # 幽灵实例刚退出，等它退干净再附着用户的 Word
-    return word
+    paths: list[str] = []
+    try:
+        rot = pythoncom.GetRunningObjectTable()
+        bind = pythoncom.CreateBindCtx(0)
+        monikers = list(rot.EnumRunning())
+    except Exception:                      # noqa: BLE001 - 枚举失败就按"没有文档"处理
+        logger.debug("枚举运行对象表失败", exc_info=True)
+        return paths
+    for moniker in monikers:
+        try:
+            display = moniker.GetDisplayName(bind, None)
+        except Exception:                  # noqa: BLE001
+            continue
+        if not display or display.startswith("!") or not os.path.isabs(display):
+            continue
+        if os.path.splitext(display)[1].lower() not in (".docx", ".doc", ".docm", ".dotm"):
+            continue
+        paths.append(display)
+    return paths
+
+
+def _attach_from_documents(paths=None, opener=None):
+    """按"已经打开的文档"附着到它所属的 Word 应用；找不到返回 None。
+
+    `paths` / `opener` 只为测试注入，正常调用不传。
+    """
+    candidates = _rot_document_paths() if paths is None else paths
+    open_document = win32com.client.GetObject if opener is None else opener
+    for path in candidates:
+        try:
+            document = open_document(path)
+            application = document.Application
+        except Exception:                  # noqa: BLE001 - 这篇的绑定失败就试下一篇
+            continue
+        if is_work_document(document):     # 图片工具箱的草稿文档不算"用户的 Word 文档"
+            continue
+        if _alive(application):
+            logger.info("从已打开的文档附着 Word 应用：%s", path)
+            return application
+    return None
+
+
+def get_word_app():
+    """附着到用户正在用的 Word 实例（不新建进程）。
+
+    Raises: WordNotRunningError —— Word 未运行、COM 附着失败，或附着到的对象已失效。
+    """
+    word = None
+    try:
+        word = _attach_word()
+    except WordNotRunningError:
+        logger.debug("注册表里没有 Word 应用对象，改从已打开的文档附着", exc_info=True)
+    if word is not None and _recycle_headless_word(word):
+        return _attach_word_ready()        # 幽灵实例刚退出，等它退干净再附着用户的 Word
+    if word is not None and _alive(word):
+        return word
+    # 到这儿说明：注册表给的是**僵尸对象**（Word 刚退出/重启），或者根本没有应用对象。
+    # 2026-11-13 现场：僵尸对象被当成可用 Word，导致题录离线自动更新、引文识别全部静默失效。
+    application = _attach_from_documents()
+    if application is not None:
+        return application
+    if word is not None:
+        return _attach_word_ready(timeout=1.0)     # 再等它退干净，重新附着一次
+    raise WordNotRunningError(message("word.error.not_running_doc"))
 
 
 def attach_word_app():
@@ -302,8 +363,8 @@ def visible_windows(word) -> list:
     """Word 里**用户能看到的**文档窗口（隐藏的、插件工作文档都被剔除）。"""
     try:
         collection = word.Windows
-    except Exception:                      # noqa: BLE001 - Word 正在关闭
-        logger.warning("取 Word 窗口集合失败", exc_info=True)
+    except Exception:                      # noqa: BLE001 - Word 正在关闭/对象已失效：正常情形
+        logger.debug("取 Word 窗口集合失败（Word 可能正在退出）", exc_info=True)
         return []
     windows = []
     for window in _window_items(collection):
