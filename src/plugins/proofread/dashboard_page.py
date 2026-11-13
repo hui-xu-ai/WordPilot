@@ -118,6 +118,10 @@ class DashboardPage(QWidget):
         self.status_text.setObjectName("proofStatusText")
         row.addWidget(self.status_text)
         row.addStretch(1)
+        # 快捷键提示：开关也能用键盘切（组合键取热键服务里**实际生效**的值，用户改配置也跟着变）
+        self.hotkey_hint = QLabel()
+        self.hotkey_hint.setObjectName("hintLabel")
+        row.addWidget(self.hotkey_hint)
         self.proof_switch = Switch()
         self._apply_switch_colors()
         self.proof_switch.toggled.connect(self._on_switch_toggled)
@@ -403,6 +407,7 @@ class DashboardPage(QWidget):
         self.status_card_title.setText(self._app_tr("app.proof.group"))
         self.pet_hint.setText(self.tr("dashboard.pet_hint"))
         self.proof_switch.setToolTip(self.tr("dashboard.toggle_tip"))
+        self._refresh_hotkey_hint()
         # API 监控在主区（常驻）
         self.monitor_card_title.setText(self._app_tr("app.nav.monitor"))
         self.monitor_widget.retranslateUi()
@@ -435,3 +440,20 @@ class DashboardPage(QWidget):
     def refresh_theme(self) -> None:
         """主题切换后 Switch 配色随令牌更新。"""
         self._apply_switch_colors()
+
+    def _refresh_hotkey_hint(self) -> None:
+        """校对开关旁边的快捷键提示（取热键服务里**实际生效**的组合键）。
+
+        单一来源：默认组合键由插件在 `hotkeys.register("toggle_monitor", ...)` 里声明，
+        用户改过配置则显示配置值 —— 界面上不再另写一份 "Ctrl+Shift+E"。
+        """
+        from core.services.hotkey_service import format_combo
+
+        hint = getattr(self, "hotkey_hint", None)
+        if hint is None:
+            return
+        hotkeys = self._ctx.get_service("hotkeys")
+        combo = hotkeys.combo("toggle_monitor") if hotkeys is not None else ""
+        label = format_combo(combo)
+        hint.setText(self.tr("dashboard.toggle_shortcut", combo=label) if label else "")
+        hint.setVisible(bool(label))

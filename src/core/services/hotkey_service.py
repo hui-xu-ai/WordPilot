@@ -19,6 +19,17 @@ import keyboard as kb
 logger = logging.getLogger(__name__)
 
 
+def format_combo(combo: str) -> str:
+    """`ctrl+shift+e` → `Ctrl+Shift+E`（给界面显示用）。"""
+    parts = []
+    for token in str(combo or "").split("+"):
+        token = token.strip()
+        if not token:
+            continue
+        parts.append(token.upper() if len(token) == 1 else token.capitalize())
+    return "+".join(parts)
+
+
 class HotkeyService:
     def __init__(self, config) -> None:
         self.config = config
@@ -82,3 +93,11 @@ class HotkeyService:
 
     def names(self) -> tuple[str, ...]:
         return tuple(self._entries)
+
+    def combo(self, name: str) -> str:
+        """这条热键**当前生效**的组合键（配置优先，否则注册时给的默认值）；未注册返回空串。"""
+        entry = self._entries.get(name)
+        if entry is None:
+            return ""
+        configured = self.config.get("hotkeys", {}) or {}
+        return str(configured.get(name, entry[0]) or "")

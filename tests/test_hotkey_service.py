@@ -103,3 +103,24 @@ def test_dispatch_failure_falls_back_to_direct_call(service, kb):
     (callback,) = kb.bound.values()
     callback()
     assert calls == [1], "编组失败要退化为直接执行，不能静默丢掉热键"
+
+
+def test_format_combo_for_display():
+    """界面显示用：`ctrl+shift+e` → `Ctrl+Shift+E`。"""
+    assert hk_mod.format_combo("ctrl+shift+e") == "Ctrl+Shift+E"
+    assert hk_mod.format_combo("f9") == "F9"
+    assert hk_mod.format_combo("ctrl+alt+space") == "Ctrl+Alt+Space"
+    assert hk_mod.format_combo("") == ""
+    assert hk_mod.format_combo(None) == ""
+
+
+def test_combo_returns_effective_binding(service):
+    """`combo()` 要给"实际生效"的组合键：配置优先，否则用注册时的默认值。"""
+    service.register("toggle_monitor", "ctrl+shift+e", lambda: None, owner="proofread")
+
+    assert service.combo("toggle_monitor") == "ctrl+shift+e"
+
+    service.config["hotkeys"] = {"toggle_monitor": "ctrl+alt+p"}
+
+    assert service.combo("toggle_monitor") == "ctrl+alt+p"
+    assert service.combo("没注册的键") == ""

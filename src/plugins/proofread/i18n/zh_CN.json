@@ -5,6 +5,7 @@
   "nav.monitor": "API 监控",
   "dashboard.pet_hint": "桌宠的颜色实时反映校对状态（绿=无错 / 红=有错 / 黄=校对中 / 灰=未启用）。",
   "dashboard.toggle_tip": "开启 / 暂停智能纠错",
+  "dashboard.toggle_shortcut": "快捷键 {combo}",
   "settings.pet_group": "桌宠与建议窗口",
   "settings.show_floating": "启用悬浮按钮",
   "settings.auto_show": "检测到建议自动弹出",

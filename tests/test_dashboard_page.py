@@ -115,3 +115,55 @@ def test_proofread_drawer_has_no_pet_controls(page):
     assert not hasattr(widget, "pet_size_slider")
     assert not hasattr(widget, "pet_skin_combo")
     assert not hasattr(widget, "show_floating_check")
+
+
+def _page_with_hotkeys(config_env, combo="ctrl+shift+e"):
+    from core.services.config_manager import ConfigManager
+    from core.services.hotkey_service import HotkeyService
+    from plugins.proofread.dashboard_page import DashboardPage
+
+    manager = ConfigManager()
+    hotkeys = HotkeyService(manager)
+    hotkeys.register("toggle_monitor", combo, lambda: None, owner="proofread")
+    plugin = _FakePlugin(manager)
+    plugin.ctx._services["hotkeys"] = hotkeys
+    page = DashboardPage(plugin=plugin)
+    page.retranslateUi()
+    return page, manager, hotkeys
+
+
+def _capture_tr(page) -> dict:
+    """把 tr() 换成记录参数的假翻译（本测试只关心"传进去的组合键是什么"）。"""
+    seen: dict = {}
+
+    def _tr(key, /, **params):
+        seen.update(params)
+        seen["key"] = key
+        return f"{key} {params}" if params else key
+
+    page.tr = _tr
+    return seen
+
+
+def test_toggle_hint_shows_hotkey(qapp, config_env):
+    """校对开关旁要显示快捷键，用户才知道怎么用键盘开关。"""
+    page, _manager, _hotkeys = _page_with_hotkeys(config_env)
+    seen = _capture_tr(page)
+
+    page._refresh_hotkey_hint()
+
+    assert seen["key"] == "dashboard.toggle_shortcut"
+    assert seen["combo"] == "Ctrl+Shift+E", "默认组合键要按显示格式给出来"
+    assert page.hotkey_hint.text(), "提示不能为空"
+
+
+def test_toggle_hint_follows_configured_combo(qapp, config_env):
+    """提示取"实际生效"的组合键：用户改过配置就显示配置值，不写死。"""
+    page, manager, hotkeys = _page_with_hotkeys(config_env)
+    seen = _capture_tr(page)
+    manager.set("hotkeys", {"toggle_monitor": "ctrl+alt+p"})
+
+    page._refresh_hotkey_hint()
+
+    assert seen["combo"] == "Ctrl+Alt+P"
+    assert hotkeys.combo("toggle_monitor") == "ctrl+alt+p"

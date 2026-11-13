@@ -5,6 +5,7 @@
   "nav.monitor": "API Monitor",
   "dashboard.pet_hint": "The desk pet's color mirrors the proofreading state (green = clean / red = issues / amber = proofing / gray = off).",
   "dashboard.toggle_tip": "Enable / pause smart proofreading",
+  "dashboard.toggle_shortcut": "Shortcut {combo}",
   "dashboard.params": "Options",
   "dashboard.side_label": "Options & monitor",
   "bubble.accept": "Accept",
