@@ -10,6 +10,7 @@
 
 import logging
 import os
+import time
 
 from core.services.i18n import message
 
@@ -23,23 +24,113 @@ class WordNotRunningError(RuntimeError):
     """未检测到正在运行的 Word 实例。"""
 
 
-def get_word_app():
-    """附着到用户已打开的 Word 实例（不新建进程）。
-
-     Raises: WordNotRunningError —— Word 未运行或 COM 附着失败。
-    """
+def _attach_word():
+    """附着到**已在运行**的 Word（`GetActiveObject` 只查 ROT，不会新建进程）。"""
     try:
         return win32com.client.GetActiveObject("Word.Application")
-    except Exception as e:
+    except Exception as e:                 # noqa: BLE001 - 统一转成可读错误
         raise WordNotRunningError(message("word.error.not_running_doc")) from e
 
 
-def attach_word_app():
-    """等价于 GetObject(Class=...)，语义与旧图片处理器一致。"""
+def _alive(word) -> bool:
+    """COM 对象是否还能用（退出的 Word 会留下一个"取属性就 AttributeError"的死对象）。"""
     try:
-        return win32com.client.GetObject(Class="Word.Application")
-    except Exception as e:
-        raise WordNotRunningError(message("word.error.not_running")) from e
+        int(word.Documents.Count)
+        return True
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+def _attach_word_ready(timeout: float = 3.0):
+    """等残留实例退干净再附着：`Quit()` 是异步的，立刻附着会拿到刚销毁的死对象。"""
+    deadline = time.monotonic() + timeout
+    last_error = None
+    while True:
+        try:
+            word = _attach_word()
+        except WordNotRunningError as exc:
+            last_error = exc
+        else:
+            if _alive(word):
+                return word
+            last_error = WordNotRunningError(message("word.error.not_running_doc"))
+        if time.monotonic() >= deadline:
+            raise last_error
+        time.sleep(0.2)
+
+
+def get_word_app():
+    """附着到用户已打开的 Word 实例（不新建进程）。
+
+    Raises: WordNotRunningError —— Word 未运行或 COM 附着失败。
+    """
+    word = _attach_word()
+    if _recycle_headless_word(word):
+        word = _attach_word_ready()        # 幽灵实例刚退出，等它退干净再附着用户的 Word
+    return word
+
+
+def attach_word_app():
+    """等价于 `get_word_app()`：只附着**已在运行**的 Word，绝不新建实例。
+
+    为什么不能用 `GetObject(Class="Word.Application")`（2026-11-13 现场）：Word 没在运行时
+    它会**新建一个隐藏实例**（`WINWORD.EXE -Embedding` + `Application.Visible=False`），此后
+    `GetActiveObject` 一直返回这个幽灵实例 —— 用户自己打开的文档在**另一个** WINWORD 进程里，
+    于是"所有文档都识别不到"（实测：幽灵实例里只有 Image.docx，模板.docx 在另一个进程）。
+    """
+    return get_word_app()
+
+
+def _is_headless_word(word) -> bool:
+    """这个 Word 是不是"没人看得见、只开着插件草稿"的自动化幽灵实例。"""
+    try:
+        if bool(word.Visible):
+            return False
+        documents = list(word.Documents)
+    except Exception:                      # noqa: BLE001 - COM 已断开
+        return False
+    for document in documents:
+        if is_work_document(document):
+            continue
+        if _is_workspace_document(document):
+            continue
+        return False                       # 有用户文档 ⇒ 不能碰
+    return True
+
+
+def _is_workspace_document(document) -> bool:
+    """文档是否落在本应用的运行目录（`config/`）下 —— 那里只放运行时产物，没有用户文档。"""
+    try:
+        from core.services.config_manager import CONFIG_DIR
+
+        path = _normalize_path(getattr(document, "FullName", ""))
+        return bool(path) and path.startswith(_normalize_path(CONFIG_DIR) + os.sep)
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+_headless_checked = False
+
+
+def _recycle_headless_word(word) -> bool:
+    """退出自己造的隐藏 Word 实例（只做一次），好让下次附着回到用户真正的 Word。
+
+    只在这个实例**不可见**、且开着的东西全是插件草稿时动手（`Quit` 不保存任何改动）。
+    不做这件事的后果：幽灵实例永久占着 ROT，用户即使打开了 Word 文档也永远识别不到。
+    """
+    global _headless_checked
+    if _headless_checked:
+        return False
+    _headless_checked = True
+    if not _is_headless_word(word):
+        return False
+    try:
+        logger.warning("发现自动化残留的隐藏 Word 实例（只开着草稿文档），退出它以便附着用户的 Word")
+        word.Quit(0)                       # 0 = wdDoNotSaveChanges：草稿本来就不该保存
+    except Exception:                      # noqa: BLE001 - 退出失败就按原样用
+        logger.warning("退出隐藏 Word 实例失败", exc_info=True)
+        return False
+    return True
 
 
 def get_active_document():
