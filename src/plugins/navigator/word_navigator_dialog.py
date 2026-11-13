@@ -29,6 +29,20 @@ from plugins.navigator.navigator_scan import ScanMixin
 
 logger = logging.getLogger(__name__)
 
+
+def _is_word_busy(exc) -> bool:
+    """这个异常是不是"Word 正忙/拒绝调用"（模态框、正在计算域）—— 稍后重试就好。
+
+    Word 弹模态框（"更新目录：只更新页码 / 更新整个目录"）时，COM 调用会抛
+    `pywintypes.com_error`（如 0x80010001「被调用方拒绝调用」）；而对象真的失效时抛的是
+    AttributeError —— 只有后者才需要停掉保存监测。
+    """
+    try:
+        import pywintypes
+    except Exception:                      # noqa: BLE001 - 没有 pywin32 时按"不是忙"处理
+        return False
+    return isinstance(exc, pywintypes.com_error)
+
 CONFIG_FILE = CONFIG_DIR / "navigator_config.json"
 wdFieldSequence = wdConst.wdFieldSequence               # Word 序列域类型常量
 
@@ -271,23 +285,51 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
     def _start_save_monitor(self):
         if not self._save_monitor_timer.isActive() and self.doc:
             self._last_saved_state = self.doc.Saved
+            self._last_doc_signature = self._document_signature()
+            self._document_dirty = False
             self._save_monitor_timer.start(1000)
 
     def _stop_save_monitor(self):
         if self._save_monitor_timer.isActive():
             self._save_monitor_timer.stop()
 
+    def _document_signature(self):
+        """(域个数, 正文字符数)：新建题注、更新域都会改变它，用来判断"文档真的变过"。"""
+        try:
+            return (int(self.doc.Fields.Count), int(self.doc.Content.End))
+        except Exception:                  # noqa: BLE001 - 文档正在关闭/COM 忙
+            return None
+
     # ---------- 保存监测 ----------
     def _check_document_saved(self):
+        """每秒一次：文档变过且已保存 ⇒ 延迟刷新题录。
+
+        两个坑（2026-11-13 用户现场）：
+        1. 只盯 `Saved` 的"未保存 → 已保存"边沿：全选更新整个域后**立刻**保存，两次轮询之间
+           就已经是已保存状态，边沿被吃掉 ⇒ 永远不刷新。改用"内容签名变过 + 当前已保存"判断。
+        2. Word 弹模态框（"更新目录：只更新页码/更新整个目录"）时会拒绝 COM 调用，
+           旧代码 `except: _stop_save_monitor()` 把监测**永久停掉** ⇒ 之后连保存都不再刷新、
+           用户看到的就是"新建题注按 F9 也没反应"。临时错误必须只跳过本轮。
+        """
+        if not self.doc:
+            return
         try:
-            if not self.doc:
-                return
             current = self.doc.Saved
-            if not self._last_saved_state and current:  # 从未保存变为已保存
-                QTimer.singleShot(3000, self._auto_refresh)   # 延迟3秒确保Word空闲
-            self._last_saved_state = current
-        except:
+            signature = self._document_signature()
+        except Exception as exc:           # noqa: BLE001
+            if _is_word_busy(exc):
+                logger.debug("Word 正忙（模态框/算域），本轮跳过保存检测", exc_info=True)
+                return
+            logger.warning("保存监测读取失败，停止监测（下次刷新会重新启动）", exc_info=True)
             self._stop_save_monitor()
+            return
+        if signature is not None and signature != getattr(self, "_last_doc_signature", None):
+            self._last_doc_signature = signature
+            self._document_dirty = True
+        if current and (not self._last_saved_state or getattr(self, "_document_dirty", False)):
+            self._document_dirty = False
+            QTimer.singleShot(3000, self._auto_refresh)   # 延迟3秒确保Word空闲
+        self._last_saved_state = current
 
     def _auto_refresh(self):
         """Word 保存后自动刷新：只走离线解析（快、不动页码、不占 COM）。"""
@@ -295,6 +337,7 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
             return
         if self.isVisible() and not self._scanning:
             self._refresh_captions(force_com=False, silent=True)
+            self._start_save_monitor()     # 万一监测被真错误停掉，这里重新拉起
 
     # ---------- 刷新入口 ----------
     def load_captions(self, force_com: bool = False):

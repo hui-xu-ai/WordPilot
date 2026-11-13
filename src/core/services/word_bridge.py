@@ -91,43 +91,147 @@ def _attach_from_documents(paths=None, opener=None):
 
     `paths` / `opener` 只为测试注入，正常调用不传。
     """
+    applications = _applications_of_open_documents(paths, opener)
+    if applications:
+        logger.info("从已打开的文档附着 Word 应用")
+        return applications[0]
+    return None
+
+
+def _applications_of_open_documents(paths=None, opener=None) -> list:
+    """每篇打开的文档所属的 Word 应用（跳过插件草稿文档与失效应用）。"""
     candidates = _rot_document_paths() if paths is None else paths
     open_document = win32com.client.GetObject if opener is None else opener
+    applications = []
     for path in candidates:
         try:
             document = open_document(path)
             application = document.Application
-        except Exception:                  # noqa: BLE001 - 这篇的绑定失败就试下一篇
+        except Exception:                  # noqa: BLE001 - 这篇绑定失败就试下一篇
             continue
         if is_work_document(document):     # 图片工具箱的草稿文档不算"用户的 Word 文档"
             continue
         if _alive(application):
-            logger.info("从已打开的文档附着 Word 应用：%s", path)
-            return application
-    return None
+            applications.append(application)
+    return applications
+
+
+#: Word 主窗口的 Win32 类名（各版本一致）：用它判断"这个窗口是不是 Word"
+WORD_WINDOW_CLASS = "OpusApp"
+
+#: 最近一次落到的 Word 进程号。程序自己点按钮时前台是 WordPilot，
+#: 所以要多实例场景里记住上一次命中的进程，否则会挑到另一篇文档所在的那个 Word。
+_last_word_pid = 0
+
+
+def _window_class(hwnd) -> str:
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        buffer = ctypes.create_unicode_buffer(256)
+        ctypes.windll.user32.GetClassNameW(wintypes.HWND(int(hwnd)), buffer, 256)
+        return buffer.value
+    except Exception:                      # noqa: BLE001
+        return ""
+
+
+def _window_pid(hwnd) -> int:
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND,
+                                                    ctypes.POINTER(wintypes.DWORD)]
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(wintypes.HWND(int(hwnd)), ctypes.byref(pid))
+        return int(pid.value)
+    except Exception:                      # noqa: BLE001
+        return 0
+
+
+def _foreground_word_pid() -> int:
+    """用户最近一次落过的 Word 窗口属于哪个进程（0 = 没抓到）。"""
+    global _last_word_pid
+    for hwnd in (foreground_hwnd(), cursor_hwnd()):
+        root = root_hwnd(hwnd)
+        if root and _window_class(root) == WORD_WINDOW_CLASS:
+            pid = _window_pid(root)
+            if pid:
+                _last_word_pid = pid
+                return pid
+    return _last_word_pid
+
+
+def _application_pid(application) -> int:
+    """这个 Word 应用给出的窗口属于哪个进程（0 = 取不到）。"""
+    for getter in (lambda: application.ActiveWindow.Hwnd,
+                   lambda: application.Windows(1).Hwnd):
+        try:
+            hwnd = int(getter())
+        except Exception:                  # noqa: BLE001 - 没有活动窗口/窗口已关闭
+            continue
+        if hwnd:
+            return _window_pid(root_hwnd(hwnd))
+    return 0
+
+
+def _has_visible_user_document(application) -> bool:
+    return bool(visible_windows(application))
+
+
+def _word_applications() -> list:
+    """所有可用的 Word 应用：`[(pid, application)]`，按 PID 去重且跳过失效实例。"""
+    candidates = []
+    try:
+        candidates.append(_attach_word())
+    except WordNotRunningError:
+        logger.debug("注册表里没有 Word 应用对象，改从已打开的文档附着", exc_info=True)
+    try:
+        candidates.extend(_applications_of_open_documents())
+    except Exception:                      # noqa: BLE001 - 枚举失败就只用注册表那个
+        logger.debug("枚举已打开的文档失败", exc_info=True)
+    applications, seen = [], set()
+    for application in candidates:
+        if not _alive(application):
+            continue
+        pid = _application_pid(application)
+        if pid and pid in seen:
+            continue
+        if pid:
+            seen.add(pid)
+        applications.append((pid, application))
+    return applications
 
 
 def get_word_app():
-    """附着到用户正在用的 Word 实例（不新建进程）。
+    """附着到**用户正在用的**那个 Word 实例（不新建进程）。
 
-    Raises: WordNotRunningError —— Word 未运行、COM 附着失败，或附着到的对象已失效。
+    Raises: WordNotRunningError —— Word 未运行、COM 附着失败，或拿到的对象已失效。
+
+    多实例（同一台机器开着两个 WINWORD）时按"前台 Word 窗口所属进程"选实例，其次选
+    "有可见用户文档"的那个：只认 `GetActiveObject` 会随便挑一个 —— 用户现场正是
+    "另一篇文档能自动刷新题注、这一篇不能，甚至完全识别不到"。
     """
-    word = None
-    try:
-        word = _attach_word()
-    except WordNotRunningError:
-        logger.debug("注册表里没有 Word 应用对象，改从已打开的文档附着", exc_info=True)
-    if word is not None and _recycle_headless_word(word):
-        return _attach_word_ready()        # 幽灵实例刚退出，等它退干净再附着用户的 Word
-    if word is not None and _alive(word):
-        return word
-    # 到这儿说明：注册表给的是**僵尸对象**（Word 刚退出/重启），或者根本没有应用对象。
-    # 2026-11-13 现场：僵尸对象被当成可用 Word，导致题录离线自动更新、引文识别全部静默失效。
-    application = _attach_from_documents()
-    if application is not None:
-        return application
-    if word is not None:
-        return _attach_word_ready(timeout=1.0)     # 再等它退干净，重新附着一次
+    applications = _word_applications()
+    if not applications:
+        raise WordNotRunningError(message("word.error.not_running_doc"))
+
+    target_pid = _foreground_word_pid()
+    if target_pid:
+        for pid, application in applications:
+            if pid == target_pid:
+                return application
+    for _pid, application in applications:
+        if _has_visible_user_document(application):
+            return application
+
+    first = applications[0][1]
+    if _recycle_headless_word(first):       # 只剩"没人看得见"的实例：退出草稿实例再附着
+        return _attach_word_ready()
+    if _alive(first):
+        return first
     raise WordNotRunningError(message("word.error.not_running_doc"))
 
 

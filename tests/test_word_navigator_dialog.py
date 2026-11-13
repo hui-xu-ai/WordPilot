@@ -89,3 +89,111 @@ def test_get_word_document_uses_shared_resolver(dialog_cls, monkeypatch):
 
     assert result == (word, target, "C:/docs/模板.docx")
     assert dlg.doc is target
+
+
+class _Timer:
+    def __init__(self):
+        self.active = False
+        self.starts: list[int] = []
+
+    def isActive(self):                  # noqa: N802 - Qt 命名
+        return self.active
+
+    def start(self, ms):                 # noqa: N802
+        self.active = True
+        self.starts.append(ms)
+
+    def stop(self):                      # noqa: N802
+        self.active = False
+
+
+class _FakeWordDoc:
+    def __init__(self, saved=True, fields=3, end=100, error=None):
+        self._saved = saved
+        self._fields = fields
+        self._end = end
+        self._error = error
+
+    @property
+    def Saved(self):                     # noqa: N802
+        if self._error is not None:
+            raise self._error
+        return self._saved
+
+    @property
+    def Fields(self):                    # noqa: N802
+        return type("F", (), {"Count": self._fields})()
+
+    @property
+    def Content(self):                   # noqa: N802
+        return type("C", (), {"End": self._end})()
+
+
+def _monitor_panel(dialog_cls, monkeypatch, doc):
+    """只装配保存监测需要的属性，并记录 singleShot 调度。"""
+    from plugins.navigator import word_navigator_dialog as mod
+
+    dlg = dialog_cls.__new__(dialog_cls)
+    dlg._closing = False
+    dlg.doc = doc
+    dlg._save_monitor_timer = _Timer()
+    scheduled: list[int] = []
+
+    class _StubTimer:
+        @staticmethod
+        def singleShot(ms, _fn):         # noqa: N802 - Qt 命名
+            scheduled.append(ms)
+
+    monkeypatch.setattr(mod, "QTimer", _StubTimer)
+    return dlg, scheduled
+
+
+def test_busy_word_does_not_kill_save_monitor(dialog_cls, monkeypatch):
+    """Word 弹模态框（更新目录/算域）时 COM 会被拒绝：只跳过本轮，监测必须继续活着。
+
+    用户现场（2026-11-13）：全选 → 更新整个域 → 保存之后题注再也不自动更新，
+    连之后再新建题注按 F9 也没反应 —— 旧代码把这种**临时**错误当成了"停掉监测"。
+    """
+    import pywintypes
+
+    busy = pywintypes.com_error(-2147418111, "被调用方拒绝调用", None, None)
+    dlg, scheduled = _monitor_panel(dialog_cls, monkeypatch,
+                                    _FakeWordDoc(saved=True, error=busy))
+    dlg._save_monitor_timer.start(1000)
+    dlg._last_saved_state = True
+
+    dlg._check_document_saved()
+
+    assert dlg._save_monitor_timer.isActive() is True, "临时忙碌不能停监测"
+    assert scheduled == []
+
+
+def test_dead_document_stops_save_monitor(dialog_cls, monkeypatch):
+    """对象真的失效（AttributeError）时才停监测，等下次刷新重新拉起。"""
+    dlg, _scheduled = _monitor_panel(
+        dialog_cls, monkeypatch, _FakeWordDoc(error=AttributeError("Word.Application")))
+    dlg._save_monitor_timer.start(1000)
+    dlg._last_saved_state = True
+
+    dlg._check_document_saved()
+
+    assert dlg._save_monitor_timer.isActive() is False
+
+
+def test_content_change_triggers_refresh_without_saved_edge(dialog_cls, monkeypatch):
+    """"变过内容 + 当前已保存"就要刷新：全选更新域后**立刻**保存，两次轮询之间就看不到
+    "未保存 → 已保存"的边沿，旧逻辑因此漏掉刷新。"""
+    dlg, scheduled = _monitor_panel(dialog_cls, monkeypatch,
+                                    _FakeWordDoc(saved=True, fields=5, end=120))
+    dlg._save_monitor_timer.start(1000)
+    dlg._last_saved_state = True
+    dlg._last_doc_signature = (3, 100)        # 上一次的签名（域 3 个 / 100 字符）
+    dlg._document_dirty = False
+
+    dlg._check_document_saved()
+
+    assert scheduled == [3000], "内容变过且已保存 ⇒ 应调度一次自动刷新"
+    assert dlg._document_dirty is False, "调度后要清掉脏标记，避免每分钟重复刷新"
+
+    dlg._check_document_saved()               # 下一轮：签名没变，不再调度
+    assert scheduled == [3000]

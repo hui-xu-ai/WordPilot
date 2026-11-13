@@ -64,7 +64,7 @@ def test_attach_raises_when_word_not_running(monkeypatch):
 
     monkeypatch.setattr(win32com.client, "GetActiveObject", _fail)
     # 不碰真实的运行对象表（本机可能真开着 Word，那样用例就不隔离了）
-    monkeypatch.setattr(word_bridge, "_attach_from_documents", lambda *a, **k: None)
+    monkeypatch.setattr(word_bridge, "_applications_of_open_documents", lambda *a, **k: [])
 
     with pytest.raises(word_bridge.WordNotRunningError):
         word_bridge.attach_word_app()
@@ -141,8 +141,8 @@ def test_dead_attachment_is_skipped(monkeypatch):
     assert word_bridge._attach_word_ready(timeout=1.0) is user
 
 
-def test_get_word_app_replaces_dead_attachment(monkeypatch):
-    """Word 退出/重启后注册表里留着死对象时，`get_word_app` 必须当场换一个活的。
+def test_get_word_app_skips_dead_object_and_uses_open_document(monkeypatch):
+    """Word 退出/重启后注册表里留着死对象时，改用"已打开文档"所属的活实例。
 
     用户现场（2026-11-13）：Word 关掉后每秒一条 `AttributeError: Word.Application.Windows`，
     题录离线自动更新与引文识别全部静默失效 —— 因为死对象被当成了可用的 Word。
@@ -154,10 +154,9 @@ def test_get_word_app_replaces_dead_attachment(monkeypatch):
             raise AttributeError("Word.Application.Documents")
 
     live = _Word(True, [_Doc("模板.docx", PAPER)])
-    attached = iter([_Dead(), live])
-    monkeypatch.setattr(word_bridge, "_attach_word", lambda: next(attached))
-    monkeypatch.setattr(word_bridge, "_headless_checked", True)   # 跳过幽灵实例回收分支
-    monkeypatch.setattr(word_bridge, "_attach_from_documents", lambda *a, **k: None)
+    monkeypatch.setattr(word_bridge, "_attach_word", lambda: _Dead())
+    monkeypatch.setattr(word_bridge, "_applications_of_open_documents", lambda *a, **k: [live])
+    monkeypatch.setattr(word_bridge, "_headless_checked", True)
 
     assert word_bridge.get_word_app() is live
 
@@ -171,11 +170,42 @@ def test_get_word_app_raises_when_only_dead_object_left(monkeypatch):
             raise AttributeError("Word.Application.Documents")
 
     monkeypatch.setattr(word_bridge, "_attach_word", lambda: _Dead())
+    monkeypatch.setattr(word_bridge, "_applications_of_open_documents", lambda *a, **k: [])
     monkeypatch.setattr(word_bridge, "_headless_checked", True)
-    monkeypatch.setattr(word_bridge, "_attach_from_documents", lambda *a, **k: None)
 
     with pytest.raises(word_bridge.WordNotRunningError):
         word_bridge.get_word_app()
+
+
+def test_get_word_app_prefers_foreground_word_process(monkeypatch):
+    """多实例：必须选"前台 Word 窗口所属进程"那个实例，而不是注册表里先到的那个。
+
+    用户现场：EndNote 那篇能自动刷新、模板.docx 完全识别不到 —— 就是挑错了实例。
+    """
+    app_a = _Word(True, [_Doc("EndNote.docx", "C:/docs/EndNote.docx")])
+    app_b = _Word(True, [_Doc("模板.docx", PAPER)])
+    monkeypatch.setattr(word_bridge, "_attach_word", lambda: app_a)
+    monkeypatch.setattr(word_bridge, "_applications_of_open_documents", lambda *a, **k: [app_b])
+    monkeypatch.setattr(word_bridge, "_application_pid",
+                        lambda application: 111 if application is app_a else 222)
+    monkeypatch.setattr(word_bridge, "_foreground_word_pid", lambda: 222)
+
+    assert word_bridge.get_word_app() is app_b
+
+
+def test_get_word_app_falls_back_to_instance_with_visible_document(monkeypatch):
+    """前台不是 Word 时（用户点了 WordPilot 的按钮），选"有可见用户文档"的实例。"""
+    app_a = _Word(True, [_Doc("EndNote.docx", "C:/docs/EndNote.docx")])
+    app_b = _Word(True, [_Doc("模板.docx", PAPER)])
+    monkeypatch.setattr(word_bridge, "_attach_word", lambda: app_a)
+    monkeypatch.setattr(word_bridge, "_applications_of_open_documents", lambda *a, **k: [app_b])
+    monkeypatch.setattr(word_bridge, "_application_pid",
+                        lambda application: 111 if application is app_a else 222)
+    monkeypatch.setattr(word_bridge, "_foreground_word_pid", lambda: 0)
+    monkeypatch.setattr(word_bridge, "_has_visible_user_document",
+                        lambda application: application is app_b)
+
+    assert word_bridge.get_word_app() is app_b
 
 
 class _DeadApp:
