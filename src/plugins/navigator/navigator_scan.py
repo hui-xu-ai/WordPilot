@@ -98,10 +98,19 @@ class ScanMixin:
 
         # 题录文本 → 章节下标：COM 路径补页码后据此把章节信息"续"回去
         self._chapter_map = {chapter_key(i.text): i.chapter for i in result.items}
-        self.table_captions = [CaptionItem(display=i.text, chapter=i.chapter)
-                               for i in result.table_items()]
-        self.figure_captions = [CaptionItem(display=i.text, chapter=i.chapter)
-                                for i in result.figure_items()]
+        # 同一份文案可能出现多次（例如好几张都叫"演示图片"）：按文档顺序记下它是第几条，
+        # 跳转时用序号定位，否则只能落到第一个同名处（用户现场：点哪条都跳到第一条）。
+        seen: dict[str, int] = {}
+        by_kind: dict[str, list] = {"table": [], "figure": []}
+        for offline_item in result.items:
+            key = (offline_item.text or "").strip()
+            ordinal = seen.get(key, 0)
+            seen[key] = ordinal + 1
+            by_kind.setdefault(offline_item.kind, []).append(
+                CaptionItem(display=offline_item.text, chapter=offline_item.chapter,
+                            ordinal=ordinal))
+        self.table_captions = by_kind.get("table", [])
+        self.figure_captions = by_kind.get("figure", [])
         self._render_lists()
         self._set_status("status.offline_done",
                          tables=len(self.table_captions),
