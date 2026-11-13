@@ -9,6 +9,7 @@
 """
 
 import logging
+import os
 
 from core.services.i18n import message
 
@@ -121,12 +122,78 @@ def window_visible(window) -> bool:
         return True
 
 
-def visible_windows(word) -> list:
-    """Word 里所有**可见**的文档窗口（隐藏的工具箱工作文档会被剔除）。"""
+# 插件登记的工作文档全路径（规范化后）。图片工具箱的 `Image.docx` 是它自己的草稿纸，
+# 永远不是"用户正在看的那篇"。登记而不是猜，是因为 `Window.Visible` 会骗人
+# （Word 进程本身不可见时，用户文档的窗口也读成 False）。
+_work_documents: set[str] = set()
+
+
+def _normalize_path(path) -> str:
+    text = str(path or "")
+    return os.path.normcase(os.path.normpath(text)) if text else ""
+
+
+def register_work_document(path) -> None:
+    """登记一个**工作文档**路径（插件自用草稿），它不会被当成"当前文档"。"""
+    key = _normalize_path(path)
+    if key:
+        _work_documents.add(key)
+
+
+def is_work_document(document) -> bool:
+    """这篇文档是不是插件登记过的工作文档（`Image.docx`）。"""
     try:
-        windows = [window for window in word.Windows if window_visible(window)]
+        return _normalize_path(getattr(document, "FullName", "")) in _work_documents
+    except Exception:                      # noqa: BLE001 - 文档已关闭/COM 已断开
+        return False
+
+
+def window_document(window):
+    """窗口对应的文档；取不到返回 None（窗口已关闭时会抛 COM 错）。"""
+    try:
+        return window.Document if window is not None else None
     except Exception:                      # noqa: BLE001
+        return None
+
+
+def _window_items(collection) -> list:
+    """把 `word.Windows` 取成列表：COM 集合按 **1-based 下标逐项取**，逐项容错。
+
+    为什么不能 `for window in word.Windows`：Word 的 `Windows` 里会出现**取就抛 COM 错的
+    幽灵条目**（2026-11-13 实测 `Windows(3)` 失败），`for` 遍历会整条中断 —— 那些"可见
+    窗口"就全丢了，前台窗口机制随之失效，最后退回 `ActiveDocument`（= 工具箱的 Image.docx）。
+    """
+    try:
+        count = int(collection.Count)
+    except Exception:                      # noqa: BLE001 - 测试替身是普通 list，没有 Count
+        try:
+            return list(collection)
+        except Exception:                  # noqa: BLE001
+            logger.warning("枚举 Word 窗口失败", exc_info=True)
+            return []
+    items = []
+    for index in range(1, count + 1):
+        try:
+            items.append(collection(index))
+        except Exception:                  # noqa: BLE001 - 幽灵窗口，跳过即可
+            logger.debug("跳过取不到的 Word 窗口（第 %d 个）", index, exc_info=True)
+    return items
+
+
+def visible_windows(word) -> list:
+    """Word 里**用户能看到的**文档窗口（隐藏的、插件工作文档都被剔除）。"""
+    try:
+        collection = word.Windows
+    except Exception:                      # noqa: BLE001 - Word 正在关闭
+        logger.warning("取 Word 窗口集合失败", exc_info=True)
         return []
+    windows = []
+    for window in _window_items(collection):
+        if not window_visible(window):
+            continue
+        if is_work_document(window_document(window)):
+            continue
+        windows.append(window)
     return windows
 
 
@@ -140,8 +207,8 @@ def active_window_with_source(text=..., word=None):
     匹配顺序（都用**根祖先**比较，Word 的 Window.Hwnd 是 MDI 子窗口）：
     1. 前台窗口 —— 用户刚点过文档，通常就是它；
     2. 鼠标所在窗口 —— 前台被任务栏/别的程序抢走时的兜底；
-    3. 都匹配不上时用 ActiveWindow，但它必须可见；不可见就取第一个可见窗口。
-    隐藏窗口（图片工具箱的 `Image.docx`）一律不参与。
+    3. 都匹配不上时用 ActiveWindow，但它必须可见；不可见就取最后一个可见窗口。
+    隐藏窗口与插件登记的工作文档（图片工具箱的 `Image.docx`）一律不参与。
     """
     if word is None:
         word = text if text is not ... else None
@@ -169,11 +236,48 @@ def active_window_with_source(text=..., word=None):
         active = word.ActiveWindow
     except Exception:                      # noqa: BLE001
         active = None
-    if active is not None and window_visible(active):
+    if (active is not None and window_visible(active)
+            and not is_work_document(window_document(active))):
         return active, "ActiveWindow"
     if windows:
         return windows[-1], "可见窗口兜底"
     return None, "无可见窗口"
+
+
+def current_document_with_source(word=None):
+    """**用户正在看的那篇文档**（真实场景里唯一的文档出口）+ 判定方式。
+
+    优先级：① 前台/鼠标命中的 Word 窗口 → ② Word 的活动窗口 → ③ 最后一个可见窗口
+    → ④ `ActiveDocument`（仅当它不是插件工作文档）。
+
+    第 ④ 步是兜底而不是主力：图片工具箱隐藏打开 `Image.docx` 后会把 `ActiveDocument`
+    留在它身上（2026-11-13 现场：题注导航扫出"共 0 个题注"、参考助手按 Image.docx 建了
+    0 个锚点的索引）。所以工作文档在任何一步都不被选中。
+    """
+    if word is None:
+        try:
+            word = get_word_app()
+        except Exception:                  # noqa: BLE001 - Word 未运行/COM 断开
+            return None, "无 Word"
+    window, source = active_window_with_source(word=word)
+    document = window_document(window)
+    if document is not None:
+        return document, source
+    try:
+        document = word.ActiveDocument
+    except Exception:                      # noqa: BLE001 - 没有打开的文档
+        return None, "无文档"
+    if is_work_document(document):
+        logger.debug("当前文档是插件工作文档，已忽略：%s",
+                     getattr(document, "Name", "?"))
+        return None, "仅工作文档"
+    return document, "ActiveDocument"
+
+
+def current_document(word=None):
+    """**用户正在看的那篇文档**；取不到返回 None（细节见 `current_document_with_source`）。"""
+    document, _source = current_document_with_source(word=word)
+    return document
 
 
 def active_window_document(word=None):

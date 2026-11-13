@@ -82,6 +82,25 @@ def enable_native_shadow(widget) -> bool:
         return False
 
 
+def shadow_intact(hwnd) -> bool:
+    """投影所需的边框样式是否还在（`WS_THICKFRAME` + `WS_CAPTION`）。
+
+    DWM 只为"有可调边框"的窗口画阴影；这两个位一旦被抹掉，投影就没了。
+    """
+    try:
+        handle = wintypes.HWND(int(hwnd))
+        if not int(hwnd):
+            return False
+        user32 = _user32()
+        user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+        user32.GetWindowLongW.restype = ctypes.c_long
+        style = user32.GetWindowLongW(handle, GWL_STYLE) & 0xFFFF_FFFF
+        return bool(style & WS_THICKFRAME) and bool(style & WS_CAPTION)
+    except Exception:  # noqa: BLE001  取不到样式就当作需要重刷
+        logger.debug("读窗口样式失败", exc_info=True)
+        return False
+
+
 def handle_native_event(event_type, message):
     """Qt `nativeEvent` 的 Windows 分支：吞掉 `WM_NCCALCSIZE`，返回 (True, 0)。
 

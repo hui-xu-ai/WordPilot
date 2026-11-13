@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from core.services.caption_cache import CaptionCache
 from core.services.config_manager import CONFIG_DIR
-from core.services.word_bridge import get_word_app
+from core.services.word_bridge import current_document, get_word_app
 from core.services.word_constants import wdConst
 from plugins.navigator.caption_item import CaptionItem  # noqa: F401  兼容旧引用
 from plugins.navigator.navigator_jump import JumpMixin
@@ -243,7 +243,9 @@ class WordNavigatorPanel(ScanMixin, JumpMixin, QWidget):
             self.word = get_word_app()
             # 不在此处关闭 ScreenUpdating：连接动作不应改变渲染状态，
             # 各操作（扫描/跳转/返回/缓存页码更新）自行配对开关
-            self.doc = self.word.ActiveDocument
+            # 文档一律取「用户正在看的那篇」：`word.ActiveDocument` 会停在图片工具箱
+            # 隐藏打开的 Image.docx 上（用户现场：题注导航"共 0 个题注"）。
+            self.doc = current_document(self.word)
             if self.doc is None:
                 self._stop_save_monitor()
                 return None, None, ""

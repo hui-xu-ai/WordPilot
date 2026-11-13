@@ -260,12 +260,16 @@ def screen_point(word, selection) -> tuple[int, int]:
     return int(physical[0] / ratio), int(physical[1] / ratio)
 
 
-def _active_window(word):
-    """前台 Word 窗口 + 匹配方式（失败返回 (None, "无")）。延迟导入，避免无 pywin32 时崩。"""
-    try:
-        from core.services.word_bridge import active_window_with_source
+def _current_document(word):
+    """用户正在看的那篇文档 + 判定方式（失败返回 (None, "无")）。延迟导入，避免无 pywin32 时崩。
 
-        return active_window_with_source(word=word)
+    判定规则与题注导航共用 `word_bridge` 的同一份实现（前台窗口 → 活动窗口 → 可见窗口，
+    插件工作文档永不入选）—— 之前这里是各写一套，结果是两处都可能落到 Image.docx 上。
+    """
+    try:
+        from core.services.word_bridge import current_document_with_source
+
+        return current_document_with_source(word=word)
     except Exception:                      # noqa: BLE001
         return None, "无"
 
@@ -340,24 +344,27 @@ class WordWatch(QThread):
     def _tick(self, get_word_app) -> None:
         try:
             word = get_word_app()
-            # 同一个 Word 进程开着两篇文档时，`ActiveDocument` / `Selection` 会停在**旧窗口**
-            # （用户现场：切到另一篇后仓库不跟着切、点了也不弹）。按**前台窗口句柄**找到窗口，
-            # 再从窗口取 Document；若 Word 自认为的活动文档不一致，就 Activate 一次让它跟上
-            # —— 此时该窗口本来就是前台窗口，不会抢焦点，但 Selection/域位置才读得准。
-            document = word.ActiveDocument
+            # 文档取「用户正在看的那篇」：`word.ActiveDocument` 会停在旧窗口，也会被图片
+            # 工具箱隐藏打开的 Image.docx 抢走（用户现场：切到另一篇后仓库不跟着切、
+            # 点了不弹；Image.docx 被扫成 0 个锚点）。解析规则与题注导航共用同一份实现。
+            document, source = _current_document(word)
+            if document is None:
+                self._emit_status("watch.no_word")
+                self._handle_miss()
+                self.msleep(min(RETRY_AFTER_MS, 1000))
+                return
             try:
-                window, source = _active_window(word)
-                if window is not None and getattr(window, "Document", None) is not None:
-                    document = window.Document
-                    if str(getattr(word.ActiveDocument, "Name", "")) != str(document.Name):
-                        document.Activate()
-                    # 只在文档或匹配方式变化时记一行：切文档后到底认的是哪篇、凭哪条线索认的
-                    key = str(document.Name)      # 只看文档变化，匹配方式抖动不记日志
-                    if key != getattr(self, "_last_window_log", None):
-                        self._last_window_log = key
-                        logger.info("当前文档窗口：%s（匹配方式=%s）", document.Name, source)
-            except Exception:                  # noqa: BLE001 - 窗口匹配失败就用 ActiveDocument
-                logger.debug("按前台窗口定位文档失败，退回 ActiveDocument", exc_info=True)
+                # 若 Word 自认为的活动文档不一致，就 Activate 一次让它跟上 —— 此时该窗口
+                # 本来就是用户在看的那个，不会抢焦点，但 Selection/域位置才读得准。
+                if str(getattr(word.ActiveDocument, "Name", "")) != str(document.Name):
+                    document.Activate()
+                # 只在文档变化时记一行：切文档后到底认的是哪篇、凭哪条线索认的
+                key = str(document.Name)
+                if key != getattr(self, "_last_window_log", None):
+                    self._last_window_log = key
+                    logger.info("当前文档窗口：%s（匹配方式=%s）", document.Name, source)
+            except Exception:                  # noqa: BLE001 - 激活失败只影响选区精度
+                logger.debug("激活当前文档失败（仅影响选区精度）", exc_info=True)
             doc_name = document.Name
             self._document = document            # 本轮统一的文档对象
             try:

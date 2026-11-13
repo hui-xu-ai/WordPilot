@@ -66,3 +66,26 @@ def test_teardown_sets_flag_before_com_uninit(dialog_cls):
     assert dlg._closing is True
     assert events[:3] == ["stop_monitor", "restore_screen", "cache_close"]
     assert dlg.doc is None and dlg.word is None, "关闭后应释放 Word/文档引用"
+
+
+def test_get_word_document_uses_shared_resolver(dialog_cls, monkeypatch):
+    """文档必须走 `current_document`，不能直接用 `word.ActiveDocument`。
+
+    2026-11-13 现场：图片工具箱把 `ActiveDocument` 留在了隐藏的 Image.docx 上，
+    题注导航于是扫出"共 0 个题注"。
+    """
+    from plugins.navigator import word_navigator_dialog as mod
+
+    target = type("D", (), {"FullName": "C:/docs/模板.docx"})()
+    active = type("D", (), {"FullName": "C:/cfg/Image.docx"})()
+    word = type("W", (), {"ActiveDocument": active})()
+    dlg = _bare(dialog_cls)
+    dlg._com_ok = True
+    dlg._start_save_monitor = lambda: None
+    monkeypatch.setattr(mod, "get_word_app", lambda: word)
+    monkeypatch.setattr(mod, "current_document", lambda _word: target)
+
+    result = dlg._get_word_document()
+
+    assert result == (word, target, "C:/docs/模板.docx")
+    assert dlg.doc is target

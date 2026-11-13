@@ -32,7 +32,7 @@
 """
 import logging
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMainWindow, QMenu,
                                QSizeGrip, QStackedWidget, QSystemTrayIcon,
@@ -443,15 +443,52 @@ class MainWindow(PagesMixin, QMainWindow):
         super().showEvent(event)
         # 无边框窗口在 Windows 上没有系统阴影：白底上看不出边界。
         # 首次显示时向 DWM 要回原生阴影（失败只是没阴影，不影响功能）。
-        if not getattr(self, "_shadow_applied", False):
-            self._shadow_applied = True
-            if self.config.get("ui.native_shadow", True):
-                from infra import win_shadow
-
-                self._shadow_ok = win_shadow.enable_native_shadow(self)
+        self._ensure_native_shadow()
+        self._start_shadow_watch()
         wm = self.kernel.services.get("window_manager")
         if wm is not None:
             wm.refresh_topmost(self._window_id)
+
+    def _ensure_native_shadow(self):
+        """校验并补齐 DWM 原生投影（幂等）。
+
+        为什么不是"只在首次 show 时做一次"：用户现场 2026-11-13 出现过**随机丢失投影**
+        （同一进程内、相邻两张截图一张有阴影一张没有），而样式位在任何一次我复刻过的动作里
+        都没掉过 ⇒ 无法确定是谁抹的。这里改成校验式自愈：样式位或窗口句柄不对就补一次，
+        并在 `config/app.log` 留一行 —— 下次再消失，日志会告诉我们消失的时刻。
+        """
+        if not self.config.get("ui.native_shadow", True):
+            return
+        from infra import win_shadow
+
+        try:
+            hwnd = int(self.winId() or 0)
+        except Exception:                  # noqa: BLE001 - 窗口正在销毁
+            logger.debug("取主窗口句柄失败", exc_info=True)
+            return
+        if hwnd and hwnd == getattr(self, "_shadow_hwnd", None) and win_shadow.shadow_intact(hwnd):
+            self._shadow_breaks = 0
+            return
+        previous = getattr(self, "_shadow_hwnd", None)
+        breaks = getattr(self, "_shadow_breaks", 0)
+        if breaks == 0:                    # 每轮"坏掉"只记一次，避免刷屏
+            if previous and previous != hwnd:
+                logger.warning("主窗口句柄变了（%s → %s），重新申请原生阴影", previous, hwnd)
+            elif previous:
+                logger.warning("主窗口投影边框丢失，重新申请原生阴影（hwnd=%s）", hwnd)
+        else:
+            logger.debug("再次重新申请原生阴影（第 %d 次，hwnd=%s）", breaks, hwnd)
+        self._shadow_breaks = breaks + 1
+        self._shadow_hwnd = hwnd
+        self._shadow_ok = win_shadow.enable_native_shadow(self)
+
+    def _start_shadow_watch(self):
+        """投影看护：2 秒一次样式位校验（完好时只读一次窗口样式，开销可忽略）。"""
+        if getattr(self, "_shadow_watch", None) is not None:
+            return
+        self._shadow_watch = QTimer(self)
+        self._shadow_watch.timeout.connect(self._ensure_native_shadow)
+        self._shadow_watch.start(2000)
 
     def nativeEvent(self, eventType, message):      # noqa: N802 - Qt 命名惯例
         """把 WM_NCCALCSIZE 压成 0：保留无边框外观，同时让 DWM 画阴影。"""

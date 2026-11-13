@@ -79,7 +79,7 @@ def test_watch_tick_reads_the_foreground_document(monkeypatch):
     hits: list[dict] = []
     watch = word_watch.WordWatch()
     watch.citationFound.connect(hits.append)
-    monkeypatch.setattr(word_watch, "_active_window", lambda _word: (window, "前台窗口"))
+    monkeypatch.setattr(word_watch, "_current_document", lambda _word: (target, "前台窗口"))
 
     selection = type("S", (), {"Start": 10, "End": 10, "Text": ""})()
     word.Selection = selection                     # 旧写法会读它 → 落在"另一篇"上

@@ -16,7 +16,11 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-from core.services.word_bridge import attach_word_app, WordNotRunningError
+from core.services.word_bridge import (
+    WordNotRunningError,
+    attach_word_app,
+    register_work_document,
+)
 from core.services.word_constants import wdConst  # Word 常量字典
 
 import ctypes
@@ -54,6 +58,9 @@ class WordImageProcessor:
         # 工作文档是**运行时产物**，不该要求用户或安装包预先提供：
         # 首次使用 / 用户在「存储」里清理过 / 打包环境没带模板时，这里自动建一个空的。
         self._ensure_workspace_file()
+        # 明确声明"这是我的草稿纸"：Word 里同时开着用户论文时，`ActiveDocument` 可能落在
+        # 这篇上（隐藏打开不恢复用户文档），题注导航/文献引用必须能把它排除掉。
+        register_work_document(self.temp_docx_path)
 
         # ★ 保存用户当前的活动文档（用于稍后激活遮挡）
         try:
