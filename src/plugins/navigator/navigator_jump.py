@@ -110,6 +110,7 @@ class JumpMixin:
             except:
                 logger.warning("记录跳转历史失败，返回上一位置将不可用", exc_info=True)
             if item.select_in_document(doc):
+                self._collapse_to_caret(word)
                 word.ActiveWindow.ScrollIntoView(word.Selection.Range, True)
                 self._set_status("status.jumped", target=list_item.text().split("[")[0].strip())
             else:
@@ -121,6 +122,22 @@ class JumpMixin:
                 word.ScreenUpdating = True
             except:
                 logger.warning("跳转后恢复 Word 屏幕刷新失败", exc_info=True)
+
+    @staticmethod
+    def _collapse_to_caret(word) -> None:
+        """把跳转后的选区收成光标：只跳过去，不选中整条题注。
+
+        为什么必须收：题注整段往往**正好是一个句子**，而智能纠错的监听线程里有这样一条规则
+        ——"上一轮是光标 + 这一轮选中的文字正好等于整句"⇒ 用户在选整句、应当校对一次。
+        于是双击题录跳转就顺手把那条题注送去校对了一次（用户现场：偶尔触发纠错）。
+        收成光标后 `Selection.Start == Selection.End`，该规则不再命中，用户看到的就只是跳转。
+        """
+        try:
+            selection = word.Selection
+            caret = int(selection.Start)
+            selection.SetRange(caret, caret)
+        except Exception:                   # noqa: BLE001 - 收不起来也不能让跳转失败
+            logger.warning("跳转后收敛选区失败（题注可能仍保持选中）", exc_info=True)
 
     def go_back(self):
         if not self.history_stack:
