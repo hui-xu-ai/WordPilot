@@ -14,7 +14,7 @@
 """
 
 APP_NAME = "WordPilot"
-__version__ = "3.2.0"
+__version__ = "3.3.0"
 AUTHOR = "Xu Hui"
 
 # 标题栏只显示软件名（版本/作者移到设置 →「关于」，避免更新后标题里版本没跟着变）
