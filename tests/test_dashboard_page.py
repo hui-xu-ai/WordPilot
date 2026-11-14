@@ -117,7 +117,7 @@ def test_proofread_drawer_has_no_pet_controls(page):
     assert not hasattr(widget, "show_floating_check")
 
 
-def _page_with_hotkeys(config_env, combo="ctrl+shift+e"):
+def _page_with_hotkeys(config_env, combo="ctrl+alt+shift+e"):
     from core.services.config_manager import ConfigManager
     from core.services.hotkey_service import HotkeyService
     from plugins.proofread.dashboard_page import DashboardPage
@@ -128,6 +128,7 @@ def _page_with_hotkeys(config_env, combo="ctrl+shift+e"):
     plugin = _FakePlugin(manager)
     plugin.ctx._services["hotkeys"] = hotkeys
     page = DashboardPage(plugin=plugin)
+    page.build_secondary_panel()        # 快捷键行在抽屉里
     page.retranslateUi()
     return page, manager, hotkeys
 
@@ -153,7 +154,7 @@ def test_toggle_hint_shows_hotkey(qapp, config_env):
     page._refresh_hotkey_hint()
 
     assert seen["key"] == "dashboard.toggle_shortcut"
-    assert seen["combo"] == "Ctrl+Shift+E", "默认组合键要按显示格式给出来"
+    assert seen["combo"] == "Ctrl+Alt+Shift+E", "默认组合键要按显示格式给出来"
     assert page.hotkey_hint.text(), "提示不能为空"
 
 
@@ -167,3 +168,76 @@ def test_toggle_hint_follows_configured_combo(qapp, config_env):
 
     assert seen["combo"] == "Ctrl+Alt+P"
     assert hotkeys.combo("toggle_monitor") == "ctrl+alt+p"
+
+
+# ---------------- 快捷键：改键与冲突检测 ----------------
+def _counting_apply(hotkeys) -> list[int]:
+    """统计重绑次数（真 `apply()` 会装 OS 钩子，测试里不能真跑）。"""
+    calls: list[int] = []
+    hotkeys.apply = lambda: calls.append(1)
+    return calls
+
+
+def test_hotkey_row_shows_effective_combo(qapp, config_env):
+    """抽屉里要能看到当前生效的组合键（Word 的「修订开关」曾经抢同一个键）。"""
+    page, _manager, _hotkeys = _page_with_hotkeys(config_env)
+
+    assert page.hotkey_edit.text() == "Ctrl+Alt+Shift+E"
+
+
+def test_new_combo_is_saved_and_rebound(qapp, config_env):
+    page, manager, hotkeys = _page_with_hotkeys(config_env)
+    applied = _counting_apply(hotkeys)
+    seen = _capture_tr(page)            # 主页面提示走 tr(key, combo=...)
+
+    page.hotkey_edit.setText("ctrl+alt+j")
+    page.apply_hotkey_combo()
+
+    assert (manager.get("hotkeys") or {}).get("toggle_monitor") == "ctrl+alt+j"
+    assert applied == [1], "改键后必须重新绑定，否则新键不生效"
+    assert page.hotkey_edit.text() == "Ctrl+Alt+J"
+    assert seen.get("combo") == "Ctrl+Alt+J", "主页面的快捷键提示要同步"
+
+
+def test_invalid_combo_is_rejected(qapp, config_env):
+    page, manager, hotkeys = _page_with_hotkeys(config_env)
+    applied = _counting_apply(hotkeys)
+
+    page.hotkey_edit.setText("shift+e")          # 只有 Shift：会抢掉正常输入
+    page.apply_hotkey_combo()
+
+    assert (manager.get("hotkeys") or {}).get("toggle_monitor") == "ctrl+alt+shift+e", "无效输入不得写盘"
+    assert applied == []
+    assert page.hotkey_status.text() == "settings.hotkey.invalid"
+    assert page.hotkey_edit.text() == "Ctrl+Alt+Shift+E", "无效输入要退回当前生效值"
+
+
+def test_check_conflict_reports_word_binding(qapp, config_env, monkeypatch):
+    from core.services import hotkey_conflict
+
+    page, _manager, _hotkeys = _page_with_hotkeys(config_env)
+    monkeypatch.setattr(hotkey_conflict, "assess",
+                        lambda *_a, **_k: {"status": hotkey_conflict.STATUS_CONFLICT,
+                                           "command": "ToolsRevisionMarksToggle",
+                                           "human": "修订模式开关", "detail": ""})
+
+    page.check_hotkey_combo()
+
+    assert page.hotkey_status.text() == "settings.hotkey.conflict"
+
+
+def test_check_conflict_free_and_unknown(qapp, config_env, monkeypatch):
+    from core.services import hotkey_conflict
+
+    page, _manager, _hotkeys = _page_with_hotkeys(config_env)
+    monkeypatch.setattr(hotkey_conflict, "assess",
+                        lambda *_a, **_k: {"status": hotkey_conflict.STATUS_FREE,
+                                           "command": "", "human": "", "detail": ""})
+    page.check_hotkey_combo()
+    assert page.hotkey_status.text() == "settings.hotkey.free"
+
+    monkeypatch.setattr(hotkey_conflict, "assess",
+                        lambda *_a, **_k: {"status": hotkey_conflict.STATUS_UNKNOWN,
+                                           "command": "", "human": "", "detail": ""})
+    page.check_hotkey_combo()
+    assert page.hotkey_status.text() == "settings.hotkey.unknown"

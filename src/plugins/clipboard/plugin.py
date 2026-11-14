@@ -239,10 +239,12 @@ class ClipboardPlugin(PluginBase):
 
         hotkeys = ctx.get_service("hotkeys")
         if hotkeys is not None:
-            hotkeys.register("translate", "ctrl+shift+t",
+            # 与 Word 的 Ctrl+Shift+T（取消悬挂缩进）/ Ctrl+Shift+R（重新统计字数）错开：
+            # 热键不拦截按键，旧键会同时把文档改掉
+            hotkeys.register("translate", "ctrl+alt+shift+t",
                              lambda: self._hotkey_action("translate"),
                              owner="clipboard")
-            hotkeys.register("rewrite", "ctrl+shift+r",
+            hotkeys.register("rewrite", "ctrl+alt+shift+r",
                              lambda: self._hotkey_action("rewrite"),
                              owner="clipboard")
         ctx.logger.info("翻译改写工具插件已激活")

@@ -68,3 +68,62 @@ def test_save_reports_failure_when_tmp_cannot_be_created(monkeypatch, tmp_path):
 
     assert manager.save() is False, "保存失败必须返回 False"
     assert manager.last_save_error, "必须记录失败原因，供界面提示"
+
+
+# ---------------- 历史默认热键的一次性迁移 ----------------
+# 背景（2026-11-14 实测，Word BuildKeyCode+FindKey）：`ctrl+shift+e` 在 Word 里是「修订模式开关」、
+# `ctrl+shift+z` 是「清除格式」、`ctrl+shift+t` 是「取消悬挂缩进」、`ctrl+shift+r` 是「重新统计字数」。
+# 热键不拦截按键 ⇒ 用户按"切换校对"时 Word 会同时改文档（静默进修订模式最危险）。
+NEW_HOTKEYS = {
+    "toggle_monitor": "ctrl+alt+shift+e",
+    "proof_cursor": "ctrl+alt+shift+z",
+    "translate": "ctrl+alt+shift+t",
+    "rewrite": "ctrl+alt+shift+r",
+}
+OLD_HOTKEYS = {
+    "toggle_monitor": "ctrl+shift+e",
+    "proof_cursor": "ctrl+shift+z",
+    "translate": "ctrl+shift+t",
+    "rewrite": "ctrl+shift+r",
+}
+
+
+def _manager_with(config_env, payload=None):
+    from core.services.config_manager import ConfigManager
+
+    if payload is not None:
+        config_env.mkdir(parents=True, exist_ok=True)
+        (config_env / "MWindow_config.json").write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return ConfigManager()
+
+
+def test_fresh_config_uses_conflict_free_hotkeys(config_env):
+    manager = _manager_with(config_env, {"api_key": ""})
+
+    assert (manager.get("hotkeys") or {}) == NEW_HOTKEYS, "全新配置直接用不与 Word 冲突的默认键"
+    assert manager.get("hotkeys_migrated") is True
+
+
+def test_legacy_default_hotkeys_are_migrated_once(config_env):
+    manager = _manager_with(config_env, {"hotkeys": dict(OLD_HOTKEYS)})
+
+    assert (manager.get("hotkeys") or {}) == NEW_HOTKEYS, "仍是旧默认值的项要升级"
+    assert manager.get("hotkeys_migrated") is True
+
+
+def test_partial_legacy_hotkeys_are_migrated(config_env):
+    manager = _manager_with(config_env, {"hotkeys": {"toggle_monitor": "ctrl+shift+e"}})
+
+    assert (manager.get("hotkeys") or {})["toggle_monitor"] == "ctrl+alt+shift+e"
+
+
+def test_user_customised_hotkey_is_kept(config_env):
+    """用户自己改过的键不动 —— 哪怕它在 Word 里有冲突（界面里的「检测冲突」会告诉他风险）。"""
+    custom = dict(OLD_HOTKEYS, toggle_monitor="ctrl+alt+p")
+    manager = _manager_with(config_env, {"hotkeys": custom, "hotkeys_migrated": True})
+
+    hotkeys = manager.get("hotkeys") or {}
+
+    assert hotkeys["toggle_monitor"] == "ctrl+alt+p"
+    assert hotkeys["proof_cursor"] == "ctrl+shift+z", "迁移过一次就不再动其它项"

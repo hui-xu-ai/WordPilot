@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 import logging
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QComboBox, QCheckBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
-                               QPushButton, QSlider, QSpinBox, QTextEdit,
+from PySide6.QtWidgets import (QComboBox, QCheckBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
+                               QMessageBox, QPushButton, QSlider, QSpinBox, QTextEdit,
                                QVBoxLayout, QWidget)
 from core.services import prompt_store
 from core.services.api_logger import clear_api_log
@@ -317,8 +317,84 @@ class DashboardPage(QWidget):
         self.context_spin.valueChanged.connect(self._on_context_changed)
         self.context_label = QLabel()
         params.addRow(self.context_label, self.context_spin)
+
+        # 快捷键：Word 的 Ctrl+Shift+E 是「修订模式开关」，所以默认键改成了 Ctrl+Alt+Shift+E
+        # （Word 实测无动作）；这里允许用户改，并能当场问 Word"这个键绑了什么"。
+        hotkey_row = QWidget()
+        hotkey_layout = QHBoxLayout(hotkey_row)
+        hotkey_layout.setContentsMargins(0, 0, 0, 0)
+        hotkey_layout.setSpacing(6)
+        self.hotkey_edit = QLineEdit()
+        self.hotkey_edit.editingFinished.connect(self.apply_hotkey_combo)
+        self.hotkey_check_btn = QPushButton()
+        self.hotkey_check_btn.clicked.connect(self.check_hotkey_combo)
+        hotkey_layout.addWidget(self.hotkey_edit, 1)
+        hotkey_layout.addWidget(self.hotkey_check_btn)
+        self.hotkey_label = QLabel()
+        params.addRow(self.hotkey_label, hotkey_row)
         lay.addLayout(params)
+
+        self.hotkey_status = QLabel()
+        self.hotkey_status.setObjectName("hintLabel")
+        self.hotkey_status.setWordWrap(True)
+        lay.addWidget(self.hotkey_status)
+        self._load_hotkey_combo()
         return card
+
+    # ---------------- 快捷键 ----------------
+    def _hotkeys(self):
+        return self._ctx.get_service("hotkeys")
+
+    def _load_hotkey_combo(self) -> None:
+        from core.services.hotkey_service import format_combo
+
+        hotkeys = self._hotkeys()
+        combo = hotkeys.combo("toggle_monitor") if hotkeys is not None else ""
+        self.hotkey_edit.setText(format_combo(combo))
+
+    def apply_hotkey_combo(self) -> None:
+        """改键：校验 → 写配置 → 立即重绑（校验失败就退回当前生效值）。"""
+        from core.services import hotkey_conflict
+        from core.services.hotkey_service import format_combo
+
+        hotkeys = self._hotkeys()
+        if hotkeys is None:
+            return
+        raw = self.hotkey_edit.text()
+        if not hotkey_conflict.is_valid_combo(raw):
+            self.hotkey_status.setText(self.tr("settings.hotkey.invalid"))
+            self._load_hotkey_combo()
+            return
+        normalized = hotkey_conflict.normalize_combo(raw)
+        table = dict(self._config.get("hotkeys", {}) or {})
+        if table.get("toggle_monitor") == normalized:
+            self._load_hotkey_combo()
+            return
+        table["toggle_monitor"] = normalized
+        self._config.set("hotkeys", table)
+        hotkeys.apply()
+        self._load_hotkey_combo()
+        self._refresh_hotkey_hint()          # 主页面「快捷键」提示同步
+        self.hotkey_status.setText(self.tr("settings.hotkey.saved", combo=format_combo(normalized)))
+        logger.info("校对开关快捷键改为 %s", normalized)
+
+    def check_hotkey_combo(self) -> None:
+        """问 Word：这个键绑了什么（Word 没运行则明确说"检测不到"，不假装安全）。"""
+        from core.services import hotkey_conflict
+
+        combo = self.hotkey_edit.text().strip()
+        hotkeys = self._hotkeys()
+        if not combo and hotkeys is not None:
+            combo = hotkeys.combo("toggle_monitor")
+        verdict = hotkey_conflict.assess(combo)
+        if verdict["status"] == hotkey_conflict.STATUS_CONFLICT:
+            text = self.tr("settings.hotkey.conflict",
+                           command=verdict["human"] or verdict["command"])
+        elif verdict["status"] == hotkey_conflict.STATUS_FREE:
+            text = self.tr("settings.hotkey.free")
+        else:
+            text = self.tr("settings.hotkey.unknown")
+        self.hotkey_status.setText(text)
 
     def _apply_switch_colors(self) -> None:
         theme = self._ctx.get_service("theme")
@@ -431,6 +507,8 @@ class DashboardPage(QWidget):
             self.params_card_title.setText(self.tr("dashboard.params"))
             self.debounce_label.setText(self._app_tr("app.proof.debounce_label"))
             self.context_label.setText(self._app_tr("app.proof.context_label"))
+            self.hotkey_label.setText(self.tr("settings.hotkey"))
+            self.hotkey_check_btn.setText(self.tr("settings.hotkey.check"))
             self.cleanup_card_title.setText(self._app_tr("app.cleanup.group"))
             self.cleanup_ignore_btn.setText(self._app_tr("app.cleanup.ignore_short"))
             self.cleanup_log_btn.setText(self._app_tr("app.cleanup.log_short"))

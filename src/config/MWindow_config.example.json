@@ -16,10 +16,10 @@
   "context_before": 0,
   "context_after": 0,
   "hotkeys": {
-    "toggle_monitor": "ctrl+shift+e",
-    "proof_cursor": "ctrl+shift+z",
-    "translate": "ctrl+shift+t",
-    "rewrite": "ctrl+shift+r"
+    "toggle_monitor": "ctrl+alt+shift+e",
+    "proof_cursor": "ctrl+alt+shift+z",
+    "translate": "ctrl+alt+shift+t",
+    "rewrite": "ctrl+alt+shift+r"
   },
   "ui_language": "zh_CN",
   "prompt_language": "zh_CN",

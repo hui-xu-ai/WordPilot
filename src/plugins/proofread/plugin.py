@@ -112,11 +112,17 @@ class ProofreadPlugin(PluginBase):
         self.monitor.proof_enabled = True
         self._apply_visibility()
 
-        # 本插件负责的热键
+        # 本插件负责的热键。**默认键必须避开 Word 的内置键**：
+        # Word 的 Ctrl+Shift+E = 修订模式开关、Ctrl+Shift+Z = 清除格式，
+        # 而热键不拦截按键 ⇒ 按键会同时送进 Word，切校对的顺手把文档切进修订模式。
+        # Ctrl+Alt+Shift+E / Z 实测在 Word 里是"空命令"（无动作），见 hotkey_conflict 模块。
         hotkeys = ctx.get_service("hotkeys")
         if hotkeys is not None:
-            hotkeys.register("toggle_monitor", "ctrl+shift+e", self.toggle, owner="proofread")
-            hotkeys.register("proof_cursor", "ctrl+shift+z", self.proof_cursor, owner="proofread")
+            hotkeys.register("toggle_monitor", "ctrl+alt+shift+e", self.toggle,
+                             owner="proofread")
+            hotkeys.register("proof_cursor", "ctrl+alt+shift+z", self.proof_cursor,
+                             owner="proofread")
+            QTimer.singleShot(4000, self.check_hotkey_conflict)   # 启动自检（Word 可能还没起）
 
         # 「智能纠错」主页面 + 托盘直达：随插件启停自动上轨/消失（P9 解耦）
         ctx.ui.add_page("nav.page", self._build_dashboard_page,
@@ -351,6 +357,28 @@ class ProofreadPlugin(PluginBase):
 
     def toggle(self) -> None:
         self.set_enabled(not self._enabled)
+
+    def check_hotkey_conflict(self) -> None:
+        """启动自检：热键若在 Word 里绑了实际命令（如"修订模式开关"），明确提示一次。
+
+        Word 没运行就静默跳过 —— 用户可以在「智能纠错 → 参数」里点「检测冲突」随时再查。
+        """
+        from core.services import hotkey_conflict
+
+        hotkeys = self.ctx.get_service("hotkeys") if self.ctx is not None else None
+        if hotkeys is None:
+            return
+        for name, label_key in (("toggle_monitor", "status.hotkey_conflict"),
+                                ("proof_cursor", "status.hotkey_conflict")):
+            combo = hotkeys.combo(name)
+            if not combo:
+                continue
+            verdict = hotkey_conflict.assess(combo)
+            if verdict["status"] != hotkey_conflict.STATUS_CONFLICT:
+                continue
+            logger.warning("热键 %s=%s 与 Word 冲突：%s", name, combo, verdict["detail"])
+            self._status(self.tr(label_key, combo=combo,
+                                 command=verdict["human"] or verdict["command"]), 8000)
 
     def _apply_visibility(self) -> None:
         """只切换**校对状态**，绝不碰宠物窗口（宠物归内核，启停校对不该让它消失）。"""

@@ -36,6 +36,15 @@ KEY_FILE = CONFIG_DIR / ".key"
 DEFAULT_ENDPOINT = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-flash"
 
+#: 历史默认热键 → 新默认：旧键在 Word 里都有实际命令（见 `hotkey_conflict` 模块），
+#: 会与"切校对"同时触发（例如把文档切进修订模式）。迁移只做一次，记录 `hotkeys_migrated`。
+_LEGACY_HOTKEYS = {
+    "toggle_monitor": ("ctrl+shift+e", "ctrl+alt+shift+e"),
+    "proof_cursor": ("ctrl+shift+z", "ctrl+alt+shift+z"),
+    "translate": ("ctrl+shift+t", "ctrl+alt+shift+t"),
+    "rewrite": ("ctrl+shift+r", "ctrl+alt+shift+r"),
+}
+
 DEFAULT_CONFIG = {
     "api_key": "",
     "ignore_list": [],
@@ -106,11 +115,24 @@ class ConfigManager:
         config.setdefault("context_before", 1)
         config.setdefault("context_after", 1)
         config.setdefault("hotkeys", {
-            "toggle_monitor": "ctrl+shift+e",
-            "proof_cursor": "ctrl+shift+z",
-            "translate": "ctrl+shift+t",
-            "rewrite": "ctrl+shift+r"
+            "toggle_monitor": "ctrl+alt+shift+e",
+            "proof_cursor": "ctrl+alt+shift+z",
+            "translate": "ctrl+alt+shift+t",
+            "rewrite": "ctrl+alt+shift+r"
         })
+        # 一次性迁移历史默认键：这四条在 Word 里都有实际命令，而热键**不拦截按键**
+        # ⇒ 按键会同时送进 Word。实测（Word BuildKeyCode+FindKey）：
+        #   ctrl+shift+e = 修订模式开关、ctrl+shift+z = 清除格式、
+        #   ctrl+shift+t = 取消悬挂缩进、ctrl+shift+r = 重新统计字数。
+        # 只迁移"仍然等于旧默认值"的项：用户自己改过的键一律不动（他还能改回去，
+        # 届时界面里的「检测冲突」会明确告诉他风险）。
+        if not config.get("hotkeys_migrated"):
+            hotkeys_table = config.get("hotkeys") or {}
+            for name, (old, new) in _LEGACY_HOTKEYS.items():
+                if hotkeys_table.get(name) == old:
+                    hotkeys_table[name] = new
+            config["hotkeys"] = hotkeys_table
+            config["hotkeys_migrated"] = True
         # 外观（P2 起由 theme_service 消费；P3 起 ui_language 由 i18n 服务消费）
         config.setdefault("theme", "light")
         config.setdefault("ui_language", "zh_CN")       # 界面语言（与提示词语言解耦）
