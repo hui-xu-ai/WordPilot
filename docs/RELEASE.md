@@ -129,6 +129,26 @@ README 里的徽章与链接已指向 `hui-xu-ai/WordPilot`；换账号时全仓
 
 ## 发版记录
 
+### v3.3.0（2026-11-14）
+
+| 项 | 结果 |
+| --- | --- |
+| 产物 | `dist/WordPilot/`（`WordPilot.exe` 6.7 MB + `_internal/`），zip 62 MB / 452 条目 |
+| zip | `D:\Python\Project\WordPilot-release\WordPilot-v3.3.0-win64.zip`；SHA256 `6CAD5F99…28FD36` |
+| 冒烟 | 打包版运行 45s 存活；**打包内成功联网检查更新**（日志 `检查更新完成：本地 3.3.0 / 最新 3.2.0`）；随后按 PID 结束 |
+| 敏感数据 | 冒烟产生的 `config/`（含 `.key`/缓存）已在打包前删除；zip 内无 `config/`、无 `.key`、无日志 |
+| 依赖 | `certifi/cacert.pem` 在包内；`warn-WordPilot.txt` 无 requests/urllib3/certifi 缺失告警 |
+| 单测 | 1030 passed（1 skipped） |
+| quality-gate | FAIL=0（WARN：1 组循环依赖 + 5 个 ≥600 行文件，存量） |
+| 主题 | 新增检查更新；四条全局热键换键并迁移（与 Word 冲突）；设置页即改即存；题录导航修章节筛选与多实例定位 |
+| 发布 | `git push origin main`（19 提交）+ tag `v3.3.0`；GitHub Release 见下方命令 |
+
+```powershell
+# GitHub Release（需先 gh auth login；或直接在网页上传 zip 并粘贴发布说明）
+gh release create v3.3.0 "D:\Python\Project\WordPilot-release\WordPilot-v3.3.0-win64.zip" `
+  --title "WordPilot v3.3.0" --notes-file "work\release\release-notes-v3.3.0.md"
+```
+
 ### v3.2.0（2026-10-28）
 
 | 项 | 结果 |
