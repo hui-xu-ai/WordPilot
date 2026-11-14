@@ -226,5 +226,11 @@ def chapter_of(result: OfflineResult, index: int) -> str:
 
 
 def chapter_key(text: str) -> str:
-    """题录文本归一化，用于把离线章节信息对到 COM 扫出来的条目上。"""
-    return (text or "").split("  [", 1)[0].strip()
+    """题录文本归一化，用于把离线章节信息对到 COM 扫出来的条目上。
+
+    COM 与离线的题录文本并不逐字相同：COM 的 display 带页码后缀（`  [第 3 页]`），
+    两者在域代码位置上的空格数量也可能不同。这里把页码后缀与**所有空白**都去掉，
+    否则一条对不上就整条丢章节 —— 表现就是"章节筛选失效"（选了章节列表变空）。
+    """
+    base = (text or "").split("  [", 1)[0]
+    return "".join(base.split())

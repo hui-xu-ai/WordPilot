@@ -57,6 +57,26 @@ class ScanMixin:
                 base = item.display.rsplit("  [", 1)[0]
                 item.display = self.tr("caption.display", text=base, page=page)
 
+    def _ensure_chapters(self, full_path: str) -> None:
+        """保证章节下拉有数据：COM 路径（点「刷新列表」）也要能筛选章节。
+
+        章节信息只来自离线解析；若这次会话还没跑过离线扫描（例如用户一进来就点刷新），
+        `_chapters` 是空的 ⇒ 下拉只有"全部章节"且是灰的 ⇒ 用户看到的就是"章节筛选失效"。
+        这里按需补一次解析（比 COM 全量扫描便宜得多），失败只记日志。
+        """
+        if getattr(self, "_chapters", None) or not full_path:
+            return
+        try:
+            from plugins.navigator.offline_scan import chapter_key, scan_docx
+
+            result = scan_docx(full_path)
+        except Exception:                  # noqa: BLE001 - 章节只影响筛选，不能影响列表
+            logger.warning("补解析章节失败（章节筛选将不可用）：%s", full_path, exc_info=True)
+            return
+        self._chapters = list(result.chapter_titles)
+        self._chapter_map = {chapter_key(i.text): i.chapter for i in result.items}
+        logger.info("COM 刷新时补出章节：%d 个（%s）", len(self._chapters), full_path)
+
     def _apply_chapter_tags(self) -> None:
         """COM 扫描补出页码/跳转引用后，把离线扫描的章节信息续回条目上。
 
@@ -179,6 +199,7 @@ class ScanMixin:
         self._scan_word = word
         self._scan_doc = doc
         self._scan_fingerprint = self.cache.get_document_fingerprint(full_path)
+        self._scan_full_path = full_path       # `_finish_scan` 里按需补章节要用
         self._scan_silent = silent
 
         self._scan_seq_info = []
@@ -381,10 +402,11 @@ class ScanMixin:
             # 3. 更新实例数据源（把离线章节信息续上）
             self.table_captions = self._new_table
             self.figure_captions = self._new_figure
+            self._ensure_chapters(str(getattr(doc, "FullName", "") or ""))
             self._apply_chapter_tags()
 
-            # 4. 刷新界面列表
-            self.filter_lists()
+            # 4. 刷新界面列表（连带重建章节下拉）
+            self._render_lists()
 
             # 5. 恢复标签页状态
             if self.last_tab_index == 1 and self.figure_list.count() > 0:
@@ -435,8 +457,11 @@ class ScanMixin:
             
         self.table_captions = self._new_table
         self.figure_captions = self._new_figure
+        self._ensure_chapters(getattr(self, "_scan_full_path", ""))
         self._apply_chapter_tags()
-        self.filter_lists()
+        # 用 `_render_lists()`（= 重建章节下拉 + 过滤）：COM 路径以前只 `filter_lists()`，
+        # 于是"一进来就点刷新"的会话里章节下拉永远停在空的"全部章节"。
+        self._render_lists()
         # 恢复标签页
         if self.last_tab_index == 1 and self.figure_list.count() > 0:
             self.tab_widget.setCurrentIndex(1)

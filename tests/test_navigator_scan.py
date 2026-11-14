@@ -162,6 +162,42 @@ def test_chapter_and_keyword_combine(docx):
     assert panel.table_list.items == []
 
 
+def test_com_scan_fills_chapters_when_offline_never_ran(docx):
+    """用户"一进来就点刷新列表"时，章节下拉以前永远只有"全部章节"（= 章节筛选看起来失效）。
+
+    COM 收尾现在会按需补一次离线解析（只为章节），并把下拉重建出来。
+    """
+    from plugins.navigator.caption_item import CaptionItem
+
+    panel = _panel()
+    panel._new_table = [CaptionItem("表 2.1 参数表  [第 5 页]")]     # display 带页码后缀
+    panel._new_figure = [CaptionItem("图 1.1 装置示意图  [第 3 页]")]
+    panel._scan_full_path = docx
+    panel._scan_fingerprint = ""
+    panel._scan_silent = False
+    panel._scan_update_pages = False
+    panel.last_tab_index = 0
+    panel.progress_bar = type("B", (), {"setVisible": lambda self, _v: None})()
+    panel.tab_widget = type("T", (), {"setCurrentIndex": lambda self, _i: None})()
+    panel._restore_screen_updating = lambda: None
+    panel._set_status = lambda *a, **k: None
+
+    panel._finish_scan(len(panel._new_table), len(panel._new_figure))
+
+    assert panel.chapter_combo.enabled is True, "COM 路径也要把章节下拉填上"
+    assert panel.chapter_combo.texts() == ["chapter.all|{}", "第1章  绪论", "第2章  方法"]
+    assert panel._new_figure[0].chapter == 0, "页码后缀不该影响章节续接"
+    assert panel._new_table[0].chapter == 1
+
+
+def test_chapter_key_ignores_page_suffix_and_spaces(docx):
+    """COM 与离线的题录文本不完全逐字相同：归一化必须同时去掉页码后缀与空白。"""
+    from plugins.navigator.offline_scan import chapter_key
+
+    assert chapter_key("图 1.1 装置示意图  [第 3 页]") == chapter_key("图1.1 装置示意图")
+    assert chapter_key("图1.1装置示意图") == "图1.1装置示意图"
+
+
 def test_missing_file_falls_back_to_com_path(tmp_path):
     """离线解析失败时返回 False，让调用方继续走 COM。"""
     panel = _panel()
