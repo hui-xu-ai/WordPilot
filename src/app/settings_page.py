@@ -13,11 +13,12 @@ import logging
 import os
 import subprocess
 import sys
+import time
 
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit,
-    QPushButton, QLabel, QTextEdit, QSpinBox, QStackedWidget, QWidget,
+    QApplication, QPushButton, QLabel, QTextEdit, QSpinBox, QStackedWidget, QWidget,
     QMessageBox, QSlider, QGroupBox, QCheckBox, QComboBox, QDoubleSpinBox,
     QListWidget, QScrollArea,
 )
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
 from core.services.api_client import DeepSeekClient
 from core.services.skin_service import DEFAULT_SKIN_ID
 from core.services.theme_service import USER_QSS
+from core.services.update_service import MANUAL_COOLDOWN_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,30 @@ class _ConnectionTester(QThread):
         self.done.emit(ok, reason)
 
 
+class _UpdateChecker(QThread):
+    """在后台线程里查 GitHub Releases（网络请求绝不放 GUI 线程，同 `_ConnectionTester`）。"""
+
+    done = Signal(object, str, str)      # (UpdateInfo | None, 错误类型, 错误详情)
+
+    def __init__(self) -> None:
+        # 同 `_ConnectionTester`：不要以页面为父对象，页面析构会连带杀掉运行中的线程
+        super().__init__(None)
+
+    def run(self) -> None:        # noqa: D401 - QThread 入口
+        from __version__ import __version__
+
+        from core.services import update_service
+
+        try:
+            info = update_service.check_for_update(__version__)
+        except update_service.UpdateCheckError as err:
+            self.done.emit(None, err.kind, err.detail)
+        except Exception as exc:          # noqa: BLE001  兜底：异常绝不能逃出线程
+            self.done.emit(None, "network", str(exc))
+        else:
+            self.done.emit(info, "", "")
+
+
 class SettingsPage(QWidget):
     saved = Signal()
 
@@ -87,10 +113,18 @@ class SettingsPage(QWidget):
         self.i18n = i18n
         self.skins = skins
         self._tester: _ConnectionTester | None = None
+        # 检查更新（v1：只提示 + 给下载入口，不自动替换安装）
+        self._update_checker: _UpdateChecker | None = None
+        self._update_info = None
+        self._last_manual_check = 0.0
 
         self.init_ui()
         self.load_settings()
         self.retranslateUi()
+        # 退出前必须把后台检查线程收掉：QThread 还在跑时解释器析构会直接崩（0xC0000409）
+        app = QApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self._stop_update_checker)
 
     # ---------------- 多语言 ----------------
     def tr(self, key: str, /, **params) -> str:
@@ -449,6 +483,29 @@ class SettingsPage(QWidget):
         self.about_env_value.setWordWrap(True)
         form.addRow(self.about_env_label, self.about_env_value)
         lay.addLayout(form)
+
+        # ---- 检查更新（v1：只提示 + 打开下载页，不做自动替换安装）----
+        self.auto_check_update_check = QCheckBox()
+        self.auto_check_update_check.toggled.connect(self._on_auto_check_toggled)
+        lay.addWidget(self.auto_check_update_check)
+
+        # 状态文案独占一行（新版本提示可能很长，挤在同一行会把按钮推出可视区）
+        self.update_status = QLabel()
+        self.update_status.setObjectName("hintLabel")
+        self.update_status.setWordWrap(True)
+        lay.addWidget(self.update_status)
+
+        update_buttons = QHBoxLayout()
+        update_buttons.setSpacing(8)
+        update_buttons.addStretch(1)
+        self.update_open_btn = QPushButton()
+        self.update_open_btn.setVisible(False)
+        self.update_open_btn.clicked.connect(self._open_release_page)
+        self.update_btn = QPushButton()
+        self.update_btn.clicked.connect(self.check_update_now)
+        update_buttons.addWidget(self.update_open_btn)
+        update_buttons.addWidget(self.update_btn)
+        lay.addLayout(update_buttons)
         layout.addWidget(card)
 
         card2, lay2 = self._card()
@@ -471,6 +528,95 @@ class SettingsPage(QWidget):
         from core.services.config_manager import CONFIG_DIR
 
         return CONFIG_DIR
+
+    # ---------------- 检查更新 ----------------
+    def check_update_now(self) -> None:
+        """手动检查：不看节流，但 10 秒内不重复打网络（连点按钮不该刷接口）。"""
+        if self._update_checker is not None and self._update_checker.isRunning():
+            return
+        now = time.monotonic()
+        if now - self._last_manual_check < MANUAL_COOLDOWN_SECONDS:
+            return
+        self._last_manual_check = now
+        self._run_update_check(manual=True)
+
+    def start_background_update_check(self) -> None:
+        """启动时的自动检查：按配置节流；失败静默（只记日志）。"""
+        from core.services import update_service
+
+        if not update_service.needs_check(self.config):
+            return
+        if self._update_checker is not None and self._update_checker.isRunning():
+            return
+        self._run_update_check(manual=False)
+
+    def _run_update_check(self, *, manual: bool) -> None:
+        self.update_btn.setEnabled(False)
+        self.update_status.setText(self.tr("app.update.checking"))
+        checker = _UpdateChecker()
+        checker.done.connect(
+            lambda info, kind, detail: self._on_update_checked(info, kind, detail, manual=manual))
+        self._update_checker = checker
+        checker.start()
+
+    def _on_update_checked(self, info, kind: str, detail: str, *, manual: bool) -> None:
+        from core.services import update_service
+
+        self.update_btn.setEnabled(True)
+        update_service.mark_checked(self.config, info)      # 失败也记时间戳，避免断网时反复重试
+
+        if info is None:
+            self._update_info = None
+            self.update_open_btn.setVisible(False)
+            if manual:
+                self.update_status.setText(self._update_error_text(kind, detail))
+            else:
+                logger.info("自动检查更新失败（%s：%s），静默忽略", kind, detail)
+                self.update_status.setText("")
+            return
+
+        self._update_info = info if info.has_update else None
+        self.update_open_btn.setVisible(bool(info.has_update))
+        if info.has_update:
+            self.update_status.setText(self.tr("app.update.available", version=info.latest))
+            logger.info("发现新版本：本地 %s → 最新 %s", info.current, info.latest)
+        else:
+            self.update_status.setText(self.tr("app.update.up_to_date", version=info.current))
+
+    def _update_error_text(self, kind: str, detail: str) -> str:
+        key = {
+            "timeout": "app.update.failed.timeout",
+            "network": "app.update.failed.network",
+            "no_release": "app.update.failed.no_release",
+            "parse": "app.update.failed.parse",
+        }.get(kind, "app.update.failed.http")
+        text = self.tr(key)
+        return f"{text}（{detail}）" if kind == "http" and detail else text
+
+    def _open_release_page(self) -> None:
+        """打开下载入口：优先直连本版 zip，其次 Release 页面。"""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        from core.services.update_service import RELEASE_PAGE
+
+        info = self._update_info
+        target = ""
+        if info is not None:
+            target = info.download_url or info.release_url
+        QDesktopServices.openUrl(QUrl(target or RELEASE_PAGE))
+
+    def _on_auto_check_toggled(self, enabled: bool) -> None:
+        """自动检查开关：单个布尔偏好，直接落盘（不混进「保存设置」的一揽子表单）。"""
+        self.config.set("auto_check_update", bool(enabled))
+
+    def _stop_update_checker(self) -> None:
+        """退出/销毁前收掉后台检查线程（QThread 运行中析构会让进程直接崩）。"""
+        checker = self._update_checker
+        if checker is not None and checker.isRunning():
+            checker.requestInterruption()
+            checker.wait(1500)
+        self._update_checker = None
 
     # ---------------- 存储管理 ----------------
     def _refresh_storage(self) -> None:
@@ -544,6 +690,16 @@ class SettingsPage(QWidget):
         self.about_version_label.setText(self.tr("settings.about.version"))
         self.about_author_label.setText(self.tr("settings.about.author"))
         self.about_env_label.setText(self.tr("settings.about.env"))
+        # 检查更新（文案随语言/状态刷新；已查过就把结论重新渲染一遍）
+        self.auto_check_update_check.setText(self.tr("app.update.auto"))
+        self.auto_check_update_check.setToolTip(self.tr("app.update.privacy"))
+        self.update_btn.setText(self.tr("app.update.check"))
+        self.update_open_btn.setText(self.tr("app.update.open"))
+        info = self._update_info
+        if info is not None:
+            self.update_status.setText(self.tr("app.update.available", version=info.latest))
+        elif not self.update_status.text():
+            self.update_status.setText("")
         self.about_paths_title.setText(self.tr("settings.about.paths"))
         if hasattr(self, "monitor_panel"):
             self.monitor_panel.retranslate()      # 表格表头/按钮也要跟着换语言
@@ -599,6 +755,10 @@ class SettingsPage(QWidget):
                           self.i18n.current if self.i18n is not None else "zh_CN")
         self._select_data(self.skin_combo,
                           self.skins.current_id if self.skins is not None else DEFAULT_SKIN_ID)
+        auto_check = bool(self.config.get("auto_check_update", True))
+        self.auto_check_update_check.blockSignals(True)
+        self.auto_check_update_check.setChecked(auto_check)
+        self.auto_check_update_check.blockSignals(False)
 
     @staticmethod
     def _select_data(combo: QComboBox, value):

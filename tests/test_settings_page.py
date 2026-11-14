@@ -205,3 +205,78 @@ def test_page_destruction_stops_tester(page, monkeypatch):
     assert tester.stopped, "退出前必须请求线程停止"
     assert tester.waited > 0, "还要 wait 等它真正结束"
     assert widget._tester is None
+
+
+# ---------------- 检查更新（关于页） ----------------
+def _update_info(**kwargs):
+    from core.services.update_service import UpdateInfo
+
+    payload = dict(current="3.2.0", latest="9.9.9", has_update=True,
+                   release_url="https://example.invalid/release",
+                   download_url="https://example.invalid/pkg.zip",
+                   notes="", published_at="2026-11-01T00:00:00Z")
+    payload.update(kwargs)
+    return UpdateInfo(**payload)
+
+
+def test_about_page_has_update_controls(page):
+    widget, manager = page
+
+    assert widget.update_btn.isEnabled()
+    assert widget.auto_check_update_check.isChecked() is True, "默认开启自动检查"
+    assert widget.update_open_btn.isHidden(), "没查到新版本前不该显示下载入口"
+
+
+def test_update_found_shows_version_and_download_entry(page):
+    widget, manager = page
+
+    widget._on_update_checked(_update_info(), "", "", manual=True)
+
+    assert widget.update_status.text() == "app.update.available", "（假 i18n 下返回 key）"
+    assert not widget.update_open_btn.isHidden()
+    assert manager.get("update_last_seen_version") == "9.9.9"
+    assert manager.get("update_last_checked_at")
+
+
+def test_up_to_date_hides_download_entry(page):
+    widget, manager = page
+
+    widget._on_update_checked(_update_info(has_update=False, latest="3.2.0"), "", "", manual=True)
+
+    assert widget.update_status.text() == "app.update.up_to_date"
+    assert widget.update_open_btn.isHidden()
+
+
+def test_manual_failure_shows_reason(page):
+    widget, _manager = page
+
+    widget._on_update_checked(None, "timeout", "", manual=True)
+
+    assert widget.update_status.text() == "app.update.failed.timeout"
+    assert widget.update_btn.isEnabled(), "失败后按钮必须恢复可点"
+
+
+def test_automatic_failure_is_silent(page):
+    widget, _manager = page
+
+    widget._on_update_checked(None, "network", "", manual=False)
+
+    assert widget.update_status.text() == "", "自动检查失败不该在界面上提示"
+    assert widget.update_btn.isEnabled()
+
+
+def test_background_check_respects_switch(page):
+    widget, manager = page
+    manager.config["auto_check_update"] = False
+
+    widget.start_background_update_check()
+
+    assert widget._update_checker is None, "关了自动检查就不该起线程"
+
+
+def test_auto_check_toggle_persists(page):
+    widget, manager = page
+
+    widget.auto_check_update_check.setChecked(False)
+
+    assert manager.get("auto_check_update") is False, "开关要立即落盘"

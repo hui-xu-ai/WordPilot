@@ -36,6 +36,15 @@
 - **不发送**：文件路径、文档全文、参考文献库、历史调用日志；
 - API Key 以 `Authorization: Bearer` 头传输，落盘前用 Fernet（`.key`）加密。
 
+### 3.1 检查更新会外发什么（2026-11-13 新增）
+
+- 唯一目标：`https://api.github.com/repos/hui-xu-ai/WordPilot/releases/latest`（GitHub 公共接口）；
+- 请求头只有 `User-Agent: WordPilot/<版本号>` 与 `Accept`；**不带** API Key、机器名、用户名、
+  文档路径、使用统计 —— 也就是说，除了"有人在某 IP 上查了一次版本号"，不泄露任何内容；
+- 触发时机：启动 30 秒后自动查一次（默认每 24 小时最多一次）、你在「设置 → 关于」点「检查更新」；
+- 可完全关闭：设置 → 关于 → 取消勾选「启动时自动检查更新」（配置项 `auto_check_update`）；
+- GitHub 侧仍会记录请求方 IP（这是任何联网请求都有的元数据），本程序不做任何转发。
+
 ## 4. 仓库侧的隔离机制
 
 1. `.gitignore` 覆盖全部运行时隐私文件（`.key`、`MWindow_config.json`、`api_calls.log`、

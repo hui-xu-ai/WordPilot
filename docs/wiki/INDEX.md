@@ -4,7 +4,7 @@
 
 ## .
 - [WordPilot 工作区（pydev 预设）](AGENTS.md) — 2603 B
-- [Changelog](CHANGELOG.md) — 3741 B
+- [Changelog](CHANGELOG.md) — 5365 B
 - [贡献指南（Contributing）](CONTRIBUTING.md) — 3387 B
 - [WordPilot](README.md) — 10101 B
 - [安全策略（Security Policy）](SECURITY.md) — 2031 B
@@ -16,8 +16,8 @@
 - [交接文档 · HANDOVER](docs/HANDOVER.md) — 9251 B
 - [桌宠皮肤与状态](docs/PET_SKINS.md) — 2111 B
 - [插件开发指南 · PLUGIN GUIDE](docs/PLUGIN_GUIDE.md) — 11615 B
-- [隐私与数据安全 · PRIVACY](docs/PRIVACY.md) — 4119 B
-- [发布说明 · RELEASE](docs/RELEASE.md) — 7337 B
+- [隐私与数据安全 · PRIVACY](docs/PRIVACY.md) — 4921 B
+- [发布说明 · RELEASE](docs/RELEASE.md) — 7821 B
 - [路线图 · ROADMAP](docs/ROADMAP.md) — 4479 B
 - [ADR-001 采用 pydev 项目布局与记忆分离](docs/adr/001-onboarding-layout.md) — 1964 B
 - [ADR-002 插件次要界面：全局右侧可折叠抽屉](docs/adr/002-side-panel.md) — 4695 B

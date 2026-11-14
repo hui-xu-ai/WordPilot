@@ -249,6 +249,9 @@ class MainWindow(PagesMixin, QMainWindow):
             skins=self.kernel.services.get("skins"))
         settings_page.saved.connect(self._on_settings_saved)
         self._add_builtin_page("settings", settings_page)
+        self.settings_page = settings_page
+        # 启动后 30 秒查一次更新（错开启动高峰；节流/开关由 update_service 判定，失败静默）
+        QTimer.singleShot(30_000, settings_page.start_background_update_check)
 
         # 状态栏：右下角放 QSizeGrip（无边框窗口的缩放手柄）
         self.statusbar = self.statusBar()
