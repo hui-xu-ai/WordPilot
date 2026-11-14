@@ -115,6 +115,9 @@ def test_get_word_app_recycles_headless_instance_once(monkeypatch):
     monkeypatch.setattr(word_bridge, "_work_documents", set())
     monkeypatch.setattr(word_bridge, "_is_workspace_document", lambda _doc: False)
     monkeypatch.setattr(word_bridge, "_headless_checked", False)
+    # 不碰真实运行对象表/前台窗口：本机真开着 Word 时用例必须依旧隔离
+    monkeypatch.setattr(word_bridge, "_applications_of_open_documents", lambda *a, **k: [])
+    monkeypatch.setattr(word_bridge, "_foreground_word_pid", lambda: 0)
     word_bridge.register_work_document(IMAGE)
 
     phantom = _Word(False, [_Doc("Image.docx", IMAGE)])
@@ -264,6 +267,9 @@ def test_recycle_happens_only_once(monkeypatch):
     monkeypatch.setattr(word_bridge, "_work_documents", set())
     monkeypatch.setattr(word_bridge, "_is_workspace_document", lambda _doc: False)
     monkeypatch.setattr(word_bridge, "_headless_checked", False)
+    # 不碰真实运行对象表/前台窗口：本机真开着 Word 时用例必须依旧隔离
+    monkeypatch.setattr(word_bridge, "_applications_of_open_documents", lambda *a, **k: [])
+    monkeypatch.setattr(word_bridge, "_foreground_word_pid", lambda: 0)
     word_bridge.register_work_document(IMAGE)
 
     phantom = _Word(False, [_Doc("Image.docx", IMAGE)])

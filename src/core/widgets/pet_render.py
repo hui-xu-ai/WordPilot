@@ -11,6 +11,11 @@ BASE_SIZE = 64
 #: 8% 在 64px 桌宠上约 5px，肉眼几乎看不出角色变小，但足够让阴影露出来。
 SHADOW_INSET_RATIO = 0.08
 
+#: 投影三个旋钮（用户可感知）：浓度 / 柔和度（缩小放大次数，越多越散）/ 下移量（基准 64px 像素）
+SHADOW_ALPHA = 95
+SHADOW_BLUR_PASSES = 2
+SHADOW_OFFSET_BASE = 1.5
+
 
 def paint_scaled(window, painter) -> None:
     """按窗口尺寸把宠物等比绘制出来（layout 坐标始终在基准空间，不会错位）。"""
@@ -81,14 +86,18 @@ def _paint_drop_shadow(window, painter, inner) -> None:
             shadow_painter.restore()
         # 镂空成纯黑剪影（保留抗锯齿边缘），再把整体压成半透明黑
         shadow_painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
-        shadow_painter.fillRect(image.rect(), QColor(0, 0, 0, 140))
+        shadow_painter.fillRect(image.rect(), QColor(0, 0, 0, SHADOW_ALPHA))
     finally:
         shadow_painter.end()
 
-    small = image.scaled(max(1, width // 2), max(1, height // 2),
-                         Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-    blurred = small.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-    painter.drawImage(QPoint(0, max(1, int(round(height * 2 / BASE_SIZE)))), blurred)
+    # 反复"缩小一半再放大" = 级联平滑，比一次缩放更散更柔（也避开高斯模糊的开销）
+    blurred = image
+    for _ in range(max(1, SHADOW_BLUR_PASSES)):
+        small = blurred.scaled(max(1, width // 2), max(1, height // 2),
+                               Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        blurred = small.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    offset = max(1, int(round(height * SHADOW_OFFSET_BASE / BASE_SIZE)))
+    painter.drawImage(QPoint(0, offset), blurred)
 
 
 def paint_pet(window, painter) -> None:
