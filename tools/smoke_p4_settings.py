@@ -21,7 +21,8 @@ from _config_guard import guard                                # noqa: E402
 
 k = Kernel()
 k.boot()
-# save_settings() 会真写用户 config（skin/ui_language/theme）：先快照，结束恢复
+# 设置页是"即改即存"（无保存按钮）：拉到这一页、改皮肤都会真写用户 config
+# （skin/ui_language/theme）：先快照，结束恢复
 restore_config = guard(k.config, ["skin", "ui_language", "theme", "suggestion_opacity"])
 mw = MainWindow(k)
 k.attach_ui(mw.ui)
@@ -39,9 +40,9 @@ print("当前选中:", page.skin_combo.currentData())
 pet = k.services.get("window_manager").get(PET_ID)
 print("切换前桌宠状态:", pet.state())
 
-# 走一遍保存流程：改皮肤 -> 保存 -> 主窗口广播 skin.changed
+# 走一遍落盘流程：改皮肤（下拉即改即存）-> 主窗口广播 skin.changed
 page.skin_combo.setCurrentIndex(0)
-page.save_settings()
+page.save_settings()          # 兜底再落一次（无变化时会直接返回）
 mw._on_settings_saved()
 print("保存后 config.skin:", k.config.get("skin"), "| 广播后桌宠尺寸:", pet.canvas.width())
 

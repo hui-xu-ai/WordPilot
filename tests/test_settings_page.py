@@ -41,8 +41,24 @@ def test_save_writes_config_once(page, monkeypatch):
         return real_save()
 
     monkeypatch.setattr(manager, "save", counting_save)
+    widget.model_edit.setText("deepseek-reasoner")      # 有真实改动才会写盘
     widget.save_settings()
+
     assert calls == ["save"], f"一次保存只应落盘一次，实际 {len(calls)} 次"
+
+
+def test_no_save_when_nothing_changed(page, monkeypatch):
+    """即改即存的前提：没有变化就不该写盘（防抖空转、切 Tab 都会走到这里）。"""
+    widget, manager = page
+    calls: list[str] = []
+    real_save = manager.save
+
+    monkeypatch.setattr(manager, "save", lambda: (calls.append("save"), real_save())[1])
+
+    widget.save_settings()
+    widget._flush_save()
+
+    assert calls == [], f"没有改动不该写盘，实际写了 {len(calls)} 次"
 
 
 def test_save_failure_is_visible_and_not_broadcast(page, monkeypatch):
@@ -52,6 +68,7 @@ def test_save_failure_is_visible_and_not_broadcast(page, monkeypatch):
     emitted: list[int] = []
     widget.saved.connect(lambda: emitted.append(1))
 
+    widget.model_edit.setText("deepseek-reasoner")
     widget.save_settings()
 
     assert emitted == [], "写盘失败时不得广播 saved（否则后续动作会基于没落盘的配置执行）"
@@ -151,16 +168,110 @@ def test_all_eight_skin_choices_are_available(page):
         widget.deleteLater()
 
 
-def test_save_button_exists_and_persists(page, monkeypatch):
-    """U01：设置页必须有一个用户点得到的保存入口。"""
+def test_settings_page_has_no_save_button(page):
+    """B 方案：取消常驻「保存」按钮，改为即改即存（按钮只覆盖部分字段，语义不清）。"""
+    widget, _manager = page
+
+    assert not hasattr(widget, "save_btn"), "保存按钮应已移除"
+    assert widget.save_settings is not None, "落盘入口仍要保留（防抖定时器与冒烟脚本都用它）"
+
+
+def test_editing_schedules_debounced_save(page):
+    widget, _manager = page
+
+    widget.model_edit.setText("deepseek-reasoner")
+
+    assert widget._save_timer.isActive(), "输入后应启动防抖定时器"
+    assert widget._save_timer.interval() == 500
+
+
+def test_debounced_flush_persists_once(page, monkeypatch):
     widget, manager = page
-    assert widget.save_btn is not None, "缺少保存按钮"
-    assert widget.save_btn.text(), "保存按钮应带文案"
+    calls: list[str] = []
+    real_save = manager.save
+    monkeypatch.setattr(manager, "save", lambda: (calls.append("save"), real_save())[1])
 
-    widget.model_edit.setText("deepseek-reasoner") if hasattr(widget, "model_edit") else None
-    widget.save_btn.click()
+    for text in ("deep", "deepseek-", "deepseek-reasoner"):     # 连续打字
+        widget.model_edit.setText(text)
+    widget._flush_save()                                        # 防抖到点
 
-    assert manager.get("model") == "deepseek-reasoner" or hasattr(widget, "save_status")
+    assert calls == ["save"], f"连续输入只应写一次盘，实际 {len(calls)} 次"
+    assert manager.get("model") == "deepseek-reasoner"
+    assert widget.save_status.text(), "落盘后应有「已保存」提示"
+
+
+def test_loading_does_not_trigger_save(page, monkeypatch):
+    """打开设置页时的程序化赋值不能写盘（否则每次进页面都闪一次已保存）。"""
+    widget, manager = page
+    calls: list[str] = []
+    real_save = manager.save
+    monkeypatch.setattr(manager, "save", lambda: (calls.append("save"), real_save())[1])
+
+    widget.load_settings()
+
+    assert calls == [], "load_settings 期间不应写盘"
+    assert not widget._save_timer.isActive()
+
+
+@pytest.fixture
+def rich_page(qapp, config_env):
+    """带主题/语言/皮肤的完整页面：用来验证下拉框即时生效。"""
+    from app.settings_page import SettingsPage
+    from core.services.config_manager import ConfigManager
+    from core.services.i18n import I18nService
+    from core.services.skin_service import SkinService
+    from core.services.theme_service import ThemeService
+
+    manager = ConfigManager()
+    widget = SettingsPage(manager, theme=ThemeService(manager), i18n=I18nService(manager),
+                          skins=SkinService(manager))
+    yield widget, manager
+    widget.deleteLater()
+
+
+def test_language_combo_saves_and_applies_immediately(rich_page):
+    """界面语言以前要"点保存"才生效（用户改了没变）；现在选完即落盘并通知外壳重翻译。"""
+    widget, manager = rich_page
+    codes = [widget.ui_language_combo.itemData(i)
+             for i in range(widget.ui_language_combo.count())]
+    current = widget.ui_language_combo.currentData()
+    others = [code for code in codes if code != current]
+    if not others:
+        pytest.skip("只有一个界面语言")
+    target = others[0]
+    index = widget.ui_language_combo.findData(target)
+    assert index >= 0
+    appearances: list[int] = []
+    widget.appearanceSaved.connect(lambda: appearances.append(1))
+
+    widget.ui_language_combo.setCurrentIndex(index)
+
+    assert manager.get("ui_language") == target, "选完即落盘"
+    assert appearances == [1], "外观变化要通知外壳切语言/重翻译"
+
+
+def test_ai_change_does_not_trigger_appearance_refresh(rich_page):
+    """只改 AI 参数不该触发重刷样式与全量重翻译（打字时每 0.5s 一次会造成闪烁）。"""
+    widget, _manager = rich_page
+    appearances: list[int] = []
+    widget.appearanceSaved.connect(lambda: appearances.append(1))
+
+    widget.model_edit.setText("deepseek-reasoner")
+    widget._flush_save()
+
+    assert appearances == []
+
+
+def test_theme_combo_applies_immediately(rich_page):
+    widget, manager = rich_page
+    if widget.theme_combo.count() < 2:
+        pytest.skip("只有一套主题")
+    target = widget.theme_combo.itemData(1)
+
+    widget.theme_combo.setCurrentIndex(1)
+
+    assert manager.get("theme") == target, "主题选完即落盘"
+    assert widget.theme.current == target, "主题要立即生效"
 
 
 def test_api_key_is_masked_by_default(page):

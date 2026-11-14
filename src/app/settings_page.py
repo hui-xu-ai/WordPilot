@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit,
     QApplication, QPushButton, QLabel, QTextEdit, QSpinBox, QStackedWidget, QWidget,
@@ -39,6 +39,11 @@ PROMPT_LANGUAGE_NAMES = {
 _NAV_KEYS = ("settings.tab.api", "settings.tab.appearance", "settings.tab.monitor",
              "settings.tab.storage",
              "settings.tab.about")
+
+#: 即改即存的防抖窗口（毫秒）：连续打字只写一次盘，又不能让用户觉得"没保存"
+SAVE_DEBOUNCE_MS = 500
+#: 底部"已保存"提示停留时长（毫秒）
+SAVED_TOAST_MS = 2000
 
 
 def _qt_version() -> str:
@@ -105,6 +110,8 @@ class _UpdateChecker(QThread):
 
 class SettingsPage(QWidget):
     saved = Signal()
+    #: 外观类配置（界面语言/皮肤/主题）发生了变化：外壳据此切语言/皮肤、重刷样式
+    appearanceSaved = Signal()
 
     def __init__(self, config, parent=None, theme=None, i18n=None, skins=None):
         super().__init__(parent)
@@ -117,6 +124,15 @@ class SettingsPage(QWidget):
         self._update_checker: _UpdateChecker | None = None
         self._update_info = None
         self._last_manual_check = 0.0
+        # 即改即存：文本/数值改动防抖 500ms 后落盘；load_settings 期间不触发
+        self._loading = False
+        self._last_payload: dict | None = None
+        self._last_appearance: tuple | None = None
+        self._toast_token: object | None = None
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(SAVE_DEBOUNCE_MS)
+        self._save_timer.timeout.connect(self.save_settings)
 
         self.init_ui()
         self.load_settings()
@@ -173,23 +189,45 @@ class SettingsPage(QWidget):
 
         self.nav_list.setCurrentRow(0)
         self.destroyed.connect(self._stop_tester)
+        self._bind_autosave()
 
-        # 底部保存栏
+        # 底部状态栏：只放"已保存/保存失败"提示（保存按钮已移除，改为即改即存）
         bottom = QHBoxLayout()
         self.save_status = QLabel("")
         self.save_status.setObjectName("hintLabel")
+        self.save_status.setWordWrap(True)
         bottom.addWidget(self.save_status, 1)
-        # 外观（皮肤/尺寸/显隐）即时生效；API Key、模型、温度、Token、提示词语言、
-        # 主题与界面语言仍需显式提交——审查 U01 指出没有可用入口，导致这些改动永不落盘。
-        self.save_btn = QPushButton()
-        self.save_btn.setProperty("accent", True)
-        self.save_btn.clicked.connect(self.save_settings)
-        bottom.addWidget(self.save_btn)
         main_layout.addLayout(bottom)
 
     def _switch_section(self, row: int) -> None:
         if 0 <= row < self.stack.count():
             self.stack.setCurrentIndex(row)
+
+    # ---------------- 即改即存 ----------------
+    def _bind_autosave(self) -> None:
+        """把可编辑控件接到自动保存上。
+
+        文本/数值用防抖（打字过程中不写盘），下拉框立即落盘并即时生效：
+        主题、界面语言以前只有"点保存"才生效，正是"改了没变"的来源。
+        """
+        for edit in (self.model_edit, self.endpoint_edit, self.api_key_edit):
+            edit.textChanged.connect(self._schedule_save)
+        for spin in (self.temp_edit, self.max_tokens_edit):
+            spin.valueChanged.connect(self._schedule_save)
+        self.theme_combo.currentIndexChanged.connect(self._flush_save)
+        self.ui_language_combo.currentIndexChanged.connect(self._flush_save)
+
+    def _schedule_save(self, *_args) -> None:
+        if self._loading:
+            return
+        self._save_timer.start()
+
+    def _flush_save(self, *_args) -> None:
+        """立即落盘（下拉框用；也便于测试直接调用）。"""
+        self._save_timer.stop()
+        if self._loading:
+            return
+        self.save_settings()
 
     # ---------------- 桌宠外观 ----------------
     def _on_toggle_api_key(self, shown: bool) -> None:
@@ -677,7 +715,6 @@ class SettingsPage(QWidget):
         self.label_temperature.setText(self.tr("settings.api.temperature"))
         self.label_max_tokens.setText(self.tr("settings.api.max_tokens"))
         self.api_key_edit.setPlaceholderText(self.tr("settings.api.key_placeholder"))
-        self.save_btn.setText(self.tr("settings.btn.save"))
         self.api_key_toggle.setText(
             self.tr("settings.api.key_hide") if self.api_key_toggle.isChecked()
             else self.tr("settings.api.key_show"))
@@ -743,22 +780,41 @@ class SettingsPage(QWidget):
             QMessageBox.warning(self, self.tr("settings.appearance.open_fail_title"), str(exc))
 
     def load_settings(self):
-        self.api_key_edit.setText(self.config.get_api_key())
-        self.model_edit.setText(self.config.get("model", "deepseek-flash"))
-        self.endpoint_edit.setText(
-            str(self.config.get("api_endpoint", "https://api.deepseek.com") or ""))
-        self.temp_edit.setValue(self.config.get("temperature", 0.4))
-        self.max_tokens_edit.setValue(self.config.get("max_tokens", 2000))
-        if self.theme is not None:
-            self._select_data(self.theme_combo, self.theme.current)
-        self._select_data(self.ui_language_combo,
-                          self.i18n.current if self.i18n is not None else "zh_CN")
-        self._select_data(self.skin_combo,
-                          self.skins.current_id if self.skins is not None else DEFAULT_SKIN_ID)
-        auto_check = bool(self.config.get("auto_check_update", True))
-        self.auto_check_update_check.blockSignals(True)
-        self.auto_check_update_check.setChecked(auto_check)
-        self.auto_check_update_check.blockSignals(False)
+        # 程序化赋值会触发 textChanged/valueChanged：这段必须挡住自动保存，
+        # 否则每次打开设置页都会"写盘 + 闪一下已保存"。
+        self._loading = True
+        try:
+            self.api_key_edit.setText(self.config.get_api_key())
+            self.model_edit.setText(self.config.get("model", "deepseek-flash"))
+            self.endpoint_edit.setText(
+                str(self.config.get("api_endpoint", "https://api.deepseek.com") or ""))
+            self.temp_edit.setValue(self.config.get("temperature", 0.4))
+            self.max_tokens_edit.setValue(self.config.get("max_tokens", 2000))
+            if self.theme is not None:
+                self._select_data(self.theme_combo, self.theme.current)
+            self._select_data(self.ui_language_combo,
+                              self.i18n.current if self.i18n is not None else "zh_CN")
+            self._select_data(self.skin_combo,
+                              self.skins.current_id if self.skins is not None else DEFAULT_SKIN_ID)
+            auto_check = bool(self.config.get("auto_check_update", True))
+            self.auto_check_update_check.blockSignals(True)
+            self.auto_check_update_check.setChecked(auto_check)
+            self.auto_check_update_check.blockSignals(False)
+        finally:
+            self._loading = False
+        # 记下"当前已落盘的样子"：之后没有真实改动就不写盘
+        self._last_payload = {
+            "model": self.model_edit.text(),
+            "api_endpoint": self.endpoint_edit.text().strip() or "https://api.deepseek.com",
+            "temperature": self.temp_edit.value(),
+            "max_tokens": self.max_tokens_edit.value(),
+            "ui_language": self.ui_language_combo.currentData(),
+        }
+        if self.skins is not None and self.skin_combo.currentData():
+            self._last_payload["skin"] = self.skin_combo.currentData()
+        self._last_appearance = (
+            self._last_payload.get("ui_language"), self._last_payload.get("skin"),
+            self.theme_combo.currentData() if self.theme is not None else None)
 
     @staticmethod
     def _select_data(combo: QComboBox, value):
@@ -767,19 +823,20 @@ class SettingsPage(QWidget):
             combo.setCurrentIndex(index)
 
     def save_settings(self):
-        """把整页设置**一次性**落盘；写盘失败要可见，且不广播 saved。
+        """落盘 + 应用一次（即改即存的唯一出口，页面上已没有"保存"按钮）。
 
-        历史实现逐项 `config.set(...)`：一次保存重写配置文件十余次，
-        中途失败会留下前后不一致的配置，异常也只冒到 stderr（打包后不可见）。
+        - 一次 `config.update()` 写盘：逐项 `set()` 会重写配置文件十余次，中途失败会留下
+          "一半新一半旧"的配置；
+        - **payload 与上次成功写入相同且密钥没改 ⇒ 直接返回**：防抖空转、切 Tab、重复点同一项
+          都不该产生写盘与"已保存"提示；
+        - 写盘失败要可见（底部保留原因），且不广播 saved。
         """
         payload = {
             "model": self.model_edit.text(),
             "api_endpoint": self.endpoint_edit.text().strip() or "https://api.deepseek.com",
             "temperature": self.temp_edit.value(),
             "max_tokens": self.max_tokens_edit.value(),
-            # 动态窗口样式（配色改由主题令牌统一控制）
-            # 提示词语言（与界面语言解耦，由调用方决定是否重建客户端）
-            # 界面语言：保存后由主窗口拉起全局重翻译
+            # 界面语言：落盘后由主窗口拉起全局重翻译
             "ui_language": self.ui_language_combo.currentData(),
         }
         # 桌宠皮肤：写入配置，由主窗口调用 kernel.set_skin 广播 skin.changed
@@ -794,6 +851,9 @@ class SettingsPage(QWidget):
         except Exception:                      # noqa: BLE001 - 读失败按"未改"处理
             stored_key = ""
         api_key_arg = typed_key if typed_key != stored_key else None
+        if api_key_arg is None and payload == self._last_payload:
+            return                             # 没有任何变化：不写盘、不提示、不广播
+
         ok = (self.config.update(payload, api_key=api_key_arg) if api_key_arg is not None
               else self.config.update(payload))
         if not ok:
@@ -802,14 +862,35 @@ class SettingsPage(QWidget):
                                      + (f"：{reason}" if reason else ""))
             return
 
+        appearance_before = self._last_appearance
+        self._last_payload = dict(payload)
+
         # 主题：保存到配置并立即应用（服务会广播 theme.changed）
         if self.theme is not None:
             selected = self.theme_combo.currentData()
             if selected and selected != self.theme.current:
                 self.theme.set_theme(selected)
 
-        self.save_status.setText(self.tr("settings.saved_hint"))
+        appearance_now = (payload.get("ui_language"), payload.get("skin"),
+                          self.theme_combo.currentData() if self.theme is not None else None)
+        self._last_appearance = appearance_now
+        self._show_saved_toast()
         self.saved.emit()
+        if appearance_now != appearance_before:
+            # 外观真的变了才让外壳切语言/皮肤/重刷样式（打字时别每 0.5s 全量重刷）
+            self.appearanceSaved.emit()
+
+    def _show_saved_toast(self) -> None:
+        """"已保存"提示 2 秒后自动消失；失败提示保留到下次成功。"""
+        token = object()
+        self._toast_token = token
+        self.save_status.setText(self.tr("settings.saved_hint"))
+
+        def _clear() -> None:
+            if getattr(self, "_toast_token", None) is token:
+                self.save_status.setText("")
+
+        QTimer.singleShot(SAVED_TOAST_MS, _clear)
 
     def _stop_tester(self, *_args) -> None:
         """页面销毁时先让连接测试线程结束，避免 QThread 运行中被析构（U03）。"""

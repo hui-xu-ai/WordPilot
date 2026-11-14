@@ -248,6 +248,7 @@ class MainWindow(PagesMixin, QMainWindow):
             i18n=self.i18n,
             skins=self.kernel.services.get("skins"))
         settings_page.saved.connect(self._on_settings_saved)
+        settings_page.appearanceSaved.connect(self._on_appearance_saved)
         self._add_builtin_page("settings", settings_page)
         self.settings_page = settings_page
         # 启动后 30 秒查一次更新（错开启动高峰；节流/开关由 update_service 判定，失败静默）
@@ -417,15 +418,25 @@ class MainWindow(PagesMixin, QMainWindow):
                     on_hide=self._on_hidden)
         return wm
 
-    # ---------------- 设置保存后的热应用 ----------------
+    # ---------------- 设置落盘后的热应用 ----------------
     def _on_settings_saved(self):
-        """设置页点保存：写盘已完成，这里负责让改动立即生效。"""
+        """设置页已落盘（即改即存）：这里只做"每次改动都要做"的轻量应用。
+
+        外观类（界面语言/皮肤/主题）走 `_on_appearance_saved`：它们要重刷样式与全量重翻译，
+        不能跟着打字节奏每 0.5 秒跑一次。
+        """
         # 重建 API 客户端，内核会广播 ai.client_changed 让各插件刷新引用
         self.kernel.reload_ai_client()
         # 热键组合可能已变更，按新配置重新绑定
         hotkeys = self.kernel.services.get("hotkeys")
         if hotkeys is not None:
             hotkeys.apply()
+        # 广播一次：需要响应设置变更的插件自行订阅（例如桌宠按需显示/隐藏），
+        # 外壳不认识任何具体插件
+        self.kernel.events.emit("settings.saved", None)
+
+    def _on_appearance_saved(self):
+        """外观真的变了才做的事：切界面语言、换皮肤、重刷样式、全量重翻译。"""
         # 界面语言：内核广播 i18n.language_changed，各常驻界面自行重翻译
         if self.i18n is not None:
             self.kernel.set_language(self.config.get("ui_language", "zh_CN"))
@@ -434,9 +445,6 @@ class MainWindow(PagesMixin, QMainWindow):
         # 主题可能已变更（设置页内部已应用），这里同步外壳
         self.apply_style()
         self.retranslateUi()
-        # 广播一次：需要响应设置变更的插件自行订阅（例如桌宠按需显示/隐藏），
-        # 外壳不认识任何具体插件
-        self.kernel.events.emit("settings.saved", None)
 
     def open_settings(self):
         """兼容旧调用（桌宠右键「设置」等）：设置现在是主窗口内的一页。"""
