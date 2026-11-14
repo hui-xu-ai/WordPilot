@@ -168,36 +168,38 @@ def test_all_eight_skin_choices_are_available(page):
         widget.deleteLater()
 
 
-def test_settings_page_has_no_save_button(page):
-    """B 方案：取消常驻「保存」按钮，改为即改即存（按钮只覆盖部分字段，语义不清）。"""
+def test_only_api_tab_has_save_button(page):
+    """外观即改即存；API 页保留显式「保存」（用户要求：点一下 + 底部明确反馈）。"""
     widget, _manager = page
 
-    assert not hasattr(widget, "save_btn"), "保存按钮应已移除"
-    assert widget.save_settings is not None, "落盘入口仍要保留（防抖定时器与冒烟脚本都用它）"
+    assert widget.api_save_btn is not None, "API 页应有保存按钮"
+    assert not hasattr(widget, "save_btn"), "整页底部不应再有常驻保存按钮"
 
 
-def test_editing_schedules_debounced_save(page):
-    widget, _manager = page
-
-    widget.model_edit.setText("deepseek-reasoner")
-
-    assert widget._save_timer.isActive(), "输入后应启动防抖定时器"
-    assert widget._save_timer.interval() == 500
-
-
-def test_debounced_flush_persists_once(page, monkeypatch):
+def test_api_edits_do_not_autosave(page, monkeypatch):
+    """API 字段改成显式保存：输入过程中不该偷偷写盘（密钥尤其不能"填了就算生效"）。"""
     widget, manager = page
     calls: list[str] = []
     real_save = manager.save
     monkeypatch.setattr(manager, "save", lambda: (calls.append("save"), real_save())[1])
 
-    for text in ("deep", "deepseek-", "deepseek-reasoner"):     # 连续打字
-        widget.model_edit.setText(text)
-    widget._flush_save()                                        # 防抖到点
+    widget.model_edit.setText("deepseek-reasoner")
+    widget.api_key_edit.setText("sk-typed-but-not-saved")
 
-    assert calls == ["save"], f"连续输入只应写一次盘，实际 {len(calls)} 次"
-    assert manager.get("model") == "deepseek-reasoner"
-    assert widget.save_status.text(), "落盘后应有「已保存」提示"
+    assert calls == [], "输入 API 字段不应自动写盘"
+
+
+def test_api_save_button_persists_and_reports(page, monkeypatch):
+    widget, manager = page
+    statuses: list[tuple[str, int]] = []
+    widget.statusMessage.connect(lambda text, ms: statuses.append((text, ms)))
+
+    widget.api_save_btn.click()
+
+    assert manager.get("model") is not None
+    assert statuses, "保存成功后应往底部日志区发一条提示"
+    assert statuses[0][1] > 0, "提示要带停留时长"
+    assert widget.save_status.text(), "页面底部也要有反馈"
 
 
 def test_loading_does_not_trigger_save(page, monkeypatch):
@@ -208,9 +210,9 @@ def test_loading_does_not_trigger_save(page, monkeypatch):
     monkeypatch.setattr(manager, "save", lambda: (calls.append("save"), real_save())[1])
 
     widget.load_settings()
+    widget._flush_save()          # 加载后立即触发也不会写（payload 未变）
 
-    assert calls == [], "load_settings 期间不应写盘"
-    assert not widget._save_timer.isActive()
+    assert calls == [], "load_settings 及其后的空转都不应写盘"
 
 
 @pytest.fixture

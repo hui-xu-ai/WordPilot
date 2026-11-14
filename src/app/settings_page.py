@@ -40,8 +40,6 @@ _NAV_KEYS = ("settings.tab.api", "settings.tab.appearance", "settings.tab.monito
              "settings.tab.storage",
              "settings.tab.about")
 
-#: 即改即存的防抖窗口（毫秒）：连续打字只写一次盘，又不能让用户觉得"没保存"
-SAVE_DEBOUNCE_MS = 500
 #: 底部"已保存"提示停留时长（毫秒）
 SAVED_TOAST_MS = 2000
 
@@ -112,6 +110,8 @@ class SettingsPage(QWidget):
     saved = Signal()
     #: 外观类配置（界面语言/皮肤/主题）发生了变化：外壳据此切语言/皮肤、重刷样式
     appearanceSaved = Signal()
+    #: 底部日志区提示：(文案, 毫秒)。API 保存成功走这里，用户能明确看到结果
+    statusMessage = Signal(str, int)
 
     def __init__(self, config, parent=None, theme=None, i18n=None, skins=None):
         super().__init__(parent)
@@ -124,15 +124,11 @@ class SettingsPage(QWidget):
         self._update_checker: _UpdateChecker | None = None
         self._update_info = None
         self._last_manual_check = 0.0
-        # 即改即存：文本/数值改动防抖 500ms 后落盘；load_settings 期间不触发
+        # 即改即存（外观类）：API 页改为显式保存按钮
         self._loading = False
         self._last_payload: dict | None = None
-        self._last_appearance: tuple | None = None
+        self._last_changed_kinds: tuple[str, ...] = ()
         self._toast_token: object | None = None
-        self._save_timer = QTimer(self)
-        self._save_timer.setSingleShot(True)
-        self._save_timer.setInterval(SAVE_DEBOUNCE_MS)
-        self._save_timer.timeout.connect(self.save_settings)
 
         self.init_ui()
         self.load_settings()
@@ -203,31 +199,33 @@ class SettingsPage(QWidget):
         if 0 <= row < self.stack.count():
             self.stack.setCurrentIndex(row)
 
-    # ---------------- 即改即存 ----------------
+    # ---------------- 落盘（API 显式保存 + 外观即改即存） ----------------
     def _bind_autosave(self) -> None:
-        """把可编辑控件接到自动保存上。
+        """外观类控件接到自动保存上（主题、界面语言下拉：选完即生效）。
 
-        文本/数值用防抖（打字过程中不写盘），下拉框立即落盘并即时生效：
-        主题、界面语言以前只有"点保存"才生效，正是"改了没变"的来源。
+        API 页（模型/端点/密钥/温度/Token）**改为显式保存**：用户要求单独一个保存按钮，
+        并在底部日志区看到"保存成功"；文本输入自动落盘还会让"填了密钥没确认就生效"更难察觉。
         """
-        for edit in (self.model_edit, self.endpoint_edit, self.api_key_edit):
-            edit.textChanged.connect(self._schedule_save)
-        for spin in (self.temp_edit, self.max_tokens_edit):
-            spin.valueChanged.connect(self._schedule_save)
         self.theme_combo.currentIndexChanged.connect(self._flush_save)
         self.ui_language_combo.currentIndexChanged.connect(self._flush_save)
 
-    def _schedule_save(self, *_args) -> None:
-        if self._loading:
-            return
-        self._save_timer.start()
-
     def _flush_save(self, *_args) -> None:
-        """立即落盘（下拉框用；也便于测试直接调用）。"""
-        self._save_timer.stop()
+        """下拉框改动后立即落盘（也便于测试直接调用）。"""
         if self._loading:
             return
         self.save_settings()
+
+    def save_api_settings(self) -> bool:
+        """API 页「保存」按钮：只写 API 相关字段，成功后在底部日志区反馈。
+
+        即使用户没改任何东西（payload 未变、直接返回 True），也要给一次可见反馈 ——
+        他是点了按钮来确认的，静默会让人以为没生效。
+        """
+        if not self.save_settings():
+            return False
+        self._show_saved_toast()
+        self.statusMessage.emit(self.tr("settings.save_ok"), 4000)
+        return True
 
     # ---------------- 桌宠外观 ----------------
     def _on_toggle_api_key(self, shown: bool) -> None:
@@ -352,7 +350,16 @@ class SettingsPage(QWidget):
         self.test_status.setObjectName("hintLabel")
         test_row.addWidget(self.test_status, 1)
         form_host.addLayout(test_row)
-        
+
+        # API 页显式保存：这些字段决定能不能连上模型，用户要求"点一下 + 明确反馈"
+        save_row = QHBoxLayout()
+        save_row.addStretch(1)
+        self.api_save_btn = QPushButton()
+        self.api_save_btn.setProperty("accent", True)
+        self.api_save_btn.clicked.connect(self.save_api_settings)
+        save_row.addWidget(self.api_save_btn)
+        form_host.addLayout(save_row)
+
         layout.addWidget(card)
         layout.addStretch(1)
         return page
@@ -715,6 +722,7 @@ class SettingsPage(QWidget):
         self.label_temperature.setText(self.tr("settings.api.temperature"))
         self.label_max_tokens.setText(self.tr("settings.api.max_tokens"))
         self.api_key_edit.setPlaceholderText(self.tr("settings.api.key_placeholder"))
+        self.api_save_btn.setText(self.tr("settings.btn.save"))
         self.api_key_toggle.setText(
             self.tr("settings.api.key_hide") if self.api_key_toggle.isChecked()
             else self.tr("settings.api.key_show"))
@@ -812,9 +820,6 @@ class SettingsPage(QWidget):
         }
         if self.skins is not None and self.skin_combo.currentData():
             self._last_payload["skin"] = self.skin_combo.currentData()
-        self._last_appearance = (
-            self._last_payload.get("ui_language"), self._last_payload.get("skin"),
-            self.theme_combo.currentData() if self.theme is not None else None)
 
     @staticmethod
     def _select_data(combo: QComboBox, value):
@@ -822,14 +827,18 @@ class SettingsPage(QWidget):
         if index >= 0:
             combo.setCurrentIndex(index)
 
-    def save_settings(self):
-        """落盘 + 应用一次（即改即存的唯一出口，页面上已没有"保存"按钮）。
+    def save_settings(self) -> bool:
+        """落盘 + 应用一次（API 按钮与外观下拉共用这一个出口）。
 
         - 一次 `config.update()` 写盘：逐项 `set()` 会重写配置文件十余次，中途失败会留下
           "一半新一半旧"的配置；
-        - **payload 与上次成功写入相同且密钥没改 ⇒ 直接返回**：防抖空转、切 Tab、重复点同一项
-          都不该产生写盘与"已保存"提示；
+        - **payload 与上次成功写入相同、密钥没改、主题也没换 ⇒ 直接返回**（不写盘、不提示、
+          不广播）：切 Tab、重复选同一项都不该产生副作用；
+        - 主题单独判定：它不在 payload 里（由 `theme.set_theme()` 自己落盘），
+          曾经因为"payload 没变就返回"导致**换了主题不生效**；
         - 写盘失败要可见（底部保留原因），且不广播 saved。
+
+        Returns: 是否真的写成（True 也包括"本来就一致、无需写"的情况）。
         """
         payload = {
             "model": self.model_edit.text(),
@@ -851,8 +860,20 @@ class SettingsPage(QWidget):
         except Exception:                      # noqa: BLE001 - 读失败按"未改"处理
             stored_key = ""
         api_key_arg = typed_key if typed_key != stored_key else None
-        if api_key_arg is None and payload == self._last_payload:
-            return                             # 没有任何变化：不写盘、不提示、不广播
+
+        selected_theme = self.theme_combo.currentData() if self.theme is not None else None
+        theme_changed = bool(selected_theme) and selected_theme != getattr(
+            self.theme, "current", None)
+        if api_key_arg is None and payload == self._last_payload and not theme_changed:
+            return True                        # 没有任何变化：不写盘、不提示、不广播
+
+        changed: list[str] = []
+        if payload.get("ui_language") != (self._last_payload or {}).get("ui_language"):
+            changed.append("language")
+        if payload.get("skin") != (self._last_payload or {}).get("skin"):
+            changed.append("skin")
+        if theme_changed:
+            changed.append("theme")
 
         ok = (self.config.update(payload, api_key=api_key_arg) if api_key_arg is not None
               else self.config.update(payload))
@@ -860,25 +881,24 @@ class SettingsPage(QWidget):
             reason = getattr(self.config, "last_save_error", "") or ""
             self.save_status.setText(self.tr("settings.save_failed")
                                      + (f"：{reason}" if reason else ""))
-            return
+            return False
 
-        appearance_before = self._last_appearance
         self._last_payload = dict(payload)
 
-        # 主题：保存到配置并立即应用（服务会广播 theme.changed）
-        if self.theme is not None:
-            selected = self.theme_combo.currentData()
-            if selected and selected != self.theme.current:
-                self.theme.set_theme(selected)
+        # 主题：由主题服务落盘并广播 theme.changed（外壳收到后只重刷样式，不做重翻译）
+        if theme_changed:
+            self.theme.set_theme(selected_theme)
 
-        appearance_now = (payload.get("ui_language"), payload.get("skin"),
-                          self.theme_combo.currentData() if self.theme is not None else None)
-        self._last_appearance = appearance_now
         self._show_saved_toast()
         self.saved.emit()
-        if appearance_now != appearance_before:
-            # 外观真的变了才让外壳切语言/皮肤/重刷样式（打字时别每 0.5s 全量重刷）
+        if changed:
+            self._last_changed_kinds = tuple(changed)
             self.appearanceSaved.emit()
+
+    @property
+    def last_changed_kinds(self) -> tuple[str, ...]:
+        """上一次落盘改变了哪些外观项（language / skin / theme），外壳据此只做必要的事。"""
+        return tuple(getattr(self, "_last_changed_kinds", ()))
 
     def _show_saved_toast(self) -> None:
         """"已保存"提示 2 秒后自动消失；失败提示保留到下次成功。"""

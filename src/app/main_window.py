@@ -249,6 +249,8 @@ class MainWindow(PagesMixin, QMainWindow):
             skins=self.kernel.services.get("skins"))
         settings_page.saved.connect(self._on_settings_saved)
         settings_page.appearanceSaved.connect(self._on_appearance_saved)
+        # API 保存成功等反馈显示在窗口底部（statusbar 就是用户说的"日志显示区"）
+        settings_page.statusMessage.connect(self._on_status_message)
         self._add_builtin_page("settings", settings_page)
         self.settings_page = settings_page
         # 启动后 30 秒查一次更新（错开启动高峰；节流/开关由 update_service 判定，失败静默）
@@ -436,15 +438,27 @@ class MainWindow(PagesMixin, QMainWindow):
         self.kernel.events.emit("settings.saved", None)
 
     def _on_appearance_saved(self):
-        """外观真的变了才做的事：切界面语言、换皮肤、重刷样式、全量重翻译。"""
-        # 界面语言：内核广播 i18n.language_changed，各常驻界面自行重翻译
-        if self.i18n is not None:
-            self.kernel.set_language(self.config.get("ui_language", "zh_CN"))
-        # 桌宠皮肤：内核广播 skin.changed，桌宠窗口收到后重绘
-        self.kernel.set_skin(self.config.get("skin", DEFAULT_SKIN_ID))
-        # 主题可能已变更（设置页内部已应用），这里同步外壳
-        self.apply_style()
-        self.retranslateUi()
+        """外观真的变了才做的事：按"变了什么"只做必要的那一步。
+
+        实测（离屏）：`apply_style()` 11ms、`retranslateUi()` **355ms**。
+        换主题原本会连带跑一次全量重翻译 ⇒ 明显卡顿；主题不影响任何文案，
+        只重刷样式即可（主题服务已经广播 `theme.changed`，订阅那边会 `apply_style()`）。
+        """
+        page = getattr(self, "settings_page", None)
+        changed = set(page.last_changed_kinds) if page is not None else {"language", "skin"}
+        if "language" in changed and self.i18n is not None:
+            # 语言是真的要全量重翻译（这一步贵，但换语言本来就低频）；
+            # 放到下一轮事件循环，先让下拉框收起、界面不"卡在点击瞬间"
+            QTimer.singleShot(0, lambda: self.kernel.set_language(
+                self.config.get("ui_language", "zh_CN")))
+        if "skin" in changed:
+            self.kernel.set_skin(self.config.get("skin", DEFAULT_SKIN_ID))
+        if "theme" in changed:
+            self.apply_style()          # 兜底：即使没人订阅 theme.changed 也要重刷一次
+
+    def _on_status_message(self, text: str, msec: int) -> None:
+        """设置页 → 窗口底部状态栏提示（statusBar() 懒创建，别在它建好前碰 self.statusbar）。"""
+        self.statusBar().showMessage(str(text), int(msec))
 
     def open_settings(self):
         """兼容旧调用（桌宠右键「设置」等）：设置现在是主窗口内的一页。"""
