@@ -41,6 +41,21 @@ function Info([string]$t) { Write-Output ("  [INFO] " + $t) }
 function Warn([string]$t) { $script:warns++; Write-Output ("  [WARN] " + $t) }
 function Fail([string]$t) { $script:fails++; Write-Output ("  [FAIL] " + $t) }
 
+# proj-core 是否可用：缺了它 `proj.py` 只会打印安装提示并退出 2（**不产出 JSON**），
+# 以前那会被当成"push-check 退出码非 0（无明细）"直接 FAIL —— CI 上就是这么误报的
+# （2026-11-14 现场：GitHub Actions 没装 pydev-proj-core，闸门 G0 失败而本地 PASS）。
+$script:projReady = $null
+function Test-ProjCore([string]$python) {
+  if ($script:projReady -ne $null) { return $script:projReady }
+  $script:projReady = $false
+  try {
+    & $python -c "import proj_core.cli" 2>$null | Out-Null
+    $script:projReady = ($LASTEXITCODE -eq 0)
+  } catch { $script:projReady = $false }
+  return $script:projReady
+}
+$script:projHint = 'python -m pip install --no-index --find-links tools\proj\wheels pydev-proj-core'
+
 if (-not $Config) { $Config = Join-Path $Root 'tools\quality-gate.json' }
 if (-not (Test-Path -LiteralPath $Config)) { Fail ("找不到配置：" + $Config); exit 1 }
 $cfg = Get-Content -LiteralPath $Config -Raw -Encoding utf8 | ConvertFrom-Json
@@ -78,6 +93,10 @@ $projScript = Join-Path $rootFull 'tools\proj\proj.py'
 $py = Get-Command python -ErrorAction SilentlyContinue
 if (-not $py) { Warn "PATH 里没有 python —— 跳过 push-check" }
 elseif (-not (Test-Path -LiteralPath $projScript)) { Warn "未找到 tools\proj\proj.py —— 跳过 push-check（项目未从模板初始化）" }
+elseif (-not (Test-ProjCore 'python')) {
+  # 工具缺失 ≠ 检查失败：只提示安装命令，不阻断（CI 上装了 wheel 才会真跑）
+  Warn ("未安装 pydev-proj-core ⇒ 跳过 push-check / graph / silent（安装：" + $script:projHint + "）")
+}
 else {
   $pushJson = Join-Path $env:TEMP ("proj-pushcheck-" + [guid]::NewGuid().ToString('n') + ".json")
   $pushOut = & python $projScript push-check $rootFull --mode staged --json $pushJson 2>&1 | Out-String
@@ -86,7 +105,11 @@ else {
   else {
     $detail = @($pushOut -split "\r?\n" | Where-Object { $_ -match '\[FAIL\]' })
     if ($detail.Count -gt 0) { foreach ($line in $detail) { Fail ("push-check：" + $line.Trim()) } }
-    else { Fail "push-check 退出码非 0（无明细）" }
+    else {
+      # 不再只说"无明细"：把原始输出尾部带出来，否则排查只能靠猜
+      $tail = @($pushOut -split "\r?\n" | Where-Object { $_.Trim() } | Select-Object -Last 3) -join ' | '
+      Fail ("push-check 退出码 " + $pushCode + "（无明细）；输出尾部：" + $tail)
+    }
   }
   if (Test-Path -LiteralPath $pushJson) { Remove-Item -LiteralPath $pushJson -Force }
 }
@@ -100,12 +123,17 @@ if (Test-Path -LiteralPath $wikiIndex) {
   else { Pass "Wiki 索引新鲜（docs/*.md 未比 index.json 新）" }
 } else { Info "无 docs\wiki\index.json —— 跳过新鲜度检查" }
 # 依赖循环（proj graph）：WARN，不阻断——存量代码可能本来就有环，先可见再谈清理
-if ($py -and (Test-Path -LiteralPath $projScript)) {
+if ($py -and (Test-Path -LiteralPath $projScript) -and (Test-ProjCore 'python')) {
   $graphOut = & python $projScript graph $rootFull --fail-on-cycle 2>&1 | Out-String
   if ($LASTEXITCODE -eq 0) { Pass "依赖无循环（proj graph）" }
   else {
     $cycleLines = @($graphOut -split "\r?\n" | Where-Object { $_ -match '->' })
-    Warn ("依赖存在循环 " + $cycleLines.Count + " 组 ⇒ 跑 python tools\proj\proj.py graph . 查看")
+    if ($cycleLines.Count -gt 0) {
+      Warn ("依赖存在循环 " + $cycleLines.Count + " 组 ⇒ 跑 python tools\proj\proj.py graph . 查看")
+    } else {
+      $tail = @($graphOut -split "\r?\n" | Where-Object { $_.Trim() } | Select-Object -Last 2) -join ' | '
+      Warn ("proj graph 未产出结果（exit " + $LASTEXITCODE + "）：" + $tail)
+    }
   }
 }
 
@@ -335,6 +363,8 @@ else {
 Say "G8 静默失败（异常被吞掉 = 审计盲区）"
 if (-not $py -or -not (Test-Path -LiteralPath $projScript)) {
   Info "缺 python 或 tools\proj\proj.py —— 跳过（项目未从模板初始化）"
+} elseif (-not (Test-ProjCore 'python')) {
+  Info ("未安装 pydev-proj-core —— 跳过（安装：" + $script:projHint + "）")
 } else {
   $silentJson = Join-Path $env:TEMP ("proj-silent-" + [guid]::NewGuid().ToString('n') + ".json")
   # 存量项目用棘轮：`.dsh\silent-baseline.json` 存在时只拦"新增/增长"，

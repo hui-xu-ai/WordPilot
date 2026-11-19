@@ -28,6 +28,18 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      # 闸门的 G0/G8 依赖 proj-core（随仓库带了 wheel）：不装的话 `proj.py` 只会打印
+      # 安装提示并退出 2，闸门会把它误报成"push-check 无明细失败"（2026-11-14 现场）
+      - name: Install proj-core (quality gate helper)
+        shell: pwsh
+        run: |
+          $wheels = 'tools/proj/wheels'
+          if (-not (Test-Path $wheels)) { Write-Host "没有 $wheels，跳过"; exit 0 }
+          $whl = Get-ChildItem $wheels -Filter 'pydev_proj_core-*.whl' | Select-Object -First 1
+          if (-not $whl) { Write-Host "wheel 缺失，跳过"; exit 0 }
+          python -m pip install --no-index --find-links $wheels pydev-proj-core
+          python -c "import proj_core.cli; print('proj-core OK')"
+
       - name: Environment info
         run: |
           python --version
