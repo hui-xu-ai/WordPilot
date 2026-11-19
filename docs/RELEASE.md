@@ -142,6 +142,7 @@ README 里的徽章与链接已指向 `hui-xu-ai/WordPilot`；换账号时全仓
 | quality-gate | FAIL=0（WARN：1 组循环依赖 + 5 个 ≥600 行文件，存量） |
 | 主题 | 新增检查更新；四条全局热键换键并迁移（与 Word 冲突）；设置页即改即存；题录导航修章节筛选与多实例定位 |
 | 发布 | `git push origin main`（19 提交）+ tag `v3.3.0`；GitHub Release 见下方命令 |
+| CI 事故 | 首次推送时 CI 在闸门 G0 失败（`push-check 退出码非 0（无明细）`，本地却 PASS）：CI 没装 `pydev-proj-core`，`tools/proj/proj.py` 只打印安装提示并退出 2、**不产出 JSON**，闸门把"工具缺失"误判成"检查失败"。已修（`6703ab4`）：`ci.yml` 增加步骤用仓库自带 `tools/proj/wheels/*.whl` `pip install --no-index` 装 proj-core；闸门新增 `Test-ProjCore`，缺工具时 WARN 并给安装命令（不再 FAIL），push-check 真失败时输出原始尾部。修复后 main 与 tag `v3.3.0`（已重打到 `6703ab4`）CI 均 success |
 
 ```powershell
 # GitHub Release（需先 gh auth login；或直接在网页上传 zip 并粘贴发布说明）
