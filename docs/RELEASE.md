@@ -141,13 +141,13 @@ README 里的徽章与链接已指向 `hui-xu-ai/WordPilot`；换账号时全仓
 | 单测 | 1030 passed（1 skipped） |
 | quality-gate | FAIL=0（WARN：1 组循环依赖 + 5 个 ≥600 行文件，存量） |
 | 主题 | 新增检查更新；四条全局热键换键并迁移（与 Word 冲突）；设置页即改即存；题录导航修章节筛选与多实例定位 |
-| 发布 | `git push origin main`（19 提交）+ tag `v3.3.0`；GitHub Release 见下方命令 |
+| 发布 | `git push origin main` + tag `v3.3.0`；GitHub Release **已发布**：<https://github.com/hui-xu-ai/WordPilot/releases/tag/v3.3.0>（附件 `WordPilot-v3.3.0-win64.zip`，GitHub 侧 digest 与本地 SHA256 一致） |
+| 发布后校验 | 用客户端自己的 `update_service` 打真实接口：3.3.0 → 已是最新；模拟旧版 3.2.0 → `has_update=True`，下载链接解析到 `…/download/v3.3.0/WordPilot-v3.3.0-win64.zip`（附件命名契约通过） |
 | CI 事故 | 首次推送时 CI 在闸门 G0 失败（`push-check 退出码非 0（无明细）`，本地却 PASS）：CI 没装 `pydev-proj-core`，`tools/proj/proj.py` 只打印安装提示并退出 2、**不产出 JSON**，闸门把"工具缺失"误判成"检查失败"。已修（`6703ab4`）：`ci.yml` 增加步骤用仓库自带 `tools/proj/wheels/*.whl` `pip install --no-index` 装 proj-core；闸门新增 `Test-ProjCore`，缺工具时 WARN 并给安装命令（不再 FAIL），push-check 真失败时输出原始尾部。修复后 main 与 tag `v3.3.0`（已重打到 `6703ab4`）CI 均 success |
 
 ```powershell
-# GitHub Release（需先 gh auth login；或直接在网页上传 zip 并粘贴发布说明）
-gh release create v3.3.0 "D:\Python\Project\WordPilot-release\WordPilot-v3.3.0-win64.zip" `
-  --title "WordPilot v3.3.0" --notes-file "work\release\release-notes-v3.3.0.md"
+# 已执行（2026-11-14）：gh auth login 后发布草稿并更新正文
+gh release edit v3.3.0 --notes-file "work\release\release-notes-v3.3.0.md" --draft=false
 ```
 
 ### v3.2.0（2026-10-28）
